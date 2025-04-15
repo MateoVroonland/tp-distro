@@ -1,0 +1,33 @@
+name: movies-analysis
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  requesthandler:
+    build:
+      context: .
+      dockerfile: cmd/requesthandler/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./docs:/docs
+    command: /requesthandler/request_handler.go
+
+  receiver:
+    build:
+      context: .
+      dockerfile: cmd/receiver/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /receiver/receiver.go
+
