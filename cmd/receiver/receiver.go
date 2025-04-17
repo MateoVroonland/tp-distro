@@ -23,27 +23,12 @@ func main() {
 	}
 	defer ch.Close()
 
-	q, err := ch.QueueDeclare(
-		"movies_metadata",
-		false,
-		false,
-		false,
-		false,
-		nil,
-	)
+	q, err := utils.NewQueue(ch, "movies_metadata", false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	msgs, err := ch.Consume(
-		q.Name, // queue
-		"",     // consumer
-		true,   // auto-ack
-		false,  // exclusive
-		false,  // no-local
-		false,  // no-wait
-		nil,    // args
-	)
+	msgs, err := q.Consume()
 	if err != nil {
 		log.Fatalf("Failed to register a consumer: %v", err)
 	}

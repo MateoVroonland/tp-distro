@@ -34,3 +34,11 @@ func (q *Queue) Publish(body []byte) error {
 
 	return nil
 }
+
+func (q *Queue) Consume() (<-chan amqp.Delivery, error) {
+	msgs, err := q.ch.Consume(q.q.Name, "", false, false, false, false, nil)
+	if err != nil {
+		return nil, err
+	}
+	return msgs, nil
+}
