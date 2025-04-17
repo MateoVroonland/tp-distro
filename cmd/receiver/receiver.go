@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/csv"
 	"log"
+	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -20,7 +23,7 @@ func main() {
 	defer ch.Close()
 
 	q, err := ch.QueueDeclare(
-		"ratings",
+		"movies_metadata",
 		false,
 		false,
 		false,
@@ -40,18 +43,29 @@ func main() {
 		false,  // no-wait
 		nil,    // args
 	)
-    if err != nil {
-        log.Fatalf("Failed to register a consumer: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("Failed to register a consumer: %v", err)
+	}
 
-    var forever chan struct{}
+	var forever chan struct{}
 
-    go func() {
-        for d := range msgs {
-            log.Printf("%s", d.Body)
-        }
-    }()
+	go func() {
+		for d := range msgs {
+			stringLine := string(d.Body)
+			reader := csv.NewReader(strings.NewReader(stringLine))
+			reader.FieldsPerRecord = -1
+			record, err := reader.Read()
+			if err != nil {
+				log.Fatalf("Failed to read record: %v", err)
+			}
 
-    log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-    <-forever
+			movie := messages.Movie{}
+			movie.Deserialize(record)
+
+			log.Printf("%v", movie)
+		}
+	}()
+
+	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
+	<-forever
 }

@@ -1,13 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -28,16 +27,17 @@ func main() {
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go publishFile("ratings", ch, &wg)
-	go publishFile("credits", ch, &wg)
+	// go publishFile("ratings", ch, &wg)
+	// go publishFile("credits", ch, &wg)
 	go publishFile("movies_metadata", ch, &wg)
 
 	wg.Wait()
 }
 
 func publishFile(filename string, ch *amqp.Channel, wg *sync.WaitGroup) error {
-	log.Printf("Publishing file: %s", filename)
 	defer wg.Done()
+
+	log.Printf("Publishing file: %s", filename)
 
 	file, err := os.Open(fmt.Sprintf("docs/%s.csv", filename))
 	if err != nil {
@@ -60,18 +60,19 @@ func publishFile(filename string, ch *amqp.Channel, wg *sync.WaitGroup) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	csvReader := csv.NewReader(file)
-	csvReader.FieldsPerRecord = 0
+	lineReader := bufio.NewReader(file)
+	lineReader.ReadString('\n')
 	for {
-		record, err := csvReader.Read()
+		line, err := lineReader.ReadString('\n')
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return err
 		}
+
 		err = ch.PublishWithContext(ctx, "", q.Name, false, false, amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        []byte(strings.Join(record, ",")),
+			Body:        []byte(line),
 		})
 		if err != nil {
 			return err
