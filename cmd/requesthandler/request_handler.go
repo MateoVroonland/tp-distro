@@ -2,14 +2,13 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"sync"
-	"time"
 
+	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -45,20 +44,10 @@ func publishFile(filename string, ch *amqp.Channel, wg *sync.WaitGroup) error {
 	}
 	defer file.Close()
 
-	q, err := ch.QueueDeclare(
-		filename,
-		false,
-		false,
-		false,
-		false,
-		nil,
-	)
+	q, err := utils.NewQueue(ch, filename, false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	lineReader := bufio.NewReader(file)
 	lineReader.ReadString('\n')
@@ -70,10 +59,7 @@ func publishFile(filename string, ch *amqp.Channel, wg *sync.WaitGroup) error {
 			return err
 		}
 
-		err = ch.PublishWithContext(ctx, "", q.Name, false, false, amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte(line),
-		})
+		err = q.Publish([]byte(line))
 		if err != nil {
 			return err
 		}

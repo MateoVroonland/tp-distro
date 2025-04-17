@@ -1,0 +1,36 @@
+package utils
+
+import (
+	"context"
+	"time"
+
+	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+type Queue struct {
+	ch *amqp.Channel
+	q  amqp.Queue
+}
+
+func NewQueue(ch *amqp.Channel, name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (*Queue, error) {
+	q, err := ch.QueueDeclare(name, durable, autoDelete, exclusive, noWait, args)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Queue{ch: ch, q: q}, nil
+}
+
+func (q *Queue) Publish(body []byte) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := q.ch.PublishWithContext(ctx, "", q.q.Name, false, false, amqp.Publishing{
+		ContentType: "text/plain",
+		Body:        body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
