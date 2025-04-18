@@ -7,6 +7,7 @@ import (
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
+	"github.com/MateoVroonland/tp-distro/internal/reducers"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -69,7 +70,9 @@ func main() {
 			if stringLine == "FINISHED" {
 				log.Printf("Received message: %s", stringLine)
 				q1.Publish([]byte("FINISHED"))
-				q2.Publish([]byte("FINISHED"))
+				for range reducers.BUDGET_REDUCER_AMOUNT {
+					q2.Publish([]byte("FINISHED"))
+				}
 				q3.Publish([]byte("FINISHED"))
 				q4.Publish([]byte("FINISHED"))
 				q5.Publish([]byte("FINISHED"))

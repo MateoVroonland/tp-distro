@@ -11,6 +11,8 @@ import (
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
+const BUDGET_REDUCER_AMOUNT = 1
+
 type BudgetReducer struct {
 	queue        *utils.Queue
 	publishQueue *utils.Queue
@@ -63,7 +65,10 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		return budgets[i].Amount > budgets[j].Amount
 	})
 
-	for _, budget := range budgets[:5] {
+	for _, budget := range budgets {
+		if budget.Amount < 1 {
+			continue
+		}
 		serializedBudget, err := protocol.Serialize(&budget)
 		if err != nil {
 			log.Printf("Failed to serialize budget: %v", err)
@@ -72,6 +77,5 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		r.publishQueue.Publish(serializedBudget)
 	}
 
-	r.publishQueue.Publish([]byte("FINISHED"))
 	return budgetPerCountry
 }

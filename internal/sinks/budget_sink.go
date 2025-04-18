@@ -7,10 +7,9 @@ import (
 	"strings"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
+	"github.com/MateoVroonland/tp-distro/internal/reducers"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
-
-const REDUCER_AMOUNT = 5
 
 type BudgetSink struct {
 	queue *utils.Queue
@@ -23,7 +22,7 @@ func NewBudgetSink(queue *utils.Queue) *BudgetSink {
 
 func (s *BudgetSink) Sink() map[string]int {
 	budgetPerCountry := make(map[string]int)
-	reducersMissing := REDUCER_AMOUNT
+	reducersMissing := reducers.BUDGET_REDUCER_AMOUNT
 	msgs, err := s.queue.Consume()
 	if err != nil {
 		log.Printf("Failed to register a consumer: %v", err)
