@@ -18,22 +18,17 @@ func main() {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 	defer conn.Close()
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	defer ch.Close()
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	// go publishFile("ratings", ch, &wg)
 	// go publishFile("credits", ch, &wg)
-	go publishFile("movies_metadata", ch, &wg)
+	go publishFile("movies_metadata", conn, &wg)
 
 	wg.Wait()
 }
 
-func publishFile(filename string, ch *amqp.Channel, wg *sync.WaitGroup) error {
+func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	log.Printf("Publishing file: %s", filename)
@@ -44,7 +39,7 @@ func publishFile(filename string, ch *amqp.Channel, wg *sync.WaitGroup) error {
 	}
 	defer file.Close()
 
-	q, err := utils.NewQueue(ch, filename, false, false, false, false, nil)
+	q, err := utils.NewQueue(conn, filename, false, false, false, false, nil)
 	if err != nil {
 		return err
 	}

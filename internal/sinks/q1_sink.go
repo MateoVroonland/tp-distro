@@ -7,18 +7,15 @@ import (
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Q1Sink struct {
-	ch                     *amqp.Channel
 	filteredByYearConsumer *utils.Queue
 	resultsProducer        *utils.Queue
 }
 
-func NewQ1Sink(ch *amqp.Channel, filteredByYearConsumer *utils.Queue, resultsProducer *utils.Queue) *Q1Sink {
+func NewQ1Sink(filteredByYearConsumer *utils.Queue, resultsProducer *utils.Queue) *Q1Sink {
 	return &Q1Sink{
-		ch:                     ch,
 		filteredByYearConsumer: filteredByYearConsumer,
 		resultsProducer:        resultsProducer,
 	}

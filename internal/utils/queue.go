@@ -14,7 +14,11 @@ type Queue struct {
 	q  amqp.Queue
 }
 
-func NewQueue(ch *amqp.Channel, name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (*Queue, error) {
+func NewQueue(conn *amqp.Connection, name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (*Queue, error) {
+	ch, err := conn.Channel()
+	if err != nil {
+		return nil, err
+	}
 	q, err := ch.QueueDeclare(name, durable, autoDelete, exclusive, noWait, args)
 	if err != nil {
 		return nil, err

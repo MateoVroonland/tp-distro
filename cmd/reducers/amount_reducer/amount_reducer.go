@@ -15,18 +15,12 @@ func main() {
 	}
 	defer conn.Close()
 
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	defer ch.Close()
-
-	q, err := utils.NewQueue(ch, "movies_metadata_q2", false, false, false, false, nil)
+	q, err := utils.NewQueue(conn, "movies_metadata_q2", false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	publishQueue, err := utils.NewQueue(ch, "budget_sink", false, false, false, false, nil)
+	publishQueue, err := utils.NewQueue(conn, "budget_sink", false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

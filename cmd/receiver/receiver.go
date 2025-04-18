@@ -19,13 +19,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	defer ch.Close()
-
-	q, err := utils.NewQueue(ch, "movies_metadata", false, false, false, false, nil)
+	q, err := utils.NewQueue(conn, "movies_metadata", false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
@@ -39,27 +33,27 @@ func main() {
 
 	go func() {
 
-		q1, err := utils.NewQueue(ch, "movies_metadata_q1", false, false, false, false, nil)
+		q1, err := utils.NewQueue(conn, "movies_metadata_q1", false, false, false, false, nil)
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}
 
-		q2, err := utils.NewQueue(ch, "movies_metadata_q2", false, false, false, false, nil)
+		q2, err := utils.NewQueue(conn, "movies_metadata_q2", false, false, false, false, nil)
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}
 
-		q3, err := utils.NewQueue(ch, "movies_metadata_q3", false, false, false, false, nil)
+		q3, err := utils.NewQueue(conn, "movies_metadata_q3", false, false, false, false, nil)
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}
 
-		q4, err := utils.NewQueue(ch, "movies_metadata_q4", false, false, false, false, nil)
+		q4, err := utils.NewQueue(conn, "movies_metadata_q4", false, false, false, false, nil)
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}
 
-		q5, err := utils.NewQueue(ch, "movies_metadata_q5", false, false, false, false, nil)
+		q5, err := utils.NewQueue(conn, "movies_metadata_q5", false, false, false, false, nil)
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}

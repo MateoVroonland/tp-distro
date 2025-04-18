@@ -8,17 +8,15 @@ import (
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Filter2000s struct {
-	ch *amqp.Channel
 	filteredByCountryConsumer *utils.Queue
-	filteredByYearProducer *utils.Queue
+	filteredByYearProducer    *utils.Queue
 }
 
-func NewFilter2000s(ch *amqp.Channel, filteredByCountryConsumer *utils.Queue, filteredByYearProducer *utils.Queue) *Filter2000s {
-	return &Filter2000s{ch: ch, filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer}
+func NewFilter2000s(filteredByCountryConsumer *utils.Queue, filteredByYearProducer *utils.Queue) *Filter2000s {
+	return &Filter2000s{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer}
 }
 
 func (f *Filter2000s) FilterAndPublish() error {
@@ -58,4 +56,3 @@ func (f *Filter2000s) FilterAndPublish() error {
 	}
 	return nil
 }
-

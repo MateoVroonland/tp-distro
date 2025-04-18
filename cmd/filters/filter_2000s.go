@@ -15,28 +15,22 @@ func main() {
 	}
 	defer conn.Close()
 
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	defer ch.Close()
-
-	filteredByCountryConsumer, err := utils.NewQueue(ch, "movies_metadata_q1", false, false, false, false, nil)
+	filteredByCountryConsumer, err := utils.NewQueue(conn, "movies_metadata_q1", false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	filteredByYearProducer, err := utils.NewQueue(ch, "movies_filtered_by_year_q1", false, false, false, false, nil)
+	filteredByYearProducer, err := utils.NewQueue(conn, "movies_filtered_by_year_q1", false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
 	log.Printf("Filter 2000s initialized")
 
-	filter := filters.NewFilter2000s(ch, filteredByCountryConsumer, filteredByYearProducer)
-	
+	filter := filters.NewFilter2000s(filteredByCountryConsumer, filteredByYearProducer)
+
 	forever := make(chan bool)
 	go filter.FilterAndPublish()
-	
+
 	<-forever
-}	
+}
