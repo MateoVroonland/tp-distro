@@ -47,6 +47,7 @@ func (s *Q1Sink) Reduce() {
 			log.Fatalf("Failed to deserialize movie: %v", err)
 		}
 		results = append(results, movie)
+		log.Printf("results: %v", len(results))
 		log.Printf("results: %v", results)
 	}
 

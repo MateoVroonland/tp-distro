@@ -34,6 +34,14 @@ services:
         condition: service_healthy
     command: /receiver/receiver.go
 
+  ratingsreceiver:
+    build:
+      context: .
+      dockerfile: cmd/ratingsreceiver/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   filter_2000s:
     build:
       context: .

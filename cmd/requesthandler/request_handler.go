@@ -25,8 +25,8 @@ func main() {
 	defer ch.Close()
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	// go publishFile("ratings", ch, &wg)
+	wg.Add(2)
+	go publishFile("ratings", ch, &wg)
 	// go publishFile("credits", ch, &wg)
 	go publishFile("movies_metadata", ch, &wg)
 
