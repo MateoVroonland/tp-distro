@@ -32,7 +32,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    command: /receiver/receiver.go
 
   filter_2000s:
     build:
@@ -51,3 +50,12 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /q1_sink/q1_sink.go
+  amount_reducer:
+    build:
+      context: .
+      dockerfile: cmd/reducers/amount_reducer/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+    command: /amount_reducer/amount_reducer.go

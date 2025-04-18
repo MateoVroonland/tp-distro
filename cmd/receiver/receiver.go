@@ -65,6 +65,16 @@ func main() {
 
 		for d := range msgs {
 			stringLine := string(d.Body)
+
+			if stringLine == "FINISHED" {
+				log.Printf("Received message: %s", stringLine)
+				q1.Publish([]byte("FINISHED"))
+				q2.Publish([]byte("FINISHED"))
+				q3.Publish([]byte("FINISHED"))
+				q4.Publish([]byte("FINISHED"))
+				q5.Publish([]byte("FINISHED"))
+				break
+			}
 			reader := csv.NewReader(strings.NewReader(stringLine))
 			reader.FieldsPerRecord = 24
 			record, err := reader.Read()

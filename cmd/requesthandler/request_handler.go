@@ -54,6 +54,7 @@ func publishFile(filename string, ch *amqp.Channel, wg *sync.WaitGroup) error {
 	for {
 		line, err := lineReader.ReadString('\n')
 		if err == io.EOF {
+			q.Publish([]byte("FINISHED"))
 			break
 		} else if err != nil {
 			return err

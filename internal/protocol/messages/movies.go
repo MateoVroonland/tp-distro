@@ -3,6 +3,7 @@ package messages
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"slices"
 	"strings"
 )
@@ -11,7 +12,6 @@ type Movie struct {
 	Countries []Country
 	RawData   []string
 }
-
 
 type Country struct {
 	Name string `json:"name"`
@@ -32,6 +32,8 @@ const (
 	MovieTitle
 	MovieReleaseDate
 	MovieGenres
+	MovieBudget
+	MovieProductionCountries
 )
 
 func (m *Movie) Deserialize(data []string) error {
@@ -41,11 +43,25 @@ func (m *Movie) Deserialize(data []string) error {
 		return fmt.Errorf("failed to unmarshal production countries: %v", err)
 	}
 
-	m.RawData = make([]string, 4)
+	productionCountries := make([]string, len(m.Countries))
+	for i, c := range m.Countries {
+		productionCountries[i] = c.Name
+	}
+
+	m.RawData = make([]string, 6)
 	m.RawData[MovieID] = data[RawMovieID]
 	m.RawData[MovieTitle] = data[RawMovieTitle]
 	m.RawData[MovieReleaseDate] = data[RawMovieReleaseDate]
 	m.RawData[MovieGenres] = data[RawMovieGenres]
+	m.RawData[MovieBudget] = data[RawMovieBudget]
+	countriesJSON, err := json.Marshal(productionCountries)
+
+	if err != nil {
+		log.Printf("Failed to marshal production countries: %v", err)
+		return err
+	}
+
+	m.RawData[MovieProductionCountries] = string(countriesJSON)
 	return nil
 }
 

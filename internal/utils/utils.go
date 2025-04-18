@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -41,4 +43,14 @@ func (q *Queue) Consume() (<-chan amqp.Delivery, error) {
 		return nil, err
 	}
 	return msgs, nil
+}
+
+func EncodeArrayToCsv(arr []string) string {
+	buf := bytes.NewBuffer(nil)
+	writer := csv.NewWriter(buf)
+
+	writer.Write(arr)
+	writer.Flush()
+
+	return buf.String()
 }
