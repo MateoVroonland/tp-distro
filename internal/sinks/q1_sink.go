@@ -18,7 +18,7 @@ type Q1Sink struct {
 
 func NewQ1Sink(ch *amqp.Channel, filteredByYearConsumer *utils.Queue, resultsProducer *utils.Queue) *Q1Sink {
 	return &Q1Sink{
-		ch:                ch,
+		ch:                     ch,
 		filteredByYearConsumer: filteredByYearConsumer,
 		resultsProducer:        resultsProducer,
 	}
@@ -51,6 +51,5 @@ func (s *Q1Sink) Reduce() {
 	}
 
 	log.Printf("Received %d movies", len(results))
-
 
 }

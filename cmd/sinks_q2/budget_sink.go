@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/MateoVroonland/tp-distro/internal/reducers"
+	"github.com/MateoVroonland/tp-distro/internal/sinks"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -21,15 +21,15 @@ func main() {
 	}
 	defer ch.Close()
 
-	q, err := utils.NewQueue(ch, "movies_metadata_q2", false, false, false, false, nil)
+	filteredByYearConsumer, err := utils.NewQueue(ch, "budget_sink", false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	publishQueue, err := utils.NewQueue(ch, "budget_sink", false, false, false, false, nil)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
+	log.Printf("Q2 sink initialized")
 
-	reducers.NewBudgetReducer(q, publishQueue).Reduce()
+	sink := sinks.NewBudgetSink(filteredByYearConsumer)
+
+	sink.Sink()
+
 }
