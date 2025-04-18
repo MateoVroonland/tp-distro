@@ -16,7 +16,9 @@ func Serialize(v Protocol) ([]byte, error) {
 
 	rawData := v.GetRawData()
 
-	writer.Write(rawData)
+	if err := writer.Write(rawData); err != nil {
+		return nil, err
+	}
 	writer.Flush()
 
 	return buf.Bytes(), nil

@@ -2,18 +2,16 @@ package messages
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"slices"
 	"strings"
-
-	"github.com/MateoVroonland/tp-distro/internal/protocol"
 )
 
 type Movie struct {
-	protocol.Protocol
 	Countries []Country
 	RawData   []string
 }
+
 
 type Country struct {
 	Name string `json:"name"`
@@ -36,12 +34,11 @@ const (
 	MovieGenres
 )
 
-func (m *Movie) Deserialize(data []string) {
+func (m *Movie) Deserialize(data []string) error {
 	jsonStr := strings.ReplaceAll(data[RawMovieProductionCountries], "'", "\"")
 	err := json.Unmarshal([]byte(jsonStr), &m.Countries)
 	if err != nil {
-		log.Printf("Failed to unmarshal production countries: %v", jsonStr)
-		log.Printf("Error: %v", err)
+		return fmt.Errorf("failed to unmarshal production countries: %v", err)
 	}
 
 	m.RawData = make([]string, 4)
@@ -49,6 +46,7 @@ func (m *Movie) Deserialize(data []string) {
 	m.RawData[MovieTitle] = data[RawMovieTitle]
 	m.RawData[MovieReleaseDate] = data[RawMovieReleaseDate]
 	m.RawData[MovieGenres] = data[RawMovieGenres]
+	return nil
 }
 
 func (m *Movie) GetRawData() []string {

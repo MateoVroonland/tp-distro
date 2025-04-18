@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -65,46 +66,54 @@ func main() {
 		for d := range msgs {
 			stringLine := string(d.Body)
 			reader := csv.NewReader(strings.NewReader(stringLine))
-			reader.FieldsPerRecord = -1
+			reader.FieldsPerRecord = 24
 			record, err := reader.Read()
 			if err != nil {
-				log.Fatalf("Failed to read record: %v", err)
+				log.Printf("Failed to read record: %v", err)
+				continue
 			}
 
-			movie := messages.Movie{}
-			movie.Deserialize(record)
+			movie := &messages.Movie{}
+			if err := movie.Deserialize(record); err != nil {
+				log.Printf("Failed to deserialize movie: %v", err)
+				continue
+			}
+			serializedMovie, err := protocol.Serialize(movie)
+			if err != nil {
+				log.Printf("Failed to serialize movie: %v", err)
+				continue
+			}
 
-			if movie.IncludesAllCountries([]string{"Spain", "Argentina"}) {
-				err = q1.Publish(d.Body)
+			if movie.IncludesAllCountries([]string{"Argentina", "Spain"}) {
+				err = q1.Publish(serializedMovie)
 				if err != nil {
 					log.Fatalf("Failed to publish to queue 1: %v", err)
 				}
 			}
 
 			if len(movie.Countries) == 1 {
-				err = q2.Publish(d.Body)
+				err = q2.Publish(serializedMovie)
 				if err != nil {
 					log.Fatalf("Failed to publish to queue 2: %v", err)
 				}
 			}
 
 			if movie.IncludesAllCountries([]string{"Argentina"}) {
-				err = q3.Publish(d.Body)
+				err = q3.Publish(serializedMovie)
 				if err != nil {
 					log.Fatalf("Failed to publish to queue 3: %v", err)
 				}
-				err = q4.Publish(d.Body)
+				err = q4.Publish(serializedMovie)
 				if err != nil {
 					log.Fatalf("Failed to publish to queue 4: %v", err)
 				}
 			}
 
-			err = q5.Publish(d.Body)
+			err = q5.Publish(serializedMovie)
 			if err != nil {
 				log.Fatalf("Failed to publish to queue 5: %v", err)
 			}
 
-			log.Printf("%v", movie)
 		}
 	}()
 
