@@ -13,10 +13,11 @@ class Queue:
         self.queue_name = name
 
     def publish(self, body):
+        encoded_body = body.encode('utf-8')
         self.channel.basic_publish(
             exchange='',
             routing_key=self.queue_name,
-            body=body
+            body=encoded_body
         )
 
     def consume(self, auto_ack, callback):

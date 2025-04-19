@@ -1,11 +1,11 @@
 import logging
 from transformers import pipeline
 
-RawMovieBudget = 2
-RawMovieID = 5
-RawMovieOverview = 9
-RawMovieRevenue = 15
-RawMovieTitle = 20
+MovieID = 0
+MovieTitle = 1
+MovieBudget = 3
+MovieRevenue = 6
+MovieOverview = 7
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,13 +30,14 @@ class SentimentWorker:
 
     def process_message(self, ch, method, properties, body):        
         try:
-            logger.info(f"Received message: {body}")
-            movie_data = body.split(',').strip()
-            movie_id = movie_data[RawMovieID]
-            movie_title = movie_data[RawMovieTitle]
-            movie_budget = movie_data[RawMovieBudget]
-            movie_revenue = movie_data[RawMovieRevenue]
-            overview = movie_data[RawMovieOverview]
+            message_str = body.decode('utf-8').strip()
+            logger.info(f"Received message: {message_str}")
+            movie_data = message_str.split(',')
+            movie_id = movie_data[MovieID]
+            movie_title = movie_data[MovieTitle]
+            movie_budget = movie_data[MovieBudget]
+            movie_revenue = movie_data[MovieRevenue]
+            overview = movie_data[MovieOverview]
 
             sentiment_result = self.analyze_sentiment(overview)
             
