@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/MateoVroonland/tp-distro/internal/filters"
+	"github.com/MateoVroonland/tp-distro/internal/protocol"
+	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -19,8 +21,8 @@ func main() {
 
 	query := os.Getenv("QUERY")
 
-	if query == "" {
-		log.Fatalf("QUERY must be set")
+	if query != "1" && query != "3" && query != "4" {
+		log.Fatalf("QUERY must be set to 1, 3 or 4")
 	}
 
 	consumeQueueName := fmt.Sprintf("movies_metadata_q%s", query)
@@ -38,7 +40,16 @@ func main() {
 
 	log.Printf("Filter 2000s initialized")
 
-	filter := filters.NewFilter2000s(filteredByCountryConsumer, filteredByYearProducer)
+	var outputMessage protocol.MovieToFilter
+	switch query {
+	case "1":
+		outputMessage = &messages.Q1Movie{}
+	case "3":
+		log.Fatalf("Query 3 not implemented")
+	case "4":
+		outputMessage = &messages.Q4Movie{}
+	}
+	filter := filters.NewFilter2000s(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
 
 	forever := make(chan bool)
 	go filter.FilterAndPublish()

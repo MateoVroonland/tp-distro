@@ -24,7 +24,7 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	// go publishFile("ratings", ch, &wg)
-	// go publishFile("credits", ch, &wg)
+	go publishFile("credits", conn, &wg)
 	go publishFile("movies_metadata", conn, &wg)
 
 	go func() {

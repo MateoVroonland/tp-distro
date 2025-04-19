@@ -90,3 +90,22 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /budget_sink/budget_sink.go
+
+  credits_joiner:
+    environment:
+      ID: 1
+    build:
+      context: .
+      dockerfile: cmd/joiners_q4/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  credits_receiver:
+    build:
+      context: .
+      dockerfile: cmd/credits_receiver/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /credits_receiver/credits_receiver.go

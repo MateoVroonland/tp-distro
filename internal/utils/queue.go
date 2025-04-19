@@ -86,7 +86,7 @@ func (q *ConsumerQueue) CloseChannel() error {
 
 type ProducerQueue struct {
 	ch           *amqp.Channel
-	queueName    string
+	QueueName    string
 	exchangeName string
 }
 
@@ -109,11 +109,11 @@ func NewProducerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 		return nil, err
 	}
 
-	return &ProducerQueue{ch: ch, queueName: queueName, exchangeName: exchangeName}, nil
+	return &ProducerQueue{ch: ch, QueueName: queueName, exchangeName: exchangeName}, nil
 }
 
 func (q *ProducerQueue) Publish(body []byte) error {
-	return q.PublishWithRoutingKey(body, q.queueName)
+	return q.PublishWithRoutingKey(body, q.QueueName)
 }
 
 func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string) error {
