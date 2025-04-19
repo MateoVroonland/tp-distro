@@ -13,6 +13,10 @@ type ConsumerQueue struct {
 }
 
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string) (*ConsumerQueue, error) {
+	return NewConsumerQueueWithRoutingKey(conn, queueName, exchangeName, queueName)
+}
+
+func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exchangeName string, routingKey string) (*ConsumerQueue, error) {
 	ch, err := conn.Channel()
 	if err != nil {
 		return nil, err
@@ -37,11 +41,11 @@ func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 	}
 
 	err = ch.QueueBind(
-		queueName,    // queue name
-		queueName,    // routing key (can be the same as the queue name, or different)
-		exchangeName, // exchange
-		false,        // noWait
-		nil,          // arguments
+		queueName,
+		routingKey,
+		exchangeName,
+		false,
+		nil,
 	)
 	if err != nil {
 		return nil, err
@@ -49,25 +53,6 @@ func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 
 	return &ConsumerQueue{ch: ch, queueName: queueName}, nil
 }
-
-// func (q *Queue) Publish(body []byte, routingKey string) error {
-// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-// 	defer cancel()
-// 	err := q.ch.PublishWithContext(ctx,
-// 		q.exchangeName, // exchange
-// 		routingKey,     // routing key
-// 		false,          // mandatory
-// 		false,          // immediate
-// 		amqp.Publishing{
-// 			ContentType: "text/plain",
-// 			Body:        body,
-// 		})
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
 
 func (q *ConsumerQueue) Consume() (<-chan amqp.Delivery, error) {
 	msgs, err := q.ch.Consume(
@@ -128,9 +113,13 @@ func NewProducerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 }
 
 func (q *ProducerQueue) Publish(body []byte) error {
+	return q.PublishWithRoutingKey(body, q.queueName)
+}
+
+func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string) error {
 	err := q.ch.Publish(
 		q.exchangeName, // exchange
-		q.queueName,    // routing key
+		routingKey,     // routing key
 		false,          // mandatory
 		false,          // immediate
 		amqp.Publishing{

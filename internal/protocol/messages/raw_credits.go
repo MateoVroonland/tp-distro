@@ -6,7 +6,6 @@ import (
 
 type RawCredits struct {
 	MovieID int
-	Cast    string
 	RawData []string
 }
 
@@ -21,7 +20,6 @@ func (r *RawCredits) Deserialize(data []string) error {
 	if err != nil {
 		return err
 	}
-	r.Cast = data[0]
 	rawData := make([]string, 2)
 	rawData[0] = data[2]
 	rawData[1] = data[0]
