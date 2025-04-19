@@ -27,6 +27,8 @@ func (f *Filter2000s) FilterAndPublish() error {
 	}
 
 	for msg := range msgs {
+		msg.Ack(false)
+
 		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)
 

@@ -42,7 +42,7 @@ func (q *Queue) Publish(body []byte) error {
 }
 
 func (q *Queue) Consume() (<-chan amqp.Delivery, error) {
-	msgs, err := q.ch.Consume(q.q.Name, "", true, false, false, false, nil)
+	msgs, err := q.ch.Consume(q.q.Name, "", false, false, false, false, nil)
 	if err != nil {
 		return nil, err
 	}

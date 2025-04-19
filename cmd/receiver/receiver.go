@@ -59,6 +59,8 @@ func main() {
 	defer q5.CloseChannel()
 
 	for d := range msgs {
+		d.Ack(false)
+
 		stringLine := string(d.Body)
 
 		if stringLine == "FINISHED" {
@@ -72,6 +74,7 @@ func main() {
 			q5.Publish([]byte("FINISHED"))
 			break
 		}
+
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 24
 		record, err := reader.Read()

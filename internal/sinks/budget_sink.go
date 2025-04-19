@@ -28,6 +28,8 @@ func (s *BudgetSink) Sink() map[string]int {
 		log.Printf("Failed to register a consumer: %v", err)
 	}
 	for d := range msgs {
+		d.Ack(false)
+
 		stringLine := string(d.Body)
 		log.Printf("Received message: %s", stringLine)
 

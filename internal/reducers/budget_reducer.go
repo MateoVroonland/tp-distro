@@ -28,10 +28,13 @@ func (r *BudgetReducer) Reduce() map[string]int {
 	i := 0
 	msgs, err := r.queue.Consume()
 	defer r.queue.CloseChannel()
+	defer r.publishQueue.CloseChannel()
+
 	if err != nil {
 		log.Printf("Failed to register a consumer: %v", err)
 	}
 	for d := range msgs {
+		d.Ack(false)
 		stringLine := string(d.Body)
 
 		if stringLine == "FINISHED" {
@@ -76,6 +79,7 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		}
 		r.publishQueue.Publish(serializedBudget)
 	}
+	r.publishQueue.Publish([]byte("FINISHED"))
 
 	return budgetPerCountry
 }

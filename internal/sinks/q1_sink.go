@@ -31,8 +31,15 @@ func (s *Q1Sink) Reduce() {
 
 	log.Printf("Q1 sink consuming messages")
 	for msg := range msgs {
-		log.Printf("Received message: %s", string(msg.Body))
+		msg.Ack(false)
+
 		stringLine := string(msg.Body)
+
+		if string(msg.Body) == "FINISHED" {
+			log.Printf("Received termination message")
+			break
+		}
+
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
 		if err != nil {
