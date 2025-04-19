@@ -34,11 +34,11 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		log.Printf("Failed to register a consumer: %v", err)
 	}
 	for d := range msgs {
-		d.Ack(false)
 		stringLine := string(d.Body)
 
 		if stringLine == "FINISHED" {
 			log.Printf("Received termination message")
+			d.Ack(false)
 			break
 		}
 		i++
@@ -48,6 +48,7 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
+			d.Nack(false, false)
 			continue
 		}
 
@@ -55,10 +56,12 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		err = movieBudget.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
+			d.Nack(false, false)
 			continue
 		}
 
 		budgetPerCountry[movieBudget.Country] += movieBudget.Amount
+		d.Ack(false)
 	}
 
 	log.Printf("Total movies processed: %d", i)

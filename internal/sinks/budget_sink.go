@@ -28,7 +28,6 @@ func (s *BudgetSink) Sink() map[string]int {
 		log.Printf("Failed to register a consumer: %v", err)
 	}
 	for d := range msgs {
-		d.Ack(false)
 
 		stringLine := string(d.Body)
 		log.Printf("Received message: %s", stringLine)
@@ -36,6 +35,7 @@ func (s *BudgetSink) Sink() map[string]int {
 		if stringLine == "FINISHED" {
 			log.Printf("Received termination message")
 			reducersMissing--
+			d.Ack(false)
 			if reducersMissing == 0 {
 				break
 			}
@@ -47,6 +47,7 @@ func (s *BudgetSink) Sink() map[string]int {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
+			d.Nack(false, false)
 			continue
 		}
 
@@ -54,11 +55,12 @@ func (s *BudgetSink) Sink() map[string]int {
 		err = movieBudget.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
+			d.Nack(false, false)
 			continue
 		}
 
 		budgetPerCountry[movieBudget.Country] += movieBudget.Amount
-
+		d.Ack(false)
 	}
 
 	budgets := messages.ParseBudgetMap(budgetPerCountry)

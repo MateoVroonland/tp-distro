@@ -31,7 +31,6 @@ func (s *Q1Sink) Reduce() {
 
 	log.Printf("Q1 sink consuming messages")
 	for msg := range msgs {
-		msg.Ack(false)
 
 		stringLine := string(msg.Body)
 
@@ -43,15 +42,20 @@ func (s *Q1Sink) Reduce() {
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
 		if err != nil {
-			log.Fatalf("Failed to read record: %v", err)
+			log.Printf("Failed to read record: %v", err)
+			msg.Nack(false, false)
+			continue
 		}
 		var movie messages.Q1SinkMovie
 		err = movie.Deserialize(record)
 		if err != nil {
-			log.Fatalf("Failed to deserialize movie: %v", err)
+			log.Printf("Failed to deserialize movie: %v", err)
+			msg.Nack(false, false)
+			continue
 		}
 		results = append(results, movie)
 		log.Printf("results: %v", results)
+		msg.Ack(false)
 	}
 
 	log.Printf("Received %d movies", len(results))

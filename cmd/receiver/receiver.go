@@ -59,7 +59,6 @@ func main() {
 	defer q5.CloseChannel()
 
 	for d := range msgs {
-		d.Ack(false)
 
 		stringLine := string(d.Body)
 
@@ -72,6 +71,7 @@ func main() {
 			q3.Publish([]byte("FINISHED"))
 			q4.Publish([]byte("FINISHED"))
 			q5.Publish([]byte("FINISHED"))
+			d.Ack(false)
 			break
 		}
 
@@ -80,50 +80,55 @@ func main() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
+			d.Nack(false, false)
 			continue
 		}
 
 		movie := &messages.Movie{}
 		if err := movie.Deserialize(record); err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
+			d.Nack(false, false)
 			continue
 		}
 		serializedMovie, err := protocol.Serialize(movie)
 		if err != nil {
 			log.Printf("Failed to serialize movie: %v", err)
+			d.Nack(false, false)
 			continue
 		}
 
 		if movie.IncludesAllCountries([]string{"Argentina", "Spain"}) {
 			err = q1.Publish(serializedMovie)
 			if err != nil {
-				log.Fatalf("Failed to publish to queue 1: %v", err)
+				log.Printf("Failed to publish to queue 1: %v", err)
+
 			}
 		}
 
 		if len(movie.Countries) == 1 {
 			err = q2.Publish(serializedMovie)
 			if err != nil {
-				log.Fatalf("Failed to publish to queue 2: %v", err)
+				log.Printf("Failed to publish to queue 2: %v", err)
 			}
 		}
 
 		if movie.IncludesAllCountries([]string{"Argentina"}) {
 			err = q3.Publish(serializedMovie)
 			if err != nil {
-				log.Fatalf("Failed to publish to queue 3: %v", err)
+				log.Printf("Failed to publish to queue 3: %v", err)
 			}
 			err = q4.Publish(serializedMovie)
 			if err != nil {
-				log.Fatalf("Failed to publish to queue 4: %v", err)
+				log.Printf("Failed to publish to queue 4: %v", err)
 			}
 		}
 
 		err = q5.Publish(serializedMovie)
 		if err != nil {
-			log.Fatalf("Failed to publish to queue 5: %v", err)
+			log.Printf("Failed to publish to queue 5: %v", err)
 		}
 
+		d.Ack(false)
 	}
 
 	defer conn.Close()

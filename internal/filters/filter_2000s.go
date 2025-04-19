@@ -27,13 +27,13 @@ func (f *Filter2000s) FilterAndPublish() error {
 	}
 
 	for msg := range msgs {
-		msg.Ack(false)
 
 		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
 			log.Printf("Received termination message")
+			msg.Ack(false)
 			break
 		}
 
@@ -41,26 +41,32 @@ func (f *Filter2000s) FilterAndPublish() error {
 		reader.FieldsPerRecord = 6
 		record, err := reader.Read()
 		if err != nil {
-			return err
+			log.Printf("Failed to read record: %v", err)
+			msg.Nack(false, false)
+			continue
 		}
 		movie := &messages.Q1Movie{}
 		if err := movie.Deserialize(record); err != nil {
 			log.Printf("Failed to deserialize movie: %s", string(msg.Body))
 			log.Printf("Error deserializing movie: %s", err)
-			return err
+			msg.Nack(false, false)
+			continue
 		}
 		if movie.Is2000s() {
 			serializedMovie, err := protocol.Serialize(movie)
 			if err != nil {
 				log.Printf("Error serializing movie: %s", err)
-				return err
+				msg.Nack(false, false)
+				continue
 			}
 			err = f.filteredByYearProducer.Publish(serializedMovie)
 			if err != nil {
 				log.Printf("Error publishing movie: %s", err)
-				return err
+				msg.Nack(false, false)
+				continue
 			}
 			log.Printf("Published message: %s", string(serializedMovie))
+			msg.Ack(false)
 		}
 	}
 	return nil
