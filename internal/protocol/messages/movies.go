@@ -2,15 +2,13 @@ package messages
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"slices"
 	"strings"
-
-	"github.com/MateoVroonland/tp-distro/internal/protocol"
 )
 
 type Movie struct {
-	protocol.Protocol
 	Countries []Country
 	RawData   []string
 }
@@ -34,21 +32,37 @@ const (
 	MovieTitle
 	MovieReleaseDate
 	MovieGenres
+	MovieBudget
+	MovieProductionCountries
 )
 
-func (m *Movie) Deserialize(data []string) {
+func (m *Movie) Deserialize(data []string) error {
 	jsonStr := strings.ReplaceAll(data[RawMovieProductionCountries], "'", "\"")
 	err := json.Unmarshal([]byte(jsonStr), &m.Countries)
 	if err != nil {
-		log.Printf("Failed to unmarshal production countries: %v", jsonStr)
-		log.Printf("Error: %v", err)
+		return fmt.Errorf("failed to unmarshal production countries: %v", err)
 	}
 
-	m.RawData = make([]string, 4)
+	productionCountries := make([]string, len(m.Countries))
+	for i, c := range m.Countries {
+		productionCountries[i] = c.Name
+	}
+
+	m.RawData = make([]string, 6)
 	m.RawData[MovieID] = data[RawMovieID]
 	m.RawData[MovieTitle] = data[RawMovieTitle]
 	m.RawData[MovieReleaseDate] = data[RawMovieReleaseDate]
 	m.RawData[MovieGenres] = data[RawMovieGenres]
+	m.RawData[MovieBudget] = data[RawMovieBudget]
+	countriesJSON, err := json.Marshal(productionCountries)
+
+	if err != nil {
+		log.Printf("Failed to marshal production countries: %v", err)
+		return err
+	}
+
+	m.RawData[MovieProductionCountries] = string(countriesJSON)
+	return nil
 }
 
 func (m *Movie) GetRawData() []string {

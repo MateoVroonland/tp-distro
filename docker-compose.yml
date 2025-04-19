@@ -5,6 +5,9 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    volumes:
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./definitions.json:/etc/rabbitmq/definitions.json:ro
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 10s
@@ -29,5 +32,48 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    command: /receiver/receiver.go
 
+  ratingsreceiver:
+    build:
+      context: .
+      dockerfile: cmd/ratingsreceiver/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  filter_2000s:
+    build:
+      context: .
+      dockerfile: cmd/filters/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /filter_2000s/filter_2000s.go
+
+  q1_sink:
+    build:
+      context: .
+      dockerfile: cmd/sinks/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /q1_sink/q1_sink.go
+  amount_reducer:
+    build:
+      context: .
+      dockerfile: cmd/reducers/amount_reducer/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /amount_reducer/amount_reducer.go
+    deploy:
+      replicas: 5
+
+  budget_sink:
+    build:
+      context: .
+      dockerfile: cmd/sinks_q2/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /budget_sink/budget_sink.go

@@ -1,9 +1,6 @@
 package protocol
 
-import (
-	"bytes"
-	"encoding/csv"
-)
+import "github.com/MateoVroonland/tp-distro/internal/utils"
 
 type Protocol interface {
 	Deserialize(data []string) error
@@ -11,13 +8,7 @@ type Protocol interface {
 }
 
 func Serialize(v Protocol) ([]byte, error) {
-	buf := bytes.NewBuffer(nil)
-	writer := csv.NewWriter(buf)
+	stringLine := utils.EncodeArrayToCsv(v.GetRawData())
 
-	rawData := v.GetRawData()
-
-	writer.Write(rawData)
-	writer.Flush()
-
-	return buf.Bytes(), nil
+	return []byte(stringLine), nil
 }

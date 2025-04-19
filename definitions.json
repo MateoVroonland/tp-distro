@@ -1,0 +1,66 @@
+{
+    "queues": [
+        {
+            "name": "movies_metadata_q1",
+            "vhost": "/",
+            "durable": false,
+            "auto_delete": false,
+            "arguments": {
+                "x-queue-type": "classic"
+            }
+        },
+        {
+            "name": "movies_filtered_by_year_q1",
+            "vhost": "/",
+            "durable": false,
+            "auto_delete": false,
+            "arguments": {
+                "x-queue-type": "classic"
+            }
+        },
+        {
+            "name": "movies_metadata",
+            "vhost": "/",
+            "durable": false,
+            "auto_delete": false,
+            "arguments": {
+                "x-queue-type": "classic"
+            }
+        },
+        {
+            "name": "results",
+            "vhost": "/",
+            "durable": false,
+            "auto_delete": false,
+            "arguments": {
+                "x-queue-type": "classic"
+            }
+        }
+    ],
+    
+    "users": [
+        {
+          "name": "guest",
+          "password_hash": "BMfxN8drrYcIqXZMr+pWTpDT0nMcOagMduLX0bjr4jwud/pN",
+          "hashing_algorithm": "rabbit_password_hashing_sha256",
+          "tags": [
+            "administrator"
+          ],
+          "limits": {}
+        }
+      ],
+      "vhosts": [
+        {
+          "name": "/"
+        }
+      ],
+      "permissions": [
+        {
+          "user": "guest",
+          "vhost": "/",
+          "configure": ".*",
+          "write": ".*",
+          "read": ".*"
+        }
+      ]
+}

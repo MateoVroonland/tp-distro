@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -12,7 +14,11 @@ type Queue struct {
 	q  amqp.Queue
 }
 
-func NewQueue(ch *amqp.Channel, name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (*Queue, error) {
+func NewQueue(conn *amqp.Connection, name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (*Queue, error) {
+	ch, err := conn.Channel()
+	if err != nil {
+		return nil, err
+	}
 	q, err := ch.QueueDeclare(name, durable, autoDelete, exclusive, noWait, args)
 	if err != nil {
 		return nil, err
@@ -41,4 +47,18 @@ func (q *Queue) Consume() (<-chan amqp.Delivery, error) {
 		return nil, err
 	}
 	return msgs, nil
+}
+
+func EncodeArrayToCsv(arr []string) string {
+	buf := bytes.NewBuffer(nil)
+	writer := csv.NewWriter(buf)
+
+	writer.Write(arr)
+	writer.Flush()
+
+	return buf.String()
+}
+
+func (q *Queue) CloseChannel() error {
+	return q.ch.Close()
 }
