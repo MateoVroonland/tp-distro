@@ -6,12 +6,9 @@ import (
 	"log"
 	"strconv"
 	"strings"
-
-	"github.com/MateoVroonland/tp-distro/internal/protocol"
 )
 
 type Budget struct {
-	protocol.Protocol
 	Amount  int
 	Country string
 	RawData []string

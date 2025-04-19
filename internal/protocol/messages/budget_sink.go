@@ -3,12 +3,9 @@ package messages
 import (
 	"log"
 	"strconv"
-
-	"github.com/MateoVroonland/tp-distro/internal/protocol"
 )
 
 type BudgetSink struct {
-	protocol.Protocol
 	Amount  int
 	Country string
 	RawData []string
