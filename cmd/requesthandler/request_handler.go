@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"sync"
 
+	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -20,10 +22,44 @@ func main() {
 	defer conn.Close()
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
+	wg.Add(2)
 	// go publishFile("ratings", ch, &wg)
 	// go publishFile("credits", ch, &wg)
 	go publishFile("movies_metadata", conn, &wg)
+
+	go func() {
+		var results messages.Results
+		resultsConsumer, err := utils.NewQueue(conn, "results", false, false, false, false, nil)
+		if err != nil {
+			log.Fatalf("Failed to declare a queue: %v", err)
+		}
+
+		msgs, err := resultsConsumer.Consume()
+		if err != nil {
+			log.Fatalf("Failed to register a consumer: %v", err)
+		}
+		queries := 5
+
+		for d := range msgs {
+			err = json.Unmarshal(d.Body, &results)
+			if err != nil {
+				log.Printf("Failed to unmarshal results: %v", err)
+				continue
+			}
+			queries--
+			if queries == 0 {
+				break
+			}
+
+			jsonBytes, err := json.Marshal(results.Query1)
+			if err != nil {
+				fmt.Printf("Error al convertir a JSON: %v\n", err)
+				return
+			}
+			fmt.Println(string(jsonBytes))
+		}
+
+	}()
 
 	wg.Wait()
 }
