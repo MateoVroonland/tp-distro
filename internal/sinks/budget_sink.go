@@ -43,7 +43,6 @@ func (s *BudgetSink) Sink() map[string]int {
 		}
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
-		reader.FieldsPerRecord = 2
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)

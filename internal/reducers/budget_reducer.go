@@ -44,7 +44,6 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
-		reader.FieldsPerRecord = 6
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
