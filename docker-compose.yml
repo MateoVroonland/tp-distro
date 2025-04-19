@@ -85,3 +85,12 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  sentiment_reducer:
+    build:
+      context: .
+      dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /sentiment_reducer/sentiment_reducer.go
