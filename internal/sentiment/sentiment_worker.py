@@ -1,11 +1,24 @@
 import logging
 from transformers import pipeline
+import csv
+from io import StringIO
 
 MovieID = 0
 MovieTitle = 1
-MovieBudget = 3
+MovieBudget = 4
 MovieRevenue = 6
 MovieOverview = 7
+
+# const (
+# 	MovieID = iota
+# 	MovieTitle
+# 	MovieReleaseDate
+# 	MovieGenres
+# 	MovieBudget
+# 	MovieProductionCountries
+# 	MovieRevenue
+# 	MovieOverview
+# )
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,7 +45,8 @@ class SentimentWorker:
         try:
             message_str = body.decode('utf-8').strip()
             logger.info(f"Received message: {message_str}")
-            movie_data = message_str.split(',')
+            csv_reader = csv.reader(StringIO(message_str))
+            movie_data = next(csv_reader)
             movie_id = movie_data[MovieID]
             movie_title = movie_data[MovieTitle]
             movie_budget = movie_data[MovieBudget]

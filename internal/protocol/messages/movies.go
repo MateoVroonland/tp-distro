@@ -34,6 +34,8 @@ const (
 	MovieGenres
 	MovieBudget
 	MovieProductionCountries
+	MovieRevenue
+	MovieOverview
 )
 
 func (m *Movie) Deserialize(data []string) error {
@@ -48,7 +50,7 @@ func (m *Movie) Deserialize(data []string) error {
 		productionCountries[i] = c.Name
 	}
 
-	m.RawData = make([]string, 6)
+	m.RawData = make([]string, 8)
 	m.RawData[MovieID] = data[RawMovieID]
 	m.RawData[MovieTitle] = data[RawMovieTitle]
 	m.RawData[MovieReleaseDate] = data[RawMovieReleaseDate]
@@ -62,6 +64,8 @@ func (m *Movie) Deserialize(data []string) error {
 	}
 
 	m.RawData[MovieProductionCountries] = string(countriesJSON)
+	m.RawData[MovieRevenue] = data[RawMovieRevenue]
+	m.RawData[MovieOverview] = data[RawMovieOverview]
 	return nil
 }
 

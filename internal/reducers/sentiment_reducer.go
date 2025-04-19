@@ -4,9 +4,9 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -57,50 +57,31 @@ func (r *SentimentReducer) Reduce() {
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
+		log.Printf("Received message in Sentiment reducer: %s", stringLine)
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			d.Nack(false, false)
 			continue
 		}
 
-		if len(record) < 5 {
-			log.Printf("Invalid record format: %v", record)
+		var movieSentiment messages.SentimentAnalysis
+		err = movieSentiment.Deserialize(record)
+
+		if err != nil {
+			log.Printf("Failed to deserialize movie: %v", err)
 			d.Nack(false, false)
 			continue
 		}
-
-		budgetStr := record[2]
-		revenueStr := record[3]
-		sentiment := record[4]
-
-		budget, err := strconv.ParseFloat(budgetStr, 64)
-		if err != nil || budget == 0 {
-			log.Printf("Invalid or zero budget: %s", budgetStr)
-			d.Ack(false)
-			continue
-		}
-
-		revenue, err := strconv.ParseFloat(revenueStr, 64)
-		if err != nil {
-			log.Printf("Invalid revenue: %s", revenueStr)
-			d.Ack(false)
-			continue
-		}
-
-		ratio := revenue / budget
-
-		switch sentiment {
-		case "POSITIVE":
+		if movieSentiment.Sentiment == "POSITIVE" {
 			positiveStats.TotalMovies++
-			positiveStats.TotalRatio += ratio
-		case "NEGATIVE":
+			positiveStats.TotalRatio += movieSentiment.Ratio
+		} else if movieSentiment.Sentiment == "NEGATIVE" {
 			negativeStats.TotalMovies++
-			negativeStats.TotalRatio += ratio
-		default:
-			log.Printf("Neutral sentiment: %s", sentiment)
+			negativeStats.TotalRatio += movieSentiment.Ratio
 		}
 
 		d.Ack(false)
+		log.Println("Processed count:", processedCount)
 	}
 
 	if positiveStats.TotalMovies > 0 {

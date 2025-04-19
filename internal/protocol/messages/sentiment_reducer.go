@@ -19,6 +19,7 @@ type SentimentAnalysis struct {
 	Budget    float64
 	Revenue   float64
 	Sentiment string
+	Ratio     float64
 	RawData   []string
 }
 
@@ -43,6 +44,7 @@ func (s *SentimentAnalysis) Deserialize(data []string) error {
 	s.Revenue = revenue
 
 	s.Sentiment = data[SentimentLabel]
+	s.Ratio = s.Revenue / s.Budget
 
 	s.RawData = make([]string, len(data))
 	copy(s.RawData, data)
