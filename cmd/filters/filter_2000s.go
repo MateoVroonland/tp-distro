@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/MateoVroonland/tp-distro/internal/filters"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -15,12 +17,21 @@ func main() {
 	}
 	defer conn.Close()
 
-	filteredByCountryConsumer, err := utils.NewQueue(conn, "movies_metadata_q1", false, false, false, false, nil)
+	query := os.Getenv("QUERY")
+
+	if query == "" {
+		log.Fatalf("QUERY must be set")
+	}
+
+	consumeQueueName := fmt.Sprintf("movies_metadata_q%s", query)
+	publishQueueName := fmt.Sprintf("movies_filtered_by_year_q%s", query)
+
+	filteredByCountryConsumer, err := utils.NewQueue(conn, consumeQueueName, false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	filteredByYearProducer, err := utils.NewQueue(conn, "movies_filtered_by_year_q1", false, false, false, false, nil)
+	filteredByYearProducer, err := utils.NewQueue(conn, publishQueueName, false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

@@ -33,7 +33,20 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  filter_2000s:
+  filter_2000s_Q1:
+    environment:
+      QUERY: 1
+    build:
+      context: .
+      dockerfile: cmd/filters/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /filter_2000s/filter_2000s.go
+
+  filter_2000s_Q2:
+    environment:
+      QUERY: 2
     build:
       context: .
       dockerfile: cmd/filters/Dockerfile
