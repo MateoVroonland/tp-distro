@@ -41,6 +41,7 @@ func main() {
 		queries := 5
 
 		for d := range msgs {
+			log.Printf("Received message: %s", string(d.Body))
 			err = json.Unmarshal(d.Body, &results)
 			if err != nil {
 				log.Printf("Failed to unmarshal results: %v", err)
@@ -51,12 +52,19 @@ func main() {
 				break
 			}
 
-			jsonBytes, err := json.Marshal(results.Query1)
+			jsonQ1Bytes, err := json.Marshal(results.Query1)
 			if err != nil {
-				fmt.Printf("Error al convertir a JSON: %v\n", err)
+				log.Printf("Error al convertir a JSON: %v\n", err)
 				return
 			}
-			fmt.Println(string(jsonBytes))
+			log.Printf("Query 1: %s", string(jsonQ1Bytes))
+
+			jsonQ2Bytes, err := json.Marshal(results.Query2)
+			if err != nil {
+				log.Printf("Error al convertir a JSON: %v\n", err)
+				return
+			}
+			log.Printf("Query 2: %s", string(jsonQ2Bytes))
 		}
 
 	}()

@@ -58,14 +58,14 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /q1_sink/q1_sink.go
-  amount_reducer:
+  budget_reducer:
     build:
       context: .
-      dockerfile: cmd/reducers/amount_reducer/Dockerfile
+      dockerfile: cmd/reducers/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
-    command: /amount_reducer/amount_reducer.go
+    command: /budget_reducer.go
     deploy:
       replicas: 5
 
