@@ -29,7 +29,6 @@ func (r *RatingsReceiver) ReceiveRatings() {
 	}
 
 	for msg := range msgs {
-		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 4

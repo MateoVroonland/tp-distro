@@ -2,6 +2,7 @@ package sinks
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"log"
 	"strings"
 
@@ -30,12 +31,16 @@ func (s *Q1Sink) Reduce() {
 		log.Fatalf("Failed to register a consumer: %v", err)
 	}
 
-	results := []messages.Q1SinkMovie{}
+	rows := []messages.Q1Row{}
 
 	log.Printf("Q1 sink consuming messages")
 	for msg := range msgs {
 		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)
+		if stringLine == "FINISHED" {
+			log.Printf("Received termination message")
+			break
+		}
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
 		if err != nil {
@@ -46,12 +51,29 @@ func (s *Q1Sink) Reduce() {
 		if err != nil {
 			log.Fatalf("Failed to deserialize movie: %v", err)
 		}
-		results = append(results, movie)
-		log.Printf("results: %v", len(results))
-		log.Printf("results: %v", results)
+		rows = append(rows, *messages.NewQ1Row(movie.ID, movie.Title, movie.Genres))
+	}
+	log.Printf("Rows: %v", rows)
+	rowsBytes, err := json.Marshal(rows)
+	if err != nil {
+		log.Printf("Failed to marshal rows: %v", err)
+		return
 	}
 
-	log.Printf("Received %d movies", len(results))
+	results := messages.RawResult{
+		QueryID: "query1",
+		Results: rowsBytes,
+	}
 
+	bytes, err := json.Marshal(results)
+	if err != nil {
+		log.Printf("Failed to marshal results: %v", err)
+		return
+	}
 
+	err = s.resultsProducer.Publish(bytes)
+	if err != nil {
+		log.Printf("Failed to publish results: %v", err)
+		return
+	}
 }

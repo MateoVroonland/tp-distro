@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/MateoVroonland/tp-distro/internal/receiver"
+	"github.com/MateoVroonland/tp-distro/internal/joiners"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -38,7 +38,9 @@ func main() {
 
 	var forever chan struct{}
 
-	
+	ratingsJoiner := joiners.NewRatingsJoiner(ch, ratingsJoinerConsumer, moviesJoinerConsumer, sinkConsumer)
+
+	go ratingsJoiner.JoinRatings()
 
 
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")

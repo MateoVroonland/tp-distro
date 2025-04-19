@@ -18,5 +18,5 @@ func NewRatingsJoiner(ch *amqp.Channel, ratingsJoinerConsumer *utils.Queue, movi
 }
 
 func (r *RatingsJoiner) JoinRatings() error {
-	
+	return nil
 }
