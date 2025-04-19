@@ -20,9 +20,12 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	log.Printf("Q2 sink initialized")
+	resultsProducer, err := utils.NewQueue(conn, "results", false, false, false, false, nil)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
 
-	sink := sinks.NewBudgetSink(filteredByYearConsumer)
+	sink := sinks.NewBudgetSink(filteredByYearConsumer, resultsProducer)
 
 	sink.Sink()
 
