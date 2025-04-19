@@ -2,6 +2,7 @@ package sinks
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"log"
 	"sort"
 	"strings"
@@ -12,15 +13,16 @@ import (
 )
 
 type BudgetSink struct {
-	queue *utils.Queue
+	queue           *utils.Queue
+	resultsProducer *utils.Queue
 }
 
-func NewBudgetSink(queue *utils.Queue) *BudgetSink {
+func NewBudgetSink(queue *utils.Queue, resultsProducer *utils.Queue) *BudgetSink {
 
-	return &BudgetSink{queue: queue}
+	return &BudgetSink{queue: queue, resultsProducer: resultsProducer}
 }
 
-func (s *BudgetSink) Sink() map[string]int {
+func (s *BudgetSink) Sink() {
 	budgetPerCountry := make(map[string]int)
 	reducersMissing := reducers.BUDGET_REDUCER_AMOUNT
 	msgs, err := s.queue.Consume()
@@ -30,7 +32,6 @@ func (s *BudgetSink) Sink() map[string]int {
 	for d := range msgs {
 
 		stringLine := string(d.Body)
-		log.Printf("Received message: %s", stringLine)
 
 		if stringLine == "FINISHED" {
 			log.Printf("Received termination message")
@@ -68,9 +69,31 @@ func (s *BudgetSink) Sink() map[string]int {
 		return budgets[i].Amount > budgets[j].Amount
 	})
 
-	top5 := budgets[:5]
+	top5 := make([]messages.Q2Row, 0)
+	for i := 0; i < 5 && i < len(budgets); i++ {
+		top5 = append(top5, *messages.NewQ2Row(budgets[i].Country, budgets[i].Amount))
+	}
 
-	log.Printf("Top 5 budgets: %v", top5)
+	rowsBytes, err := json.Marshal(top5)
+	if err != nil {
+		log.Printf("Failed to marshal results: %v", err)
+		return
+	}
 
-	return budgetPerCountry
+	results := messages.RawResult{
+		QueryID: "query2",
+		Results: rowsBytes,
+	}
+
+	bytes, err := json.Marshal(results)
+	if err != nil {
+		log.Printf("Failed to marshal results: %v", err)
+		return
+	}
+
+	err = s.resultsProducer.Publish(bytes)
+	if err != nil {
+		log.Printf("Failed to publish results: %v", err)
+		return
+	}
 }

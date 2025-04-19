@@ -30,13 +30,11 @@ func (f *Filter2000s) FilterAndPublish() error {
 
 		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)
-
 		if stringLine == "FINISHED" {
-			log.Printf("Received termination message")
+			f.filteredByYearProducer.Publish([]byte("FINISHED"))
 			msg.Ack(false)
 			break
 		}
-
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 6
 		record, err := reader.Read()

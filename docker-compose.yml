@@ -47,13 +47,13 @@ services:
   filter_2000s_Q2:
     environment:
       QUERY: 2
+  ratingsreceiver:
     build:
       context: .
-      dockerfile: cmd/filters/Dockerfile
+      dockerfile: cmd/ratingsreceiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
-    command: /filter_2000s/filter_2000s.go
 
   q1_sink:
     build:
@@ -63,14 +63,14 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /q1_sink/q1_sink.go
-  amount_reducer:
+  budget_reducer:
     build:
       context: .
-      dockerfile: cmd/reducers/amount_reducer/Dockerfile
+      dockerfile: cmd/reducers/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
-    command: /amount_reducer/amount_reducer.go
+    command: /budget_reducer.go
     deploy:
       replicas: 5
 
