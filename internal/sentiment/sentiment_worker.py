@@ -41,9 +41,18 @@ class SentimentWorker:
             logger.error(f"Error analyzing sentiment: {e}")
             return {"label": "ERROR", "score": 0.0}
 
-    def process_message(self, ch, method, properties, body):        
+    def process_message(self, ch, method, properties, body):     
         try:
             message_str = body.decode('utf-8').strip()
+            if message_str == "FINISHED":
+                logger.info("Received FINISHED message, forwarding...")
+                try:
+                    self.output_queue.publish("FINISHED")
+                except Exception as e:
+                    logger.error(f"Failed to forward FINISHED message: {e}")
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                return
+        
             logger.info(f"Received message: {message_str}")
             csv_reader = csv.reader(StringIO(message_str))
             movie_data = next(csv_reader)
@@ -52,6 +61,10 @@ class SentimentWorker:
             movie_budget = movie_data[MovieBudget]
             movie_revenue = movie_data[MovieRevenue]
             overview = movie_data[MovieOverview]
+            if movie_budget == 0 or movie_revenue == 0:
+                logger.info(f"Skipping movie {movie_title} due to zero budget or revenue")
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                return
 
             sentiment_result = self.analyze_sentiment(overview)
             
@@ -59,11 +72,13 @@ class SentimentWorker:
     
             self.output_queue.publish(csv_line)
             logger.info(f"Processed movie: {movie_title} with sentiment: {sentiment_result['label']}")
-            
-            ch.basic_ack(delivery_tag=method.delivery_tag)
+            ch.basic_ack(delivery_tag=method.delivery_tag)   
         except Exception as e:
             logger.error(f"Error processing message: {e}")
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            try:
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            except:
+                pass
 
     def start(self):
         self.input_queue.channel.basic_consume(
@@ -79,3 +94,14 @@ class SentimentWorker:
             logger.info("Sentiment worker stopped")
         except Exception as e:
             logger.error(f"Error in consumer: {e}")
+            try:
+                self.output_queue.publish("FINISHED")
+                logger.info("Published FINISHED signal after error")
+            except Exception as publish_err:
+                logger.error(f"Failed to publish FINISHED: {publish_err}")
+        finally:
+            try:
+                self.input_queue.close()
+                self.output_queue.close()
+            except:
+                pass

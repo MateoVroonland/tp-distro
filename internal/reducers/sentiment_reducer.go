@@ -24,13 +24,29 @@ type SentimentStats struct {
 	AverageRatio float64 `json:"average_ratio"`
 }
 
+func NewSentimentStats(sentiment string) SentimentStats {
+	return SentimentStats{
+		Sentiment:    sentiment,
+		TotalMovies:  0,
+		TotalRatio:   0,
+		AverageRatio: 0,
+	}
+}
+
+func (s *SentimentStats) ToCSV() []string {
+	return []string{
+		s.Sentiment,
+		fmt.Sprintf("%.2f", s.AverageRatio),
+	}
+}
+
 func NewSentimentReducer(queue *utils.Queue, publishQueue *utils.Queue) *SentimentReducer {
 	return &SentimentReducer{queue: queue, publishQueue: publishQueue}
 }
 
 func (r *SentimentReducer) Reduce() {
-	positiveStats := SentimentStats{}
-	negativeStats := SentimentStats{}
+	positiveStats := NewSentimentStats("POSITIVE")
+	negativeStats := NewSentimentStats("NEGATIVE")
 
 	processedCount := 0
 	msgs, err := r.queue.Consume()
@@ -72,6 +88,7 @@ func (r *SentimentReducer) Reduce() {
 			d.Nack(false, false)
 			continue
 		}
+
 		if movieSentiment.Sentiment == "POSITIVE" {
 			positiveStats.TotalMovies++
 			positiveStats.TotalRatio += movieSentiment.Ratio
@@ -81,9 +98,9 @@ func (r *SentimentReducer) Reduce() {
 		}
 
 		d.Ack(false)
-		log.Println("Processed count:", processedCount)
 	}
 
+	log.Printf("Sentiment reducer finished processing %d movies", processedCount)
 	if positiveStats.TotalMovies > 0 {
 		positiveStats.AverageRatio = positiveStats.TotalRatio / float64(positiveStats.TotalMovies)
 	}

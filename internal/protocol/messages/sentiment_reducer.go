@@ -42,10 +42,8 @@ func (s *SentimentAnalysis) Deserialize(data []string) error {
 		return fmt.Errorf("failed to parse revenue: %w", err)
 	}
 	s.Revenue = revenue
-
 	s.Sentiment = data[SentimentLabel]
 	s.Ratio = s.Revenue / s.Budget
-
 	s.RawData = make([]string, len(data))
 	copy(s.RawData, data)
 
