@@ -11,11 +11,11 @@ import (
 )
 
 type Filter2000s struct {
-	filteredByCountryConsumer *utils.Queue
-	filteredByYearProducer    *utils.Queue
+	filteredByCountryConsumer *utils.ConsumerQueue
+	filteredByYearProducer    *utils.ProducerQueue
 }
 
-func NewFilter2000s(filteredByCountryConsumer *utils.Queue, filteredByYearProducer *utils.Queue) *Filter2000s {
+func NewFilter2000s(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearProducer *utils.ProducerQueue) *Filter2000s {
 	return &Filter2000s{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer}
 }
 

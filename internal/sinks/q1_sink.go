@@ -11,11 +11,11 @@ import (
 )
 
 type Q1Sink struct {
-	filteredByYearConsumer *utils.Queue
-	resultsProducer        *utils.Queue
+	filteredByYearConsumer *utils.ConsumerQueue
+	resultsProducer        *utils.ProducerQueue
 }
 
-func NewQ1Sink(filteredByYearConsumer *utils.Queue, resultsProducer *utils.Queue) *Q1Sink {
+func NewQ1Sink(filteredByYearConsumer *utils.ConsumerQueue, resultsProducer *utils.ProducerQueue) *Q1Sink {
 	return &Q1Sink{
 		filteredByYearConsumer: filteredByYearConsumer,
 		resultsProducer:        resultsProducer,

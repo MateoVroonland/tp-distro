@@ -13,11 +13,11 @@ import (
 
 type RatingsReceiver struct {
 	conn            *amqp.Connection
-	ratingsConsumer *utils.Queue
-	joinerProducer  *utils.Queue
+	ratingsConsumer *utils.ConsumerQueue
+	joinerProducer  *utils.ProducerQueue
 }
 
-func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.Queue, joinerProducer *utils.Queue) *RatingsReceiver {
+func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQueue, joinerProducer *utils.ProducerQueue) *RatingsReceiver {
 	return &RatingsReceiver{conn: conn, ratingsConsumer: ratingsConsumer, joinerProducer: joinerProducer}
 }
 

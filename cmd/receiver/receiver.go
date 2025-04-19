@@ -18,7 +18,7 @@ func main() {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 
-	q, err := utils.NewQueue(conn, "movies_metadata", false, false, false, false, nil)
+	q, err := utils.NewConsumerQueue(conn, "movies_metadata", "movies_metadata")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
@@ -28,31 +28,31 @@ func main() {
 		log.Fatalf("Failed to register a consumer: %v", err)
 	}
 
-	q1, err := utils.NewQueue(conn, "movies_metadata_q1", false, false, false, false, nil)
+	q1, err := utils.NewProducerQueue(conn, "movies_metadata_q1", "movies")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 	defer q1.CloseChannel()
 
-	q2, err := utils.NewQueue(conn, "movies_metadata_q2", false, false, false, false, nil)
+	q2, err := utils.NewProducerQueue(conn, "movies_metadata_q2", "movies")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 	defer q2.CloseChannel()
 
-	q3, err := utils.NewQueue(conn, "movies_metadata_q3", false, false, false, false, nil)
+	q3, err := utils.NewProducerQueue(conn, "movies_metadata_q3", "movies")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 	defer q3.CloseChannel()
 
-	q4, err := utils.NewQueue(conn, "movies_metadata_q4", false, false, false, false, nil)
+	q4, err := utils.NewProducerQueue(conn, "movies_metadata_q4", "movies")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 	defer q4.CloseChannel()
 
-	q5, err := utils.NewQueue(conn, "movies_metadata_q5", false, false, false, false, nil)
+	q5, err := utils.NewProducerQueue(conn, "movies_metadata_q5", "movies")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

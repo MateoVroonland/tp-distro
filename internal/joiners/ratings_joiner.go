@@ -5,12 +5,12 @@ import (
 )
 
 type RatingsJoiner struct {
-	ratingsJoinerConsumer *utils.Queue
-	moviesJoinerConsumer  *utils.Queue
-	sinkProducer          *utils.Queue
+	ratingsJoinerConsumer *utils.ConsumerQueue
+	moviesJoinerConsumer  *utils.ConsumerQueue
+	sinkProducer          *utils.ProducerQueue
 }
 
-func NewRatingsJoiner(ratingsJoinerConsumer *utils.Queue, moviesJoinerConsumer *utils.Queue, sinkProducer *utils.Queue) *RatingsJoiner {
+func NewRatingsJoiner(ratingsJoinerConsumer *utils.ConsumerQueue, moviesJoinerConsumer *utils.ConsumerQueue, sinkProducer *utils.ProducerQueue) *RatingsJoiner {
 	return &RatingsJoiner{ratingsJoinerConsumer: ratingsJoinerConsumer, moviesJoinerConsumer: moviesJoinerConsumer, sinkProducer: sinkProducer}
 }
 

@@ -15,24 +15,24 @@ func main() {
 	}
 	defer conn.Close()
 
-	ratingsJoinerConsumer, err := utils.NewQueue(conn, "ratings_joiner", false, false, false, false, nil)
+	ratingsJoinerConsumer, err := utils.NewConsumerQueue(conn, "ratings_joiner", "ratings_joiner")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	moviesJoinerConsumer, err := utils.NewQueue(conn, "movies_metadata_q3", false, false, false, false, nil)
+	moviesJoinerConsumer, err := utils.NewConsumerQueue(conn, "movies_metadata_q3", "movies_metadata_q3")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	sinkConsumer, err := utils.NewQueue(conn, "sink", false, false, false, false, nil)
+	sinkProducer, err := utils.NewProducerQueue(conn, "sink", "sink")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
 	var forever chan struct{}
 
-	ratingsJoiner := joiners.NewRatingsJoiner(ratingsJoinerConsumer, moviesJoinerConsumer, sinkConsumer)
+	ratingsJoiner := joiners.NewRatingsJoiner(ratingsJoinerConsumer, moviesJoinerConsumer, sinkProducer)
 
 	go ratingsJoiner.JoinRatings()
 

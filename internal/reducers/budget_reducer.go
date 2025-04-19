@@ -14,11 +14,11 @@ import (
 const BUDGET_REDUCER_AMOUNT = 5
 
 type BudgetReducer struct {
-	queue        *utils.Queue
-	publishQueue *utils.Queue
+	queue        *utils.ConsumerQueue
+	publishQueue *utils.ProducerQueue
 }
 
-func NewBudgetReducer(queue *utils.Queue, publishQueue *utils.Queue) *BudgetReducer {
+func NewBudgetReducer(queue *utils.ConsumerQueue, publishQueue *utils.ProducerQueue) *BudgetReducer {
 
 	return &BudgetReducer{queue: queue, publishQueue: publishQueue}
 }

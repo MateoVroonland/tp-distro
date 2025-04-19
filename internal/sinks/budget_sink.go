@@ -13,11 +13,11 @@ import (
 )
 
 type BudgetSink struct {
-	queue           *utils.Queue
-	resultsProducer *utils.Queue
+	queue           *utils.ConsumerQueue
+	resultsProducer *utils.ProducerQueue
 }
 
-func NewBudgetSink(queue *utils.Queue, resultsProducer *utils.Queue) *BudgetSink {
+func NewBudgetSink(queue *utils.ConsumerQueue, resultsProducer *utils.ProducerQueue) *BudgetSink {
 
 	return &BudgetSink{queue: queue, resultsProducer: resultsProducer}
 }

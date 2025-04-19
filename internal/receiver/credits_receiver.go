@@ -13,11 +13,11 @@ import (
 
 type CreditsReceiver struct {
 	conn            *amqp.Connection
-	creditsConsumer *utils.Queue
-	joinerProducer  *utils.Queue
+	creditsConsumer *utils.ConsumerQueue
+	joinerProducer  *utils.ProducerQueue
 }
 
-func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.Queue, joinerProducer *utils.Queue) *CreditsReceiver {
+func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.ConsumerQueue, joinerProducer *utils.ProducerQueue) *CreditsReceiver {
 	return &CreditsReceiver{conn: conn, creditsConsumer: creditsConsumer, joinerProducer: joinerProducer}
 }
 

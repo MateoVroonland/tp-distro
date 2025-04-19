@@ -29,7 +29,7 @@ func main() {
 
 	go func() {
 		var results messages.Results
-		resultsConsumer, err := utils.NewQueue(conn, "results", false, false, false, false, nil)
+		resultsConsumer, err := utils.NewConsumerQueue(conn, "results", "results")
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}
@@ -84,7 +84,7 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 	}
 	defer file.Close()
 
-	q, err := utils.NewQueue(conn, filename, false, false, false, false, nil)
+	q, err := utils.NewProducerQueue(conn, filename, filename)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 		return err
@@ -105,6 +105,7 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 		if err != nil {
 			return err
 		}
+
 	}
 
 	return nil

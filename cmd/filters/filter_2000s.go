@@ -26,12 +26,12 @@ func main() {
 	consumeQueueName := fmt.Sprintf("movies_metadata_q%s", query)
 	publishQueueName := fmt.Sprintf("movies_filtered_by_year_q%s", query)
 
-	filteredByCountryConsumer, err := utils.NewQueue(conn, consumeQueueName, false, false, false, false, nil)
+	filteredByCountryConsumer, err := utils.NewConsumerQueue(conn, consumeQueueName, "movies")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	filteredByYearProducer, err := utils.NewQueue(conn, publishQueueName, false, false, false, false, nil)
+	filteredByYearProducer, err := utils.NewProducerQueue(conn, publishQueueName, publishQueueName)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
