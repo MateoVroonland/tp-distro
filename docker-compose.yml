@@ -58,6 +58,8 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /amount_reducer/amount_reducer.go
+    deploy:
+      replicas: 5
 
   budget_sink:
     build:

@@ -58,3 +58,7 @@ func EncodeArrayToCsv(arr []string) string {
 
 	return buf.String()
 }
+
+func (q *Queue) CloseChannel() error {
+	return q.ch.Close()
+}

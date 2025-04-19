@@ -24,7 +24,7 @@ type Q1Movie struct {
 
 type Genre struct {
 	Name string `json:"name"`
-	ID   int `json:"id"`
+	ID   int    `json:"id"`
 }
 
 func (m *Q1Movie) Deserialize(data []string) error {

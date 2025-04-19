@@ -11,7 +11,7 @@ import (
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
-const BUDGET_REDUCER_AMOUNT = 1
+const BUDGET_REDUCER_AMOUNT = 5
 
 type BudgetReducer struct {
 	queue        *utils.Queue
@@ -27,6 +27,7 @@ func (r *BudgetReducer) Reduce() map[string]int {
 	budgetPerCountry := make(map[string]int)
 	i := 0
 	msgs, err := r.queue.Consume()
+	defer r.queue.CloseChannel()
 	if err != nil {
 		log.Printf("Failed to register a consumer: %v", err)
 	}
@@ -55,7 +56,6 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		}
 
 		budgetPerCountry[movieBudget.Country] += movieBudget.Amount
-
 	}
 
 	log.Printf("Total movies processed: %d", i)
