@@ -79,12 +79,14 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 
 	file, err := os.Open(fmt.Sprintf("docs/%s.csv", filename))
 	if err != nil {
+		log.Fatalf("Failed to open file: %v", err)
 		return err
 	}
 	defer file.Close()
 
 	q, err := utils.NewQueue(conn, filename, false, false, false, false, nil)
 	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
 		return err
 	}
 

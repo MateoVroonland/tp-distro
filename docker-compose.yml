@@ -33,7 +33,7 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  filter_2000s_Q1:
+  filter_2000s_q1:
     environment:
       QUERY: 1
     build:
@@ -44,9 +44,17 @@ services:
         condition: service_healthy
     command: /filter_2000s/filter_2000s.go
 
-  filter_2000s_Q2:
+  filter_2000s_q4:
     environment:
-      QUERY: 2
+      QUERY: 4
+    build:
+      context: .
+      dockerfile: cmd/filters/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /filter_2000s/filter_2000s.go
+
   ratingsreceiver:
     build:
       context: .
