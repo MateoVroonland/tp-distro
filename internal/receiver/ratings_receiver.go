@@ -12,13 +12,13 @@ import (
 )
 
 type RatingsReceiver struct {
-	ch *amqp.Channel
+	conn            *amqp.Connection
 	ratingsConsumer *utils.Queue
-	joinerProducer *utils.Queue
+	joinerProducer  *utils.Queue
 }
 
-func NewRatingsReceiver(ch *amqp.Channel, ratingsConsumer *utils.Queue, joinerProducer *utils.Queue) *RatingsReceiver {
-	return &RatingsReceiver{ch: ch, ratingsConsumer: ratingsConsumer, joinerProducer: joinerProducer}
+func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.Queue, joinerProducer *utils.Queue) *RatingsReceiver {
+	return &RatingsReceiver{conn: conn, ratingsConsumer: ratingsConsumer, joinerProducer: joinerProducer}
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
@@ -55,4 +55,4 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			continue
 		}
 	}
-}	
+}

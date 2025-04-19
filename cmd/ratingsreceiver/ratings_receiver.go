@@ -15,27 +15,20 @@ func main() {
 	}
 	defer conn.Close()
 
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	defer ch.Close()
-
-	rawRatingsConsumer, err := utils.NewQueue(ch, "ratings", false, false, false, false, nil)
+	rawRatingsConsumer, err := utils.NewQueue(conn, "ratings", false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	joinerProducer, err := utils.NewQueue(ch, "ratings_joiner", false, false, false, false, nil)
+	joinerProducer, err := utils.NewQueue(conn, "ratings_joiner", false, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
 	var forever chan struct{}
 
-	receiver := receiver.NewRatingsReceiver(ch, rawRatingsConsumer, joinerProducer)
+	receiver := receiver.NewRatingsReceiver(conn, rawRatingsConsumer, joinerProducer)
 	go receiver.ReceiveRatings()
-
 
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
 	<-forever
