@@ -2,6 +2,7 @@ package sinks
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"log"
 	"sort"
 	"strings"
@@ -70,20 +71,41 @@ func (s *CreditsSink) Sink() {
 
 	log.Printf("Processed credits: %d", i)
 
-	topTen := []NameAmountTuple{}
+	topTen := []messages.Q4Row{}
 
 	for actor, credits := range actors {
 		if len(topTen) < 10 {
-			topTen = append(topTen, NameAmountTuple{actor, credits})
-		} else if topTen[9].Amount < credits {
-			topTen[9] = NameAmountTuple{actor, credits}
+			topTen = append(topTen, *messages.NewQ4Row(actor, credits))
+		} else if topTen[9].MoviesCount < credits {
+			topTen[9] = *messages.NewQ4Row(actor, credits)
 		}
 		sort.Slice(topTen, func(i, j int) bool {
-			return topTen[i].Amount > topTen[j].Amount
+			return topTen[i].MoviesCount > topTen[j].MoviesCount
 		})
 	}
 
 	log.Printf("Top 10 actors by credits: %v", topTen)
-	log.Printf("All actors by credits: %v", actors)
 
+	rowsBytes, err := json.Marshal(topTen)
+	if err != nil {
+		log.Printf("Failed to marshal results: %v", err)
+		return
+	}
+
+	results := messages.RawResult{
+		QueryID: "query4",
+		Results: rowsBytes,
+	}
+
+	bytes, err := json.Marshal(results)
+	if err != nil {
+		log.Printf("Failed to marshal results: %v", err)
+		return
+	}
+
+	err = s.resultsProducer.Publish(bytes)
+	if err != nil {
+		log.Printf("Failed to publish results: %v", err)
+		return
+	}
 }

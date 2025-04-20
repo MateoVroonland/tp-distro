@@ -2,7 +2,6 @@ package messages
 
 import (
 	"encoding/json"
-	"log"
 	"strconv"
 	"strings"
 )
@@ -34,7 +33,6 @@ func (c *CreditsSink) Deserialize(data []string) error {
 	notNone := strings.ReplaceAll(jsonStr, "None", "null")
 	err = json.Unmarshal([]byte(notNone), &parsedCredits)
 	if err != nil {
-		log.Printf("Error unmarshalling JSON: %v", data[CreditsSinkCastIndex])
 		return err
 	}
 
