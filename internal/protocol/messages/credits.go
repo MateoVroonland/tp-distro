@@ -2,12 +2,11 @@ package messages
 
 import (
 	"strconv"
-	"strings"
 )
 
 type Credits struct {
 	MovieID int
-	Cast    []string
+	Cast    string
 	RawData []string
 }
 
@@ -18,14 +17,16 @@ const (
 
 func (c *Credits) Deserialize(data []string) error {
 	var err error
-	c.MovieID, err = strconv.Atoi(data[0])
+	c.MovieID, err = strconv.Atoi(data[RawCreditsMovieIDIndex])
 	if err != nil {
 		return err
 	}
-	cast := strings.Split(data[1], ",") // TODO: JSON PARSE THIS
-	c.Cast = cast
 
-	c.RawData = data
+	c.Cast = data[RawCreditsCastIndex]
+
+	c.RawData = make([]string, 2)
+	c.RawData[CreditsCastIndex] = data[RawCreditsCastIndex]
+	c.RawData[CreditsMovieIDIndex] = strconv.Itoa(c.MovieID)
 	return nil
 }
 

@@ -49,7 +49,7 @@ func main() {
 	case "4":
 		outputMessage = &messages.Q4Movie{}
 	}
-	filter := filters.NewFilter2000s(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
+	filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
 
 	forever := make(chan bool)
 	go filter.FilterAndPublish()

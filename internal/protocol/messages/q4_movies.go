@@ -41,6 +41,6 @@ func (m *Q4Movie) GetRawData() []string {
 	return m.RawData
 }
 
-func (m *Q4Movie) Is2000s() bool {
-	return m.ReleaseDate.Year() >= 2000 && m.ReleaseDate.Year() <= 2009
+func (m *Q4Movie) PassesFilter() bool {
+	return m.ReleaseDate.Year() >= 2000
 }

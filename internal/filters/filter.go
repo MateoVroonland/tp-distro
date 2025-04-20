@@ -9,17 +9,17 @@ import (
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
-type Filter2000s struct {
+type Filter struct {
 	filteredByCountryConsumer *utils.ConsumerQueue
 	filteredByYearProducer    *utils.ProducerQueue
 	outputMessage             protocol.MovieToFilter
 }
 
-func NewFilter2000s(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearProducer *utils.ProducerQueue, outputMessage protocol.MovieToFilter) *Filter2000s {
-	return &Filter2000s{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer, outputMessage: outputMessage}
+func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearProducer *utils.ProducerQueue, outputMessage protocol.MovieToFilter) *Filter {
+	return &Filter{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer, outputMessage: outputMessage}
 }
 
-func (f *Filter2000s) FilterAndPublish() error {
+func (f *Filter) FilterAndPublish() error {
 	msgs, err := f.filteredByCountryConsumer.Consume()
 	if err != nil {
 		log.Printf("Error consuming messages: %s", err)
@@ -49,7 +49,7 @@ func (f *Filter2000s) FilterAndPublish() error {
 			msg.Nack(false, false)
 			continue
 		}
-		if f.outputMessage.Is2000s() {
+		if f.outputMessage.PassesFilter() {
 			serializedMovie, err := protocol.Serialize(f.outputMessage)
 			if err != nil {
 				log.Printf("Error serializing movie: %s", err)
