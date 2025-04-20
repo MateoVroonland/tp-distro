@@ -70,7 +70,9 @@ func main() {
 			}
 			q3.Publish([]byte("FINISHED"))
 			q4.Publish([]byte("FINISHED"))
-			q5.Publish([]byte("FINISHED"))
+			for i := 0; i < reducers.SENTIMENT_WORKER_AMOUNT; i++ {
+				q5.Publish([]byte("FINISHED"))
+			}
 			d.Ack(false)
 			break
 		}

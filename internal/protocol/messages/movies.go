@@ -40,7 +40,6 @@ func (m *Movie) HasValidBudgetAndRevenue() bool {
 	}
 
 	return true
-
 }
 
 const (

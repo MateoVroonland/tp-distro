@@ -85,6 +85,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    deploy:
+      replicas: 5
 
   sentiment_reducer:
     build:

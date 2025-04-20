@@ -51,6 +51,7 @@ class SentimentWorker:
                 except Exception as e:
                     logger.error(f"Failed to forward FINISHED message: {e}")
                 ch.basic_ack(delivery_tag=method.delivery_tag)
+                ch.stop_consuming()
                 return
         
             logger.info(f"Received message: {message_str}")
@@ -77,6 +78,7 @@ class SentimentWorker:
                 pass
 
     def start(self):
+        self.input_queue.channel.basic_qos(prefetch_count=1)
         self.input_queue.channel.basic_consume(
             queue=self.input_queue.queue_name,
             on_message_callback=self.process_message,
@@ -95,9 +97,3 @@ class SentimentWorker:
                 logger.info("Published FINISHED signal after error")
             except Exception as publish_err:
                 logger.error(f"Failed to publish FINISHED: {publish_err}")
-        finally:
-            try:
-                self.input_queue.close()
-                self.output_queue.close()
-            except:
-                pass

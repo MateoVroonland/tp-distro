@@ -10,6 +10,7 @@ import (
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
+const SENTIMENT_WORKER_AMOUNT = 5
 const SENTIMENT_REDUCER_AMOUNT = 1
 
 type SentimentReducer struct {
@@ -49,6 +50,8 @@ func (r *SentimentReducer) Reduce() {
 	negativeStats := NewSentimentStats("NEGATIVE")
 
 	processedCount := 0
+	finishedCount := 0
+
 	msgs, err := r.queue.Consume()
 	defer r.queue.CloseChannel()
 	defer r.publishQueue.CloseChannel()
@@ -64,9 +67,15 @@ func (r *SentimentReducer) Reduce() {
 		stringLine := string(d.Body)
 
 		if stringLine == "FINISHED" {
-			log.Printf("Received termination message")
+			log.Printf("Received termination message (%d/%d)", finishedCount+1, SENTIMENT_WORKER_AMOUNT)
+			finishedCount++
 			d.Ack(false)
-			break
+
+			if finishedCount >= SENTIMENT_WORKER_AMOUNT {
+				log.Printf("All sentiment workers have finished, proceeding to publish results")
+				break
+			}
+			continue
 		}
 
 		processedCount++
