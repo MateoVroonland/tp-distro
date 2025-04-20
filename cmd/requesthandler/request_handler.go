@@ -79,9 +79,6 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	if err != nil {
-		log.Fatalf("Failed to register a consumer: %v", err)
-	}
 	queries := 5
 
 	for d := range resultsConsumer.Consume() {

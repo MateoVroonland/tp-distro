@@ -23,10 +23,6 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	if err != nil {
-		log.Fatalf("Failed to register a consumer: %v", err)
-	}
-
 	q1, err := utils.NewProducerQueue(conn, "movies_metadata_q1", "movies")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
