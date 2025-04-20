@@ -20,13 +20,8 @@ func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearPro
 }
 
 func (f *Filter) FilterAndPublish() error {
-	msgs, err := f.filteredByCountryConsumer.Consume()
-	if err != nil {
-		log.Printf("Error consuming messages: %s", err)
-		return err
-	}
 
-	for msg := range msgs {
+	for msg, err := f.filteredByCountryConsumer.Next(); err == nil; msg, err = f.filteredByCountryConsumer.Next() {
 
 		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)

@@ -22,13 +22,8 @@ func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQu
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
-	msgs, err := r.ratingsConsumer.Consume()
-	if err != nil {
-		log.Printf("Error consuming messages: %s", err)
-		return
-	}
 
-	for msg := range msgs {
+	for msg, err := r.ratingsConsumer.Next(); err == nil; msg, err = r.ratingsConsumer.Next() {
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 4

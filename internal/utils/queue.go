@@ -8,8 +8,10 @@ import (
 )
 
 type ConsumerQueue struct {
-	ch        *amqp.Channel
-	queueName string
+	ch                *amqp.Channel
+	queueName         string
+	consumerInstances int
+	deliveryChannel   <-chan amqp.Delivery
 }
 
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string) (*ConsumerQueue, error) {
@@ -51,10 +53,10 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return nil, err
 	}
 
-	return &ConsumerQueue{ch: ch, queueName: queueName}, nil
+	return &ConsumerQueue{ch: ch, queueName: queueName, consumerInstances: 0}, nil
 }
 
-func (q *ConsumerQueue) Consume() (<-chan amqp.Delivery, error) {
+func (q *ConsumerQueue) createConsumer() (<-chan amqp.Delivery, error) {
 	msgs, err := q.ch.Consume(
 		q.queueName, // queue name - use the stored queue name
 		"",          // id
@@ -68,6 +70,19 @@ func (q *ConsumerQueue) Consume() (<-chan amqp.Delivery, error) {
 		return nil, err
 	}
 	return msgs, nil
+}
+
+func (q *ConsumerQueue) Next() (*amqp.Delivery, error) {
+	if q.deliveryChannel == nil {
+		deliveryChannel, err := q.createConsumer()
+		if err != nil {
+			return nil, err
+		}
+		q.deliveryChannel = deliveryChannel
+	}
+
+	val := <-q.deliveryChannel
+	return &val, nil
 }
 
 func EncodeArrayToCsv(arr []string) string {

@@ -26,19 +26,15 @@ func NewBudgetReducer(queue *utils.ConsumerQueue, publishQueue *utils.ProducerQu
 func (r *BudgetReducer) Reduce() map[string]int {
 	budgetPerCountry := make(map[string]int)
 	i := 0
-	msgs, err := r.queue.Consume()
 	defer r.queue.CloseChannel()
 	defer r.publishQueue.CloseChannel()
 
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-	}
-	for d := range msgs {
-		stringLine := string(d.Body)
+	for msg, err := r.queue.Next(); err == nil; msg, err = r.queue.Next() {
+		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
 			log.Printf("Received termination message")
-			d.Ack(false)
+			msg.Ack(false)
 			break
 		}
 		i++
@@ -48,7 +44,7 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			d.Nack(false, false)
+			msg.Nack(false, false)
 			continue
 		}
 
@@ -56,12 +52,12 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		err = movieBudget.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			d.Nack(false, false)
+			msg.Nack(false, false)
 			continue
 		}
 
 		budgetPerCountry[movieBudget.Country] += movieBudget.Amount
-		d.Ack(false)
+		msg.Ack(false)
 	}
 
 	log.Printf("Total movies processed: %d", i)

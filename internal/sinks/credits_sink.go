@@ -28,19 +28,15 @@ type NameAmountTuple struct {
 
 func (s *CreditsSink) Sink() {
 	actors := make(map[string]int)
-	msgs, err := s.sinkConsumer.Consume()
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-	}
 
 	i := 0
-	for d := range msgs {
+	for msg, err := s.sinkConsumer.Next(); err == nil; msg, err = s.sinkConsumer.Next() {
 
-		stringLine := string(d.Body)
+		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
 			log.Printf("Received termination message")
-			d.Ack(false)
+			msg.Ack(false)
 			break
 		}
 		i++
@@ -50,7 +46,7 @@ func (s *CreditsSink) Sink() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			d.Nack(false, false)
+			msg.Nack(false, false)
 			continue
 		}
 
@@ -58,7 +54,7 @@ func (s *CreditsSink) Sink() {
 		err = credits.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to unmarshal credits: %v", err)
-			d.Nack(false, false)
+			msg.Nack(false, false)
 			continue
 		}
 
@@ -66,7 +62,7 @@ func (s *CreditsSink) Sink() {
 			actors[actor]++
 		}
 
-		d.Ack(false)
+		msg.Ack(false)
 	}
 
 	log.Printf("Processed credits: %d", i)

@@ -23,7 +23,6 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	msgs, err := q.Consume()
 	if err != nil {
 		log.Fatalf("Failed to register a consumer: %v", err)
 	}
@@ -58,8 +57,7 @@ func main() {
 	}
 	defer q5.CloseChannel()
 
-	for d := range msgs {
-
+	for d, err := q.Next(); err == nil; d, err = q.Next() {
 		stringLine := string(d.Body)
 
 		if stringLine == "FINISHED" {

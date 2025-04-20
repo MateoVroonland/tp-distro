@@ -79,13 +79,12 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	msgs, err := resultsConsumer.Consume()
 	if err != nil {
 		log.Fatalf("Failed to register a consumer: %v", err)
 	}
 	queries := 5
 
-	for d := range msgs {
+	for d, err := resultsConsumer.Next(); err == nil; d, err = resultsConsumer.Next() {
 		log.Printf("Received message: %s", string(d.Body))
 		err = json.Unmarshal(d.Body, &results)
 		if err != nil {

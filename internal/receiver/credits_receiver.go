@@ -24,15 +24,10 @@ func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.ConsumerQu
 }
 
 func (r *CreditsReceiver) ReceiveCredits() {
-	msgs, err := r.creditsConsumer.Consume()
-	if err != nil {
-		log.Printf("Error consuming messages: %s", err)
-		return
-	}
 
 	i := 0
 
-	for msg := range msgs {
+	for msg, err := r.creditsConsumer.Next(); err == nil; msg, err = r.creditsConsumer.Next() {
 
 		stringLine := string(msg.Body)
 

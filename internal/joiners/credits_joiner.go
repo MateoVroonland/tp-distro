@@ -23,19 +23,14 @@ func NewCreditsJoiner(creditsJoinerConsumer *utils.ConsumerQueue, moviesJoinerCo
 }
 
 func (c *CreditsJoiner) JoinCredits() error {
-	moviesMsgs, err := c.moviesJoinerConsumer.Consume()
 	defer c.creditsJoinerConsumer.CloseChannel()
 	defer c.moviesJoinerConsumer.CloseChannel()
 	defer c.sinkProducer.CloseChannel()
 
 	moviesIds := make(map[int]bool)
 
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-	}
-
 	i := 0
-	for msg := range moviesMsgs {
+	for msg, err := c.moviesJoinerConsumer.Next(); err == nil; msg, err = c.moviesJoinerConsumer.Next() {
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
@@ -67,15 +62,10 @@ func (c *CreditsJoiner) JoinCredits() error {
 
 	log.Printf("Received %d movies", i)
 
-	creditsMsgs, err := c.creditsJoinerConsumer.Consume()
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-	}
-
 	var credits []messages.Credits
 
 	j := 0
-	for msg := range creditsMsgs {
+	for msg, err := c.creditsJoinerConsumer.Next(); err == nil; msg, err = c.creditsJoinerConsumer.Next() {
 
 		stringLine := string(msg.Body)
 		if stringLine == "FINISHED" {
