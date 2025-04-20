@@ -3,8 +3,10 @@ package receiver
 import (
 	"encoding/csv"
 	"log"
+	"strconv"
 	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/joiners"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -22,14 +24,20 @@ func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.ConsumerQu
 }
 
 func (r *CreditsReceiver) ReceiveCredits() {
-	msgs, err := r.creditsConsumer.Consume()
-	if err != nil {
-		log.Printf("Error consuming messages: %s", err)
-		return
-	}
 
-	for msg := range msgs {
+	i := 0
+
+	for msg := range r.creditsConsumer.Consume() {
+
 		stringLine := string(msg.Body)
+
+		if stringLine == "FINISHED" {
+			r.joinerProducer.PublishWithRoutingKey([]byte("FINISHED"), "1")
+			msg.Ack(false)
+			break
+		}
+		i++
+
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 3
 		record, err := reader.Read()
@@ -41,18 +49,24 @@ func (r *CreditsReceiver) ReceiveCredits() {
 		credits := &messages.RawCredits{}
 		if err := credits.Deserialize(record); err != nil {
 			log.Printf("Error deserializing credits: %s", err)
+			msg.Nack(false, false)
 			continue
 		}
 		serializedCredits, err := protocol.Serialize(credits)
 		if err != nil {
 			log.Printf("Error serializing credits: %s", err)
+			msg.Nack(false, false)
 			continue
 		}
 
-		err = r.joinerProducer.Publish(serializedCredits)
+		routingKey := utils.HashString(strconv.Itoa(credits.MovieID), joiners.CREDITS_JOINER_AMOUNT)
+		err = r.joinerProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey))
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)
 			continue
 		}
+		msg.Ack(false)
 	}
+
+	log.Printf("Received %d credits", i)
 }

@@ -23,11 +23,6 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	msgs, err := q.Consume()
-	if err != nil {
-		log.Fatalf("Failed to register a consumer: %v", err)
-	}
-
 	q1, err := utils.NewProducerQueue(conn, "movies_metadata_q1", "movies")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
@@ -58,8 +53,7 @@ func main() {
 	}
 	defer q5.CloseChannel()
 
-	for d := range msgs {
-
+	for d := range q.Consume() {
 		stringLine := string(d.Body)
 
 		if stringLine == "FINISHED" {
@@ -70,7 +64,9 @@ func main() {
 			}
 			q3.Publish([]byte("FINISHED"))
 			q4.Publish([]byte("FINISHED"))
-			q5.Publish([]byte("FINISHED"))
+			for i := 0; i < reducers.SENTIMENT_WORKER_AMOUNT; i++ {
+				q5.Publish([]byte("FINISHED"))
+			}
 			d.Ack(false)
 			break
 		}

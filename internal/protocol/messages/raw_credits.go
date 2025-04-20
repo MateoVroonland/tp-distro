@@ -16,7 +16,7 @@ const (
 
 func (r *RawCredits) Deserialize(data []string) error {
 	var err error
-	r.MovieID, err = strconv.Atoi(data[0])
+	r.MovieID, err = strconv.Atoi(data[2])
 	if err != nil {
 		return err
 	}

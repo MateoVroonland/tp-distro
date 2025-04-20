@@ -3,13 +3,16 @@ package utils
 import (
 	"bytes"
 	"encoding/csv"
+	"iter"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type ConsumerQueue struct {
-	ch        *amqp.Channel
-	queueName string
+	ch                *amqp.Channel
+	queueName         string
+	consumerInstances int
+	deliveryChannel   <-chan amqp.Delivery
 }
 
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string) (*ConsumerQueue, error) {
@@ -51,23 +54,30 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return nil, err
 	}
 
-	return &ConsumerQueue{ch: ch, queueName: queueName}, nil
-}
-
-func (q *ConsumerQueue) Consume() (<-chan amqp.Delivery, error) {
-	msgs, err := q.ch.Consume(
-		q.queueName, // queue name - use the stored queue name
-		"",          // id
-		false,       // auto-ack
-		false,       // exclusive
-		false,       // no-local
-		false,       // no-wait
-		nil,         // args
+	deliveryChannel, err := ch.Consume(
+		queueName, // queue name - use the stored queue name
+		"",        // id
+		false,     // auto-ack
+		false,     // exclusive
+		false,     // no-local
+		false,     // no-wait
+		nil,       // args
 	)
 	if err != nil {
 		return nil, err
 	}
-	return msgs, nil
+
+	return &ConsumerQueue{ch: ch, queueName: queueName, consumerInstances: 0, deliveryChannel: deliveryChannel}, nil
+}
+
+func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
+	return func(yield func(*amqp.Delivery) bool) {
+		for delivery := range q.deliveryChannel {
+			if !yield(&delivery) {
+				return
+			}
+		}
+	}
 }
 
 func EncodeArrayToCsv(arr []string) string {
@@ -86,7 +96,7 @@ func (q *ConsumerQueue) CloseChannel() error {
 
 type ProducerQueue struct {
 	ch           *amqp.Channel
-	queueName    string
+	QueueName    string
 	exchangeName string
 }
 
@@ -109,11 +119,11 @@ func NewProducerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 		return nil, err
 	}
 
-	return &ProducerQueue{ch: ch, queueName: queueName, exchangeName: exchangeName}, nil
+	return &ProducerQueue{ch: ch, QueueName: queueName, exchangeName: exchangeName}, nil
 }
 
 func (q *ProducerQueue) Publish(body []byte) error {
-	return q.PublishWithRoutingKey(body, q.queueName)
+	return q.PublishWithRoutingKey(body, q.QueueName)
 }
 
 func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string) error {

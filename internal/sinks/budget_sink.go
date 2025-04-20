@@ -25,18 +25,14 @@ func NewBudgetSink(queue *utils.ConsumerQueue, resultsProducer *utils.ProducerQu
 func (s *BudgetSink) Sink() {
 	budgetPerCountry := make(map[string]int)
 	reducersMissing := reducers.BUDGET_REDUCER_AMOUNT
-	msgs, err := s.queue.Consume()
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-	}
-	for d := range msgs {
+	for msg := range s.queue.Consume() {
 
-		stringLine := string(d.Body)
+		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
 			log.Printf("Received termination message")
 			reducersMissing--
-			d.Ack(false)
+			msg.Ack(false)
 			if reducersMissing == 0 {
 				break
 			}
@@ -44,11 +40,10 @@ func (s *BudgetSink) Sink() {
 		}
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
-		reader.FieldsPerRecord = 2
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			d.Nack(false, false)
+			msg.Nack(false, false)
 			continue
 		}
 
@@ -56,12 +51,12 @@ func (s *BudgetSink) Sink() {
 		err = movieBudget.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			d.Nack(false, false)
+			msg.Nack(false, false)
 			continue
 		}
 
 		budgetPerCountry[movieBudget.Country] += movieBudget.Amount
-		d.Ack(false)
+		msg.Ack(false)
 	}
 
 	budgets := messages.ParseBudgetMap(budgetPerCountry)

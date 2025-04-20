@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/credits_receiver/credits_receiver.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/filter/filter.go
 
 ENTRYPOINT ["/main"]
 

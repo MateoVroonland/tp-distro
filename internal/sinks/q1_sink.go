@@ -23,15 +23,11 @@ func NewQ1Sink(filteredByYearConsumer *utils.ConsumerQueue, resultsProducer *uti
 }
 
 func (s *Q1Sink) Reduce() {
-	msgs, err := s.filteredByYearConsumer.Consume()
-	if err != nil {
-		log.Fatalf("Failed to register a consumer: %v", err)
-	}
 
 	rows := []messages.Q1Row{}
 
 	log.Printf("Q1 sink consuming messages")
-	for msg := range msgs {
+	for msg := range s.filteredByYearConsumer.Consume() {
 
 		stringLine := string(msg.Body)
 		if stringLine == "FINISHED" {
