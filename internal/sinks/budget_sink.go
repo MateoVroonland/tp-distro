@@ -25,7 +25,7 @@ func NewBudgetSink(queue *utils.ConsumerQueue, resultsProducer *utils.ProducerQu
 func (s *BudgetSink) Sink() {
 	budgetPerCountry := make(map[string]int)
 	reducersMissing := reducers.BUDGET_REDUCER_AMOUNT
-	for msg, err := s.queue.Next(); err == nil; msg, err = s.queue.Next() {
+	for msg := range s.queue.Consume() {
 
 		stringLine := string(msg.Body)
 

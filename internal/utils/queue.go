@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/csv"
+	"iter"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -53,36 +54,30 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return nil, err
 	}
 
-	return &ConsumerQueue{ch: ch, queueName: queueName, consumerInstances: 0}, nil
-}
-
-func (q *ConsumerQueue) createConsumer() (<-chan amqp.Delivery, error) {
-	msgs, err := q.ch.Consume(
-		q.queueName, // queue name - use the stored queue name
-		"",          // id
-		false,       // auto-ack
-		false,       // exclusive
-		false,       // no-local
-		false,       // no-wait
-		nil,         // args
+	deliveryChannel, err := ch.Consume(
+		queueName, // queue name - use the stored queue name
+		"",        // id
+		false,     // auto-ack
+		false,     // exclusive
+		false,     // no-local
+		false,     // no-wait
+		nil,       // args
 	)
 	if err != nil {
 		return nil, err
 	}
-	return msgs, nil
+
+	return &ConsumerQueue{ch: ch, queueName: queueName, consumerInstances: 0, deliveryChannel: deliveryChannel}, nil
 }
 
-func (q *ConsumerQueue) Next() (*amqp.Delivery, error) {
-	if q.deliveryChannel == nil {
-		deliveryChannel, err := q.createConsumer()
-		if err != nil {
-			return nil, err
+func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
+	return func(yield func(*amqp.Delivery) bool) {
+		for delivery := range q.deliveryChannel {
+			if !yield(&delivery) {
+				return
+			}
 		}
-		q.deliveryChannel = deliveryChannel
 	}
-
-	val := <-q.deliveryChannel
-	return &val, nil
 }
 
 func EncodeArrayToCsv(arr []string) string {

@@ -30,7 +30,7 @@ func (s *CreditsSink) Sink() {
 	actors := make(map[string]int)
 
 	i := 0
-	for msg, err := s.sinkConsumer.Next(); err == nil; msg, err = s.sinkConsumer.Next() {
+	for msg := range s.sinkConsumer.Consume() {
 
 		stringLine := string(msg.Body)
 

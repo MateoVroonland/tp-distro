@@ -30,7 +30,7 @@ func (c *CreditsJoiner) JoinCredits() error {
 	moviesIds := make(map[int]bool)
 
 	i := 0
-	for msg, err := c.moviesJoinerConsumer.Next(); err == nil; msg, err = c.moviesJoinerConsumer.Next() {
+	for msg := range c.moviesJoinerConsumer.Consume() {
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
@@ -65,7 +65,7 @@ func (c *CreditsJoiner) JoinCredits() error {
 	var credits []messages.Credits
 
 	j := 0
-	for msg, err := c.creditsJoinerConsumer.Next(); err == nil; msg, err = c.creditsJoinerConsumer.Next() {
+	for msg := range c.creditsJoinerConsumer.Consume() {
 
 		stringLine := string(msg.Body)
 		if stringLine == "FINISHED" {

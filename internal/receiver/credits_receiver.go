@@ -27,7 +27,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 
 	i := 0
 
-	for msg, err := r.creditsConsumer.Next(); err == nil; msg, err = r.creditsConsumer.Next() {
+	for msg := range r.creditsConsumer.Consume() {
 
 		stringLine := string(msg.Body)
 

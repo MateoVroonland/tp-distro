@@ -57,7 +57,7 @@ func main() {
 	}
 	defer q5.CloseChannel()
 
-	for d, err := q.Next(); err == nil; d, err = q.Next() {
+	for d := range q.Consume() {
 		stringLine := string(d.Body)
 
 		if stringLine == "FINISHED" {

@@ -29,7 +29,7 @@ func (r *BudgetReducer) Reduce() map[string]int {
 	defer r.queue.CloseChannel()
 	defer r.publishQueue.CloseChannel()
 
-	for msg, err := r.queue.Next(); err == nil; msg, err = r.queue.Next() {
+	for msg := range r.queue.Consume() {
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {

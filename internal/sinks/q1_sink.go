@@ -27,7 +27,7 @@ func (s *Q1Sink) Reduce() {
 	rows := []messages.Q1Row{}
 
 	log.Printf("Q1 sink consuming messages")
-	for msg, err := s.filteredByYearConsumer.Next(); err == nil; msg, err = s.filteredByYearConsumer.Next() {
+	for msg := range s.filteredByYearConsumer.Consume() {
 
 		stringLine := string(msg.Body)
 		if stringLine == "FINISHED" {
