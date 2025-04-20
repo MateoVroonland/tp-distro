@@ -14,8 +14,8 @@ const SENTIMENT_WORKER_AMOUNT = 5
 const SENTIMENT_REDUCER_AMOUNT = 1
 
 type SentimentReducer struct {
-	queue        *utils.Queue
-	publishQueue *utils.Queue
+	queue        *utils.ConsumerQueue
+	publishQueue *utils.ProducerQueue
 }
 
 type SentimentStats struct {
@@ -41,7 +41,7 @@ func (s *SentimentStats) ToCSV() []string {
 	}
 }
 
-func NewSentimentReducer(queue *utils.Queue, publishQueue *utils.Queue) *SentimentReducer {
+func NewSentimentReducer(queue *utils.ConsumerQueue, publishQueue *utils.ProducerQueue) *SentimentReducer {
 	return &SentimentReducer{queue: queue, publishQueue: publishQueue}
 }
 
@@ -52,18 +52,12 @@ func (r *SentimentReducer) Reduce() {
 	processedCount := 0
 	finishedCount := 0
 
-	msgs, err := r.queue.Consume()
 	defer r.queue.CloseChannel()
 	defer r.publishQueue.CloseChannel()
 
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-		return
-	}
-
 	log.Printf("Sentiment reducer started processing")
 
-	for d := range msgs {
+	for d := range r.queue.Consume() {
 		stringLine := string(d.Body)
 
 		if stringLine == "FINISHED" {

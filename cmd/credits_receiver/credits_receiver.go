@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/MateoVroonland/tp-distro/internal/sinks"
+	"github.com/MateoVroonland/tp-distro/internal/receiver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -15,18 +15,17 @@ func main() {
 	}
 	defer conn.Close()
 
-	filteredByYearConsumer, err := utils.NewConsumerQueue(conn, "budget_sink", "budget_sink")
+	rawRatingsConsumer, err := utils.NewConsumerQueue(conn, "credits", "credits")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	resultsProducer, err := utils.NewProducerQueue(conn, "results", "results")
+	joinerProducer, err := utils.NewProducerQueue(conn, "credits_joiner", "credits_joiner")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	sink := sinks.NewBudgetSink(filteredByYearConsumer, resultsProducer)
-
-	sink.Sink()
+	receiver := receiver.NewCreditsReceiver(conn, rawRatingsConsumer, joinerProducer)
+	receiver.ReceiveCredits()
 
 }

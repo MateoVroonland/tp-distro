@@ -2,19 +2,16 @@ package joiners
 
 import (
 	"github.com/MateoVroonland/tp-distro/internal/utils"
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-
 type RatingsJoiner struct {
-	ch *amqp.Channel
-	ratingsJoinerConsumer *utils.Queue
-	moviesJoinerConsumer *utils.Queue
-	sinkProducer *utils.Queue
+	ratingsJoinerConsumer *utils.ConsumerQueue
+	moviesJoinerConsumer  *utils.ConsumerQueue
+	sinkProducer          *utils.ProducerQueue
 }
 
-func NewRatingsJoiner(ch *amqp.Channel, ratingsJoinerConsumer *utils.Queue, moviesJoinerConsumer *utils.Queue, sinkProducer *utils.Queue) *RatingsJoiner {
-	return &RatingsJoiner{ch: ch, ratingsJoinerConsumer: ratingsJoinerConsumer, moviesJoinerConsumer: moviesJoinerConsumer, sinkProducer: sinkProducer}
+func NewRatingsJoiner(ratingsJoinerConsumer *utils.ConsumerQueue, moviesJoinerConsumer *utils.ConsumerQueue, sinkProducer *utils.ProducerQueue) *RatingsJoiner {
+	return &RatingsJoiner{ratingsJoinerConsumer: ratingsJoinerConsumer, moviesJoinerConsumer: moviesJoinerConsumer, sinkProducer: sinkProducer}
 }
 
 func (r *RatingsJoiner) JoinRatings() error {

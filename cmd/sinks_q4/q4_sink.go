@@ -15,7 +15,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	filteredByYearConsumer, err := utils.NewConsumerQueue(conn, "budget_sink", "budget_sink")
+	sinkConsumer, err := utils.NewConsumerQueue(conn, "sink_q4", "sink_q4")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
@@ -25,7 +25,7 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	sink := sinks.NewBudgetSink(filteredByYearConsumer, resultsProducer)
+	sink := sinks.NewCreditsSink(sinkConsumer, resultsProducer)
 
 	sink.Sink()
 

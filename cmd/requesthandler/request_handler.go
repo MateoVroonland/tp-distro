@@ -22,44 +22,12 @@ func main() {
 	defer conn.Close()
 
 	wg := sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(3)
 	// go publishFile("ratings", ch, &wg)
-	// go publishFile("credits", ch, &wg)
+	go publishFile("credits", conn, &wg)
 	go publishFile("movies_metadata", conn, &wg)
 
-	go func() {
-		var results messages.Results
-		resultsConsumer, err := utils.NewQueue(conn, "results", false, false, false, false, nil)
-		if err != nil {
-			log.Fatalf("Failed to declare a queue: %v", err)
-		}
-
-		msgs, err := resultsConsumer.Consume()
-		if err != nil {
-			log.Fatalf("Failed to register a consumer: %v", err)
-		}
-		queries := 5
-
-		for d := range msgs {
-			err = json.Unmarshal(d.Body, &results)
-			if err != nil {
-				log.Printf("Failed to unmarshal results: %v", err)
-				continue
-			}
-			queries--
-			if queries == 0 {
-				break
-			}
-
-			jsonBytes, err := json.Marshal(results.Query1)
-			if err != nil {
-				fmt.Printf("Error al convertir a JSON: %v\n", err)
-				return
-			}
-			fmt.Println(string(jsonBytes))
-		}
-
-	}()
+	go listenForResults(conn, &wg)
 
 	wg.Wait()
 }
@@ -71,12 +39,14 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 
 	file, err := os.Open(fmt.Sprintf("docs/%s.csv", filename))
 	if err != nil {
+		log.Fatalf("Failed to open file: %v", err)
 		return err
 	}
 	defer file.Close()
 
-	q, err := utils.NewQueue(conn, filename, false, false, false, false, nil)
+	q, err := utils.NewProducerQueue(conn, filename, filename)
 	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
 		return err
 	}
 
@@ -95,7 +65,60 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 		if err != nil {
 			return err
 		}
+
 	}
 
 	return nil
+}
+
+func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
+	defer wg.Done()
+	var results messages.Results
+	resultsConsumer, err := utils.NewConsumerQueue(conn, "results", "results")
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+
+	queries := 5
+
+	for d := range resultsConsumer.Consume() {
+		log.Printf("Received message: %s", string(d.Body))
+		err = json.Unmarshal(d.Body, &results)
+		if err != nil {
+			log.Printf("Failed to unmarshal results: %v", err)
+			d.Nack(false, false)
+			continue
+		}
+		queries--
+		if queries == 0 {
+			d.Ack(false)
+			break
+		}
+
+		jsonQ1Bytes, err := json.Marshal(results.Query1)
+		if err != nil {
+			log.Printf("Error al convertir a JSON: %v\n", err)
+			d.Nack(false, false)
+			continue
+		}
+		log.Printf("Query 1: %s", string(jsonQ1Bytes))
+
+		jsonQ2Bytes, err := json.Marshal(results.Query2)
+		if err != nil {
+			log.Printf("Error al convertir a JSON: %v\n", err)
+			d.Nack(false, false)
+			continue
+		}
+		log.Printf("Query 2: %s", string(jsonQ2Bytes))
+
+		jsonQ4Bytes, err := json.Marshal(results.Query4)
+		if err != nil {
+			log.Printf("Error al convertir a JSON: %v\n", err)
+			d.Nack(false, false)
+			continue
+		}
+		log.Printf("Query 4: %s", string(jsonQ4Bytes))
+		d.Ack(false)
+	}
+
 }

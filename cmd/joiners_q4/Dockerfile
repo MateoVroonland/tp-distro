@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/reducers/amount_reducer/amount_reducer.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/joiners_q4/credits_joiner.go
 
 ENTRYPOINT ["/main"]
 

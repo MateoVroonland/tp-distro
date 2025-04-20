@@ -15,12 +15,12 @@ func main() {
 	}
 	defer conn.Close()
 
-	filteredByYearConsumer, err := utils.NewQueue(conn, "movies_filtered_by_year_q1", false, false, false, false, nil)
+	filteredByYearConsumer, err := utils.NewConsumerQueue(conn, "movies_filtered_by_year_q1", "movies_filtered_by_year_q1")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	resultsProducer, err := utils.NewQueue(conn, "results", false, false, false, false, nil)
+	resultsProducer, err := utils.NewProducerQueue(conn, "results", "results")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

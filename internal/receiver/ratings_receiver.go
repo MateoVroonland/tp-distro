@@ -13,22 +13,17 @@ import (
 
 type RatingsReceiver struct {
 	conn            *amqp.Connection
-	ratingsConsumer *utils.Queue
-	joinerProducer  *utils.Queue
+	ratingsConsumer *utils.ConsumerQueue
+	joinerProducer  *utils.ProducerQueue
 }
 
-func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.Queue, joinerProducer *utils.Queue) *RatingsReceiver {
+func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQueue, joinerProducer *utils.ProducerQueue) *RatingsReceiver {
 	return &RatingsReceiver{conn: conn, ratingsConsumer: ratingsConsumer, joinerProducer: joinerProducer}
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
-	msgs, err := r.ratingsConsumer.Consume()
-	if err != nil {
-		log.Printf("Error consuming messages: %s", err)
-		return
-	}
 
-	for msg := range msgs {
+	for msg := range r.ratingsConsumer.Consume() {
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 4

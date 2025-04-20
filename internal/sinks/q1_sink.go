@@ -11,11 +11,11 @@ import (
 )
 
 type Q1Sink struct {
-	filteredByYearConsumer *utils.Queue
-	resultsProducer        *utils.Queue
+	filteredByYearConsumer *utils.ConsumerQueue
+	resultsProducer        *utils.ProducerQueue
 }
 
-func NewQ1Sink(filteredByYearConsumer *utils.Queue, resultsProducer *utils.Queue) *Q1Sink {
+func NewQ1Sink(filteredByYearConsumer *utils.ConsumerQueue, resultsProducer *utils.ProducerQueue) *Q1Sink {
 	return &Q1Sink{
 		filteredByYearConsumer: filteredByYearConsumer,
 		resultsProducer:        resultsProducer,
@@ -23,15 +23,11 @@ func NewQ1Sink(filteredByYearConsumer *utils.Queue, resultsProducer *utils.Queue
 }
 
 func (s *Q1Sink) Reduce() {
-	msgs, err := s.filteredByYearConsumer.Consume()
-	if err != nil {
-		log.Fatalf("Failed to register a consumer: %v", err)
-	}
 
 	rows := []messages.Q1Row{}
 
 	log.Printf("Q1 sink consuming messages")
-	for msg := range msgs {
+	for msg := range s.filteredByYearConsumer.Consume() {
 
 		stringLine := string(msg.Body)
 		if stringLine == "FINISHED" {

@@ -15,12 +15,12 @@ func main() {
 	}
 	defer conn.Close()
 
-	rawRatingsConsumer, err := utils.NewQueue(conn, "ratings", false, false, false, false, nil)
+	rawRatingsConsumer, err := utils.NewConsumerQueue(conn, "ratings", "ratings")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	joinerProducer, err := utils.NewQueue(conn, "ratings_joiner", false, false, false, false, nil)
+	joinerProducer, err := utils.NewProducerQueue(conn, "ratings_joiner", "ratings_joiner")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

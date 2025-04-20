@@ -7,6 +7,8 @@ import (
 
 type Results struct {
 	Query1 *QueryResult[Q1Row] `json:"query1,omitempty"`
+	Query2 *QueryResult[Q2Row] `json:"query2,omitempty"`
+	Query4 *QueryResult[Q4Row] `json:"query4,omitempty"`
 }
 
 type RawResult struct {
@@ -16,6 +18,8 @@ type RawResult struct {
 
 const (
 	Query1Type = "query1"
+	Query2Type = "query2"
+	Query4Type = "query4"
 )
 
 func (aq *Results) UnmarshalJSON(data []byte) error {
@@ -34,6 +38,24 @@ func (aq *Results) UnmarshalJSON(data []byte) error {
 			QueryID: raw.QueryID,
 			Results: results,
 		}
+	case Query2Type:
+		var results []Q2Row
+		if err := json.Unmarshal(raw.Results, &results); err != nil {
+			return err
+		}
+		aq.Query2 = &QueryResult[Q2Row]{
+			QueryID: raw.QueryID,
+			Results: results,
+		}
+	case Query4Type:
+		var results []Q4Row
+		if err := json.Unmarshal(raw.Results, &results); err != nil {
+			return err
+		}
+		aq.Query4 = &QueryResult[Q4Row]{
+			QueryID: raw.QueryID,
+			Results: results,
+		}
 	default:
 		return fmt.Errorf("unknown query type: %s", raw.QueryID)
 	}
@@ -48,7 +70,7 @@ type QueryResult[T any] struct {
 
 func NewQuery1Result(rows []Q1Row) *QueryResult[Q1Row] {
 	return &QueryResult[Q1Row]{
-		QueryID: "query1",
+		QueryID: Query1Type,
 		Results: rows,
 	}
 }
@@ -64,5 +86,36 @@ func NewQ1Row(movieID string, title string, genres []Genre) *Q1Row {
 		MovieID: movieID,
 		Title:   title,
 		Genres:  genres,
+	}
+}
+
+type Q2Row struct {
+	Country string `json:"country"`
+	Amount  int    `json:"amount"`
+}
+
+func NewQ2Row(country string, amount int) *Q2Row {
+	return &Q2Row{
+		Country: country,
+		Amount:  amount,
+	}
+}
+
+func NewQ2Result(rows []Q2Row) *QueryResult[Q2Row] {
+	return &QueryResult[Q2Row]{
+		QueryID: Query2Type,
+		Results: rows,
+	}
+}
+
+type Q4Row struct {
+	Actor       string `json:"actor"`
+	MoviesCount int    `json:"movies_count"`
+}
+
+func NewQ4Row(actor string, moviesCount int) *Q4Row {
+	return &Q4Row{
+		Actor:       actor,
+		MoviesCount: moviesCount,
 	}
 }
