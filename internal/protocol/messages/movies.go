@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -25,6 +26,21 @@ func (m *Movie) IncludesAllCountries(countries []string) bool {
 		}
 	}
 	return remainingCountries == 0
+}
+
+func (m *Movie) HasValidBudgetAndRevenue() bool {
+	budget, err1 := strconv.ParseFloat(m.RawData[MovieBudget], 64)
+	if err1 != nil || budget == 0 {
+		return false
+	}
+
+	revenue, err2 := strconv.ParseFloat(m.RawData[MovieRevenue], 64)
+	if err2 != nil || revenue == 0 {
+		return false
+	}
+
+	return true
+
 }
 
 const (

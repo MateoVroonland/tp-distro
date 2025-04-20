@@ -44,8 +44,12 @@ func (s *SentimentAnalysis) Deserialize(data []string) error {
 	s.Revenue = revenue
 	s.Sentiment = data[SentimentLabel]
 	s.Ratio = s.Revenue / s.Budget
-	s.RawData = make([]string, len(data))
-	copy(s.RawData, data)
+	s.RawData = make([]string, 5)
+	s.RawData[SentimentMovieID] = data[SentimentMovieID]
+	s.RawData[SentimentMovieTitle] = data[SentimentMovieTitle]
+	s.RawData[SentimentMovieBudget] = data[SentimentMovieBudget]
+	s.RawData[SentimentMovieRevenue] = data[SentimentMovieRevenue]
+	s.RawData[SentimentLabel] = data[SentimentLabel]
 
 	return nil
 }

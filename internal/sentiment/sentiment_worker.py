@@ -59,17 +59,8 @@ class SentimentWorker:
             movie_id = movie_data[MovieID]
             movie_title = movie_data[MovieTitle]
             overview = movie_data[MovieOverview]
-            try:
-                movie_budget = float(movie_data[MovieBudget])
-                movie_revenue = float(movie_data[MovieRevenue])
-            except ValueError:
-                logger.warning(f"Invalid budget or revenue for {movie_title}, skipping")
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-                return
-            if movie_budget == 0 or movie_revenue == 0:
-                logger.info(f"Skipping movie {movie_title} due to zero budget or revenue")
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-                return
+            movie_budget = movie_data[MovieBudget]
+            movie_revenue = movie_data[MovieRevenue]
 
             sentiment_result = self.analyze_sentiment(overview)
             
