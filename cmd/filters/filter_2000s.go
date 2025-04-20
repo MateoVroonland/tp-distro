@@ -45,7 +45,7 @@ func main() {
 	case "1":
 		outputMessage = &messages.Q1Movie{}
 	case "3":
-		log.Fatalf("Query 3 not implemented")
+		outputMessage = &messages.Q3Movie{}
 	case "4":
 		outputMessage = &messages.Q4Movie{}
 	}

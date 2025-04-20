@@ -8,6 +8,7 @@ import (
 type Results struct {
 	Query1 *QueryResult[Q1Row] `json:"query1,omitempty"`
 	Query2 *QueryResult[Q2Row] `json:"query2,omitempty"`
+	Query3 *QueryResult[Q3Row] `json:"query3,omitempty"`
 }
 
 type RawResult struct {
@@ -18,6 +19,7 @@ type RawResult struct {
 const (
 	Query1Type = "query1"
 	Query2Type = "query2"
+	Query3Type = "query3"
 )
 
 func (aq *Results) UnmarshalJSON(data []byte) error {
@@ -96,3 +98,25 @@ func NewQ2Result(rows []Q2Row) *QueryResult[Q2Row] {
 		Results: rows,
 	}
 }
+
+type Q3Row struct {
+	MovieID string `json:"movie_id"`
+	Title   string `json:"title"`
+	Rating  float64 `json:"rating"`
+}
+
+func NewQ3Row(movieID string, title string, rating float64) *Q3Row {
+	return &Q3Row{
+		MovieID: movieID,
+		Title:   title,
+		Rating:  rating,
+	}
+}
+
+func NewQ3Result(rows []Q3Row) *QueryResult[Q3Row] {
+	return &QueryResult[Q3Row]{
+		QueryID: Query3Type,
+		Results: rows,
+	}
+}
+

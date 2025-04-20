@@ -23,8 +23,8 @@ func main() {
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
-	// go publishFile("ratings", ch, &wg)
-	go publishFile("credits", conn, &wg)
+	go publishFile("ratings", conn, &wg)
+	// go publishFile("credits", conn, &wg)
 	go publishFile("movies_metadata", conn, &wg)
 
 	go func() {
@@ -65,6 +65,13 @@ func main() {
 				return
 			}
 			log.Printf("Query 2: %s", string(jsonQ2Bytes))
+
+			jsonQ3Bytes, err := json.Marshal(results.Query3)
+			if err != nil {
+				log.Printf("Error al convertir a JSON: %v\n", err)
+				return
+			}
+			log.Printf("Query 3: %s", string(jsonQ3Bytes))
 		}
 
 	}()

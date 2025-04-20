@@ -47,7 +47,7 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		reader.FieldsPerRecord = 6
 		record, err := reader.Read()
 		if err != nil {
-			log.Printf("Failed to read record: %v", err)
+			// log.Printf("Failed to read record: %v", err)
 			d.Nack(false, false)
 			continue
 		}

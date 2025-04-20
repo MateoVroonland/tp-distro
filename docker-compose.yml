@@ -55,6 +55,16 @@ services:
         condition: service_healthy
     command: /filter_2000s/filter_2000s.go
 
+  filter_2000s_q3:
+    environment:
+      QUERY: 3
+    build:
+      context: .
+      dockerfile: cmd/filters/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /filter_2000s/filter_2000s.go
   ratingsreceiver:
     build:
       context: .
@@ -80,7 +90,7 @@ services:
         condition: service_healthy
     command: /budget_reducer.go
     deploy:
-      replicas: 5
+      replicas: 1
 
   budget_sink:
     build:
@@ -100,6 +110,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    
 
   credits_receiver:
     build:
@@ -109,3 +120,22 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /credits_receiver/credits_receiver.go
+
+  ratings_joiner:
+    environment:
+      ID: 1
+    build:
+      context: .
+      dockerfile: cmd/joiners/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  q3_sink:
+    build:
+      context: .
+      dockerfile: cmd/sinks_q3/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /q3_sink/q3_sink.go
