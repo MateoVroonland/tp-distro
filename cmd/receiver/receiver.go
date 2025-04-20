@@ -124,10 +124,7 @@ func main() {
 				log.Printf("Failed to publish to queue 4: %v", err)
 			}
 		}
-		if !movie.HasValidBudgetAndRevenue() {
-			d.Ack(false)
-			continue
-		}
+
 		err = q5.Publish(serializedMovie)
 		if err != nil {
 			log.Printf("Failed to publish to queue 5: %v", err)

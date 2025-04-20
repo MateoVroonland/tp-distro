@@ -11,6 +11,8 @@ import (
 
 type Movie struct {
 	Countries []Country
+	Revenue   float64
+	Budget    float64
 	RawData   []string
 }
 
@@ -26,20 +28,6 @@ func (m *Movie) IncludesAllCountries(countries []string) bool {
 		}
 	}
 	return remainingCountries == 0
-}
-
-func (m *Movie) HasValidBudgetAndRevenue() bool {
-	budget, err1 := strconv.ParseFloat(m.RawData[MovieBudget], 64)
-	if err1 != nil || budget == 0 {
-		return false
-	}
-
-	revenue, err2 := strconv.ParseFloat(m.RawData[MovieRevenue], 64)
-	if err2 != nil || revenue == 0 {
-		return false
-	}
-
-	return true
 }
 
 const (
@@ -58,6 +46,17 @@ func (m *Movie) Deserialize(data []string) error {
 	err := json.Unmarshal([]byte(jsonStr), &m.Countries)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal production countries: %v", err)
+	}
+	var err1 error
+	m.Budget, err1 = strconv.ParseFloat(data[MovieBudget], 64)
+	if err1 != nil || m.Budget == 0 {
+		return fmt.Errorf("failed to parse budget or budget is zero: %v", err1)
+	}
+
+	var err2 error
+	m.Revenue, err2 = strconv.ParseFloat(data[MovieRevenue], 64)
+	if err2 != nil || m.Revenue == 0 {
+		return fmt.Errorf("failed to parse revenue or revenue is zero: %v", err2)
 	}
 
 	productionCountries := make([]string, len(m.Countries))
