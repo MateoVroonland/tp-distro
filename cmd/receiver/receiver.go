@@ -113,10 +113,14 @@ func main() {
 			}
 		}
 
-		// err = q5.Publish(serializedMovie)
-		// if err != nil {
-		// 	log.Printf("Failed to publish to queue 5: %v", err)
-		// }
+		if !movie.HasValidBudgetAndRevenue() {
+			continue
+		}
+
+		err = q5.Publish(serializedMovie)
+		if err != nil {
+			log.Printf("Failed to publish to queue 5: %v", err)
+		}
 
 		d.Ack(false)
 	}
