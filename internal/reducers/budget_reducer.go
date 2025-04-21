@@ -11,8 +11,6 @@ import (
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
-const BUDGET_REDUCER_AMOUNT = 5
-
 type BudgetReducer struct {
 	queue        *utils.ConsumerQueue
 	publishQueue *utils.ProducerQueue
