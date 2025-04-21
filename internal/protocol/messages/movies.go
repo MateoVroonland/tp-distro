@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strconv"
 	"strings"
 )
 
 type Movie struct {
 	Countries []Country
+	Revenue   float64
+	Budget    float64
 	RawData   []string
 }
 
@@ -34,6 +37,8 @@ const (
 	MovieGenres
 	MovieBudget
 	MovieProductionCountries
+	MovieRevenue
+	MovieOverview
 )
 
 func (m *Movie) Deserialize(data []string) error {
@@ -42,13 +47,24 @@ func (m *Movie) Deserialize(data []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal production countries: %v", err)
 	}
+	var err1 error
+	m.Budget, err1 = strconv.ParseFloat(data[MovieBudget], 64)
+	if err1 != nil || m.Budget == 0 {
+		return fmt.Errorf("failed to parse budget or budget is zero: %v", err1)
+	}
+
+	var err2 error
+	m.Revenue, err2 = strconv.ParseFloat(data[MovieRevenue], 64)
+	if err2 != nil || m.Revenue == 0 {
+		return fmt.Errorf("failed to parse revenue or revenue is zero: %v", err2)
+	}
 
 	productionCountries := make([]string, len(m.Countries))
 	for i, c := range m.Countries {
 		productionCountries[i] = c.Name
 	}
 
-	m.RawData = make([]string, 6)
+	m.RawData = make([]string, 8)
 	m.RawData[MovieID] = data[RawMovieID]
 	m.RawData[MovieTitle] = data[RawMovieTitle]
 	m.RawData[MovieReleaseDate] = data[RawMovieReleaseDate]
@@ -62,6 +78,8 @@ func (m *Movie) Deserialize(data []string) error {
 	}
 
 	m.RawData[MovieProductionCountries] = string(countriesJSON)
+	m.RawData[MovieRevenue] = data[RawMovieRevenue]
+	m.RawData[MovieOverview] = data[RawMovieOverview]
 	return nil
 }
 

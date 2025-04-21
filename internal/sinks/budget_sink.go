@@ -30,7 +30,6 @@ func (s *BudgetSink) Sink() {
 		stringLine := string(msg.Body)
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
-		reader.FieldsPerRecord = 2
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
