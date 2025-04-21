@@ -125,6 +125,24 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+  credits_joiner_2:
+    environment:
+      ID: 2
+    build:
+      context: .
+      dockerfile: cmd/joiners_q4/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  credits_joiner_3:
+    environment:
+      ID: 3
+    build:
+      context: .
+      dockerfile: cmd/joiners_q4/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   credits_receiver:
     build:

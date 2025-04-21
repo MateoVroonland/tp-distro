@@ -102,8 +102,6 @@ func (c *CreditsJoiner) JoinCredits() error {
 		msg.Ack(false)
 	}
 
-	log.Printf("Received %d credits", j)
 	log.Printf("Saved %d credits", len(credits))
-
 	return nil
 }

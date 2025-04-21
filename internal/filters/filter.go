@@ -19,12 +19,17 @@ func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearPro
 	return &Filter{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer, outputMessage: outputMessage}
 }
 
-func (f *Filter) FilterAndPublish() error {
+func (f *Filter) FilterAndPublish(query string) error {
 
-	f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
+	query = strings.ToLower(query)
+	if query == "1" {
+		f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
+	} else if query == "3" || query == "4" {
+		f.filteredByCountryConsumer.AddFinishSubscriberWithRoutingKey(f.filteredByYearProducer, "1") // send to the first queue in the hashed queues
+	}
+
 	for msg := range f.filteredByCountryConsumer.Consume() {
 
-		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -47,11 +52,13 @@ func (f *Filter) FilterAndPublish() error {
 				msg.Nack(false, false)
 				continue
 			}
+
 			routingKey := f.outputMessage.GetRoutingKey()
-			if routingKey != "" {
-				err = f.filteredByYearProducer.PublishWithRoutingKey(serializedMovie, routingKey)
-			} else {
+
+			if routingKey == "" {
 				err = f.filteredByYearProducer.Publish(serializedMovie)
+			} else {
+				err = f.filteredByYearProducer.PublishWithRoutingKey(serializedMovie, routingKey)
 			}
 
 			if err != nil {

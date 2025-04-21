@@ -10,6 +10,11 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+type FinishSubscriber struct {
+	producer   *ProducerQueue
+	routingKey string
+}
+
 type ConsumerQueue struct {
 	ch                 *amqp.Channel
 	queueName          string
@@ -20,7 +25,7 @@ type ConsumerQueue struct {
 	timer              <-chan time.Time
 	isLeader           bool
 	replicas           int
-	finishSubscribers  []*ProducerQueue
+	finishSubscribers  []FinishSubscriber
 }
 
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string, fanoutName string) (*ConsumerQueue, error) {
@@ -46,13 +51,19 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return nil, err
 	}
 
-	_, err = ch.QueueDeclare(queueName, false, false, false, false, nil)
+	var uniqueQueueName string
+	if routingKey == queueName {
+		uniqueQueueName = queueName
+	} else {
+		uniqueQueueName = fmt.Sprintf("%s_%s", queueName, routingKey)
+	}
+	_, err = ch.QueueDeclare(uniqueQueueName, false, false, false, false, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	err = ch.QueueBind(
-		queueName,
+		uniqueQueueName,
 		routingKey,
 		exchangeName,
 		false,
@@ -63,13 +74,13 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 	}
 
 	deliveryChannel, err := ch.Consume(
-		queueName, // queue name - use the stored queue name
-		"",        // id
-		false,     // auto-ack
-		false,     // exclusive
-		false,     // no-local
-		false,     // no-wait
-		nil,       // args
+		uniqueQueueName, // queue name - use the unique queue name
+		"",              // id
+		false,           // auto-ack
+		false,           // exclusive
+		false,           // no-local
+		false,           // no-wait
+		nil,             // args
 	)
 	if err != nil {
 		return nil, err
@@ -85,10 +96,10 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 			return nil, err
 		}
 
-		return &ConsumerQueue{ch: ch, queueName: queueName, closeQueueConsumer: closeQueueConsumer, closeQueueProducer: closeQueueProducer, deliveryChannel: deliveryChannel, fanoutName: fanoutName}, nil
+		return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, closeQueueConsumer: closeQueueConsumer, closeQueueProducer: closeQueueProducer, deliveryChannel: deliveryChannel, fanoutName: fanoutName}, nil
 	}
 
-	return &ConsumerQueue{ch: ch, queueName: queueName, deliveryChannel: deliveryChannel, fanoutName: fanoutName}, nil
+	return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, deliveryChannel: deliveryChannel, fanoutName: fanoutName}, nil
 }
 
 func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
@@ -158,16 +169,23 @@ func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
 }
 
 func (q *ConsumerQueue) AddFinishSubscriber(pq *ProducerQueue) {
-	q.finishSubscribers = append(q.finishSubscribers, pq)
+	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: ""})
+}
+func (q *ConsumerQueue) AddFinishSubscriberWithRoutingKey(pq *ProducerQueue, routingKey string) {
+	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: routingKey})
 }
 
 func (q *ConsumerQueue) sendFinished() {
 	if !q.isLeader {
 		return
 	}
-	for _, pq := range q.finishSubscribers {
-		log.Printf("Sending FINISHED to %s", pq.queueName)
-		pq.Publish([]byte("FINISHED")) // check error
+	for _, sub := range q.finishSubscribers {
+		log.Printf("Sending FINISHED to %s", sub.producer.queueName)
+		if sub.routingKey == "" {
+			sub.producer.Publish([]byte("FINISHED"))
+		} else {
+			sub.producer.PublishWithRoutingKey([]byte("FINISHED"), sub.routingKey)
+		}
 	}
 }
 
@@ -289,7 +307,7 @@ func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQue
 	}
 
 	deliveryChannel, err := ch.Consume(
-		q.Name, // queue name - use the stored queue name
+		q.Name, // queue name
 		"",     // id
 		false,  // auto-ack
 		false,  // exclusive

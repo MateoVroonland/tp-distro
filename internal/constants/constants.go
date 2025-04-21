@@ -1,3 +1,3 @@
 package constants
 
-const CREDITS_JOINER_AMOUNT = 1
+const CREDITS_JOINER_AMOUNT = 3

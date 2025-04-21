@@ -53,7 +53,7 @@ func main() {
 	filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
 
 	forever := make(chan bool)
-	go filter.FilterAndPublish()
+	go filter.FilterAndPublish(query)
 
 	<-forever
 }
