@@ -55,7 +55,6 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 	for {
 		line, err := lineReader.ReadString('\n')
 		if err == io.EOF {
-			q.Publish([]byte("FINISHED"))
 			break
 		} else if err != nil {
 			return err
@@ -81,7 +80,7 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 
 	queries := 5
 
-	for d := range resultsConsumer.Consume() {
+	for d := range resultsConsumer.ConsumeInfinite() {
 		log.Printf("Received message: %s", string(d.Body))
 		err = json.Unmarshal(d.Body, &results)
 		if err != nil {

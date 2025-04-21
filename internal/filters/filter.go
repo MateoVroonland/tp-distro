@@ -25,11 +25,6 @@ func (f *Filter) FilterAndPublish() error {
 
 		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)
-		if stringLine == "FINISHED" {
-			f.filteredByYearProducer.Publish([]byte("FINISHED"))
-			msg.Ack(false)
-			break
-		}
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
 		if err != nil {

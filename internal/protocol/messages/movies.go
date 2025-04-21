@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -47,17 +46,15 @@ func (m *Movie) Deserialize(data []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal production countries: %v", err)
 	}
-	var err1 error
-	m.Budget, err1 = strconv.ParseFloat(data[MovieBudget], 64)
-	if err1 != nil || m.Budget == 0 {
-		return fmt.Errorf("failed to parse budget or budget is zero: %v", err1)
-	}
+	// m.Budget, err = strconv.ParseFloat(data[RawMovieBudget], 64)
+	// if err != nil || m.Budget == 0 {
+	// 	return fmt.Errorf("failed to parse budget or budget is zero: %v", err)
+	// }
 
-	var err2 error
-	m.Revenue, err2 = strconv.ParseFloat(data[MovieRevenue], 64)
-	if err2 != nil || m.Revenue == 0 {
-		return fmt.Errorf("failed to parse revenue or revenue is zero: %v", err2)
-	}
+	// m.Revenue, err = strconv.ParseFloat(data[RawMovieRevenue], 64)
+	// if err != nil || m.Revenue == 0 {
+	// 	return fmt.Errorf("failed to parse revenue or revenue is zero: %v", err)
+	// }
 
 	productionCountries := make([]string, len(m.Countries))
 	for i, c := range m.Countries {

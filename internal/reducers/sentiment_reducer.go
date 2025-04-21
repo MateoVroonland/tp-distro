@@ -50,7 +50,6 @@ func (r *SentimentReducer) Reduce() {
 	negativeStats := NewSentimentStats("NEGATIVE")
 
 	processedCount := 0
-	finishedCount := 0
 
 	defer r.queue.CloseChannel()
 	defer r.publishQueue.CloseChannel()
@@ -59,18 +58,6 @@ func (r *SentimentReducer) Reduce() {
 
 	for d := range r.queue.Consume() {
 		stringLine := string(d.Body)
-
-		if stringLine == "FINISHED" {
-			log.Printf("Received termination message (%d/%d)", finishedCount+1, SENTIMENT_WORKER_AMOUNT)
-			finishedCount++
-			d.Ack(false)
-
-			if finishedCount >= SENTIMENT_WORKER_AMOUNT {
-				log.Printf("All sentiment workers have finished, proceeding to publish results")
-				break
-			}
-			continue
-		}
 
 		processedCount++
 

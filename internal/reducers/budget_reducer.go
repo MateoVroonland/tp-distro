@@ -32,11 +32,6 @@ func (r *BudgetReducer) Reduce() map[string]int {
 	for msg := range r.queue.Consume() {
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
-			log.Printf("Received termination message")
-			msg.Ack(false)
-			break
-		}
 		i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -77,7 +72,6 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		}
 		r.publishQueue.Publish(serializedBudget)
 	}
-	r.publishQueue.Publish([]byte("FINISHED"))
 
 	return budgetPerCountry
 }

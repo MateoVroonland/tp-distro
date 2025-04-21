@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/csv"
 	"iter"
+	"log"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -13,6 +15,7 @@ type ConsumerQueue struct {
 	queueName         string
 	consumerInstances int
 	deliveryChannel   <-chan amqp.Delivery
+	timeout           <-chan time.Time
 }
 
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string) (*ConsumerQueue, error) {
@@ -61,7 +64,7 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		false,     // exclusive
 		false,     // no-local
 		false,     // no-wait
-		nil,       // args
+		nil,
 	)
 	if err != nil {
 		return nil, err
@@ -71,6 +74,25 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 }
 
 func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
+	return func(yield func(*amqp.Delivery) bool) {
+
+		for {
+			select {
+			case delivery := <-q.deliveryChannel:
+				if q.timeout == nil {
+					log.Printf("initializing timeout")
+				}
+				q.timeout = time.After(30 * time.Second)
+				if !yield(&delivery) {
+					return
+				}
+			case <-q.timeout:
+				return
+			}
+		}
+	}
+}
+func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[*amqp.Delivery] {
 	return func(yield func(*amqp.Delivery) bool) {
 		for delivery := range q.deliveryChannel {
 			if !yield(&delivery) {

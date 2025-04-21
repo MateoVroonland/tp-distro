@@ -31,11 +31,6 @@ func (r *CreditsReceiver) ReceiveCredits() {
 
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
-			r.joinerProducer.PublishWithRoutingKey([]byte("FINISHED"), "1")
-			msg.Ack(false)
-			break
-		}
 		i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
