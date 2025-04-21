@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"fmt"
 	"iter"
+	"log"
+	"os"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -17,6 +20,7 @@ type ConsumerQueue struct {
 	timer              <-chan time.Time
 	isLeader           bool
 	replicas           int
+	finishSubscribers  []*ProducerQueue
 }
 
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string, fanoutName string) (*ConsumerQueue, error) {
@@ -98,40 +102,72 @@ func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
 		for {
 			select {
 			case delivery := <-closeQueueDelivery: // FINISHED-RECEIVED | FINISHED-DONE | FINISHED-ACK
+				delivery.Ack(false)
+
 				message := string(delivery.Body)
 				if message == "FINISHED-RECEIVED" {
-					q.timer = time.After(time.Millisecond * 1000)
+					log.Printf("Received FINISHED-RECEIVED")
+					q.timer = time.After(time.Millisecond * 1500)
 					q.closeQueueProducer.Publish([]byte("FINISHED-ACK"))
+					log.Printf("Sent FINISHED-ACK to %s", q.closeQueueProducer.queueName)
 				}
 
 				if message == "FINISHED-ACK" && q.isLeader {
+					log.Printf("Received FINISHED-ACK")
 					q.replicas++
+					log.Printf("Replicas counted: %d", q.replicas)
 				}
 				if message == "FINISHED-DONE" && q.isLeader {
-
+					log.Printf("Received FINISHED-DONE")
 					q.replicas--
+					log.Printf("Replicas remaining: %d", q.replicas)
 					if q.replicas == 0 {
-						q.closeQueueProducer.Publish([]byte("FINISHED-DONE"))
+						q.sendFinished()
+						return
 					}
 				}
 			case delivery := <-q.deliveryChannel:
 				if q.timer != nil {
-					q.timer = time.After(time.Millisecond * 1000)
+					q.timer = time.After(time.Millisecond * 1500)
 				}
 				if string(delivery.Body) == "FINISHED" && q.fanoutName != "" {
+					log.Printf("Received FINISHED from %s", q.queueName)
 					q.isLeader = true
+					log.Printf("Is leader: %t", q.isLeader)
 					q.closeQueueProducer.Publish([]byte("FINISHED-RECEIVED"))
-					delivery.Ack(false)
+					log.Printf("Sent FINISHED-RECEIVED to")
+					err := delivery.Ack(false)
+					if err != nil {
+						log.Printf("Failed to ack delivery: %v", err)
+					}
 					continue
 				}
 				if !yield(&delivery) {
+					log.Printf("Exiting early consumer loop")
 					return
 				}
 			case <-q.timer:
 				q.closeQueueProducer.Publish([]byte("FINISHED-DONE"))
-				return
+				log.Printf("Sent FINISHED-DONE")
+				if !q.isLeader {
+					return
+				}
 			}
 		}
+	}
+}
+
+func (q *ConsumerQueue) AddFinishSubscriber(pq *ProducerQueue) {
+	q.finishSubscribers = append(q.finishSubscribers, pq)
+}
+
+func (q *ConsumerQueue) sendFinished() {
+	if !q.isLeader {
+		return
+	}
+	for _, pq := range q.finishSubscribers {
+		log.Printf("Sending FINISHED to %s", pq.queueName)
+		pq.Publish([]byte("FINISHED")) // check error
 	}
 }
 
@@ -172,10 +208,36 @@ func (q *ProducerQueue) Publish(body []byte) error {
 }
 
 func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string) error {
+
+	notifyReturn := make(chan amqp.Return)
+	q.ch.NotifyReturn(notifyReturn)
+	go func() {
+		outputFile, err := os.OpenFile("returned_messages.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Printf("Failed to open output file: %v", err)
+			outputFile = nil
+		}
+		outputFileInfo, err := os.OpenFile("returned_messages_info.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Printf("Failed to open output file: %v", err)
+			outputFileInfo = nil
+		}
+		for r := range notifyReturn {
+			body := string(r.Body)
+			info := fmt.Sprintf("exchange: %s, routingKey: %s, replyText: %s\n", r.Exchange, r.RoutingKey, r.ReplyText)
+			if outputFile != nil {
+				fmt.Fprint(outputFile, body)
+			}
+			if outputFileInfo != nil {
+				fmt.Fprint(outputFileInfo, info)
+			}
+		}
+	}()
+
 	err := q.ch.Publish(
 		q.exchangeName, // exchange
 		routingKey,     // routing key
-		false,          // mandatory
+		true,           // mandatory
 		false,          // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",

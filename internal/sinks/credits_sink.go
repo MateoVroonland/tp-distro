@@ -34,11 +34,6 @@ func (s *CreditsSink) Sink() {
 
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
-			log.Printf("Received termination message")
-			msg.Ack(false)
-			break
-		}
 		i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))

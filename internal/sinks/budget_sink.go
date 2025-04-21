@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
-	"github.com/MateoVroonland/tp-distro/internal/reducers"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -24,20 +23,11 @@ func NewBudgetSink(queue *utils.ConsumerQueue, resultsProducer *utils.ProducerQu
 
 func (s *BudgetSink) Sink() {
 	budgetPerCountry := make(map[string]int)
-	reducersMissing := reducers.BUDGET_REDUCER_AMOUNT
+
+	s.queue.AddFinishSubscriber(s.resultsProducer)
 	for msg := range s.queue.Consume() {
 
 		stringLine := string(msg.Body)
-
-		if stringLine == "FINISHED" {
-			log.Printf("Received termination message")
-			reducersMissing--
-			msg.Ack(false)
-			if reducersMissing == 0 {
-				break
-			}
-			continue
-		}
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 2

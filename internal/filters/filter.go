@@ -21,15 +21,12 @@ func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearPro
 
 func (f *Filter) FilterAndPublish() error {
 
+	f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
 	for msg := range f.filteredByCountryConsumer.Consume() {
 
 		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)
-		if stringLine == "FINISHED" {
-			f.filteredByYearProducer.Publish([]byte("FINISHED"))
-			msg.Ack(false)
-			break
-		}
+
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 6
 		record, err := reader.Read()
@@ -51,7 +48,13 @@ func (f *Filter) FilterAndPublish() error {
 				msg.Nack(false, false)
 				continue
 			}
-			err = f.filteredByYearProducer.Publish(serializedMovie)
+			routingKey := f.outputMessage.GetRoutingKey()
+			if routingKey != "" {
+				err = f.filteredByYearProducer.PublishWithRoutingKey(serializedMovie, routingKey)
+			} else {
+				err = f.filteredByYearProducer.Publish(serializedMovie)
+			}
+
 			if err != nil {
 				log.Printf("Error publishing movie: %s", err)
 				msg.Nack(false, false)

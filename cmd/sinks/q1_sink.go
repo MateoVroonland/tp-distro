@@ -15,7 +15,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	filteredByYearConsumer, err := utils.NewConsumerQueue(conn, "movies_filtered_by_year_q1", "movies_filtered_by_year_q1")
+	filteredByYearConsumer, err := utils.NewConsumerQueue(conn, "movies_filtered_by_year_q1", "movies_filtered_by_year_q1", "q1_sink_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

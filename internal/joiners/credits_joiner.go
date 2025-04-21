@@ -10,8 +10,6 @@ import (
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
-const CREDITS_JOINER_AMOUNT = 1
-
 type CreditsJoiner struct {
 	creditsJoinerConsumer *utils.ConsumerQueue
 	moviesJoinerConsumer  *utils.ConsumerQueue
@@ -33,10 +31,6 @@ func (c *CreditsJoiner) JoinCredits() error {
 	for msg := range c.moviesJoinerConsumer.Consume() {
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
-			msg.Ack(false)
-			break
-		}
 		i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -65,14 +59,10 @@ func (c *CreditsJoiner) JoinCredits() error {
 	var credits []messages.Credits
 
 	j := 0
+	c.creditsJoinerConsumer.AddFinishSubscriber(c.sinkProducer)
 	for msg := range c.creditsJoinerConsumer.Consume() {
 
 		stringLine := string(msg.Body)
-		if stringLine == "FINISHED" {
-			c.sinkProducer.Publish([]byte("FINISHED"))
-			msg.Ack(false)
-			break
-		}
 		j++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))

@@ -44,3 +44,10 @@ func (m *Q4Movie) GetRawData() []string {
 func (m *Q4Movie) PassesFilter() bool {
 	return m.ReleaseDate.Year() >= 2000
 }
+
+func (m *Q4Movie) GetRoutingKey() string {
+	// routingKey := utils.HashString(strconv.Itoa(m.ID), constants.CREDITS_JOINER_AMOUNT)
+	// rk := strconv.Itoa(routingKey)
+	// log.Printf("Routing key %s for id %d", rk, m.ID)
+	return ""
+}
