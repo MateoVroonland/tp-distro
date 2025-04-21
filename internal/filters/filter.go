@@ -57,7 +57,6 @@ func (f *Filter) FilterAndPublish() error {
 				msg.Nack(false, false)
 				continue
 			}
-			log.Printf("Published message: %s on queue %s", string(serializedMovie), f.filteredByYearProducer.QueueName)
 			msg.Ack(false)
 		}
 	}

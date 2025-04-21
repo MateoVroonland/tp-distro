@@ -18,7 +18,14 @@ func main() {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 
-	q, err := utils.NewConsumerQueue(conn, "movies_metadata", "movies_metadata")
+	internalQueue, err := utils.NewConsumerFanout(conn, "movies_receiver")
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+	defer internalQueue.CloseChannel()
+
+	totalReceivedMessages := 0
+	q, err := utils.NewConsumerQueue(conn, "movies_metadata", "movies_metadata", internalQueue)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
@@ -53,7 +60,9 @@ func main() {
 	}
 	defer q5.CloseChannel()
 
+	q2Messages := 0
 	for d := range q.Consume() {
+		totalReceivedMessages++
 		stringLine := string(d.Body)
 
 		if stringLine == "FINISHED" {
@@ -100,6 +109,7 @@ func main() {
 		}
 
 		if len(movie.Countries) == 1 {
+			q2Messages++
 			err = q2.Publish(serializedMovie)
 			if err != nil {
 				log.Printf("Failed to publish to queue 2: %v", err)
@@ -124,6 +134,7 @@ func main() {
 
 		d.Ack(false)
 	}
-
+	log.Printf("Q2 messages: %d", q2Messages)
+	log.Printf("Total received messages: %d", totalReceivedMessages)
 	defer conn.Close()
 }

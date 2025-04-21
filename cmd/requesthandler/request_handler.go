@@ -52,7 +52,10 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 
 	lineReader := bufio.NewReader(file)
 	lineReader.ReadString('\n')
+	i := 0
+	j := 0
 	for {
+		i++
 		line, err := lineReader.ReadString('\n')
 		if err == io.EOF {
 			q.Publish([]byte("FINISHED"))
@@ -65,8 +68,12 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 		if err != nil {
 			return err
 		}
+		j++
 
 	}
+
+	log.Printf("Processed lines: %d", i)
+	log.Printf("Published lines: %d", j)
 
 	return nil
 }
