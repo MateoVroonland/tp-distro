@@ -30,11 +30,6 @@ func (s *Q1Sink) Reduce() {
 	for msg := range s.filteredByYearConsumer.Consume() {
 
 		stringLine := string(msg.Body)
-		if stringLine == "FINISHED" {
-			log.Printf("Received termination message")
-			msg.Ack(false)
-			break
-		}
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
 		if err != nil {

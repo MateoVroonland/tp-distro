@@ -56,3 +56,7 @@ func (m *Q1Movie) GetRawData() []string {
 func (m *Q1Movie) PassesFilter() bool {
 	return m.ReleaseDate.Year() >= 2000 && m.ReleaseDate.Year() <= 2009
 }
+
+func (m *Q1Movie) GetRoutingKey() string {
+	return ""
+}

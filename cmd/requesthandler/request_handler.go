@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -20,6 +21,8 @@ func main() {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 	defer conn.Close()
+
+	time.Sleep(5 * time.Second)
 
 	wg := sync.WaitGroup{}
 	wg.Add(3)
@@ -52,7 +55,10 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 
 	lineReader := bufio.NewReader(file)
 	lineReader.ReadString('\n')
+	i := 0
+	j := 0
 	for {
+		i++
 		line, err := lineReader.ReadString('\n')
 		if err == io.EOF {
 			q.Publish([]byte("FINISHED"))
@@ -63,10 +69,15 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 
 		err = q.Publish([]byte(line))
 		if err != nil {
-			return err
+			log.Printf("Failed to publish line: %v", err)
+			continue
 		}
+		j++
 
 	}
+
+	log.Printf("Processed lines: %d", i)
+	log.Printf("Published lines: %d", j)
 
 	return nil
 }
@@ -74,7 +85,7 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 	defer wg.Done()
 	var results messages.Results
-	resultsConsumer, err := utils.NewConsumerQueue(conn, "results", "results")
+	resultsConsumer, err := utils.NewConsumerQueue(conn, "results", "results", "")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
