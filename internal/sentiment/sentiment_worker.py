@@ -54,7 +54,7 @@ class SentimentWorker:
                 ch.stop_consuming()
                 return
         
-            logger.info(f"Received message: {message_str}")
+            # logger.info(f"Received message: {message_str}")
             csv_reader = csv.reader(StringIO(message_str))
             movie_data = next(csv_reader)
             movie_id = movie_data[MovieID]
@@ -66,9 +66,13 @@ class SentimentWorker:
             sentiment_result = self.analyze_sentiment(overview)
             
             csv_line = f"{movie_id},{movie_title},{movie_budget},{movie_revenue},{sentiment_result['label']}\n"
+            output_buffer = StringIO()
+            csv_writer = csv.writer(output_buffer)
+            csv_writer.writerow([movie_id, movie_title, movie_budget, movie_revenue, sentiment_result['label']])
+            csv_line = output_buffer.getvalue()
     
             self.output_queue.publish(csv_line)
-            logger.info(f"Processed movie: {movie_title} with sentiment: {sentiment_result['label']}")
+            # logger.info(f"Processed movie: {movie_title} with sentiment: {sentiment_result['label']}")
             ch.basic_ack(delivery_tag=method.delivery_tag)   
         except Exception as e:
             logger.error(f"Error processing message: {e}")
@@ -78,16 +82,15 @@ class SentimentWorker:
                 pass
 
     def start(self):
-        self.input_queue.channel.basic_qos(prefetch_count=1)
-        self.input_queue.channel.basic_consume(
-            queue=self.input_queue.queue_name,
-            on_message_callback=self.process_message,
+        self.input_queue.set_qos(prefetch_count=1)
+        self.input_queue.consume(
+            callback=self.process_message,
             auto_ack=False
         )
         
         logger.info("Starting to consume messages...")
         try:
-            self.input_queue.channel.start_consuming()
+            self.input_queue.start_consuming()
         except KeyboardInterrupt:
             logger.info("Sentiment worker stopped")
         except Exception as e:

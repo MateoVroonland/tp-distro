@@ -76,11 +76,15 @@ func (r *SentimentReducer) Reduce() {
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
-		log.Printf("Received message in Sentiment reducer: %s", stringLine)
+		// log.Printf("Received message in Sentiment reducer: %s", stringLine)
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			d.Nack(false, false)
 			continue
+		}
+
+		if processedCount%1000 == 0 {
+			log.Printf("Processed %d messages", processedCount)
 		}
 
 		var movieSentiment messages.SentimentAnalysis

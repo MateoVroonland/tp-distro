@@ -52,14 +52,14 @@ func (m *Movie) Deserialize(data []string) error {
 		return fmt.Errorf("failed to unmarshal production countries: %v", err)
 	}
 
-	m.Budget, err = strconv.ParseFloat(data[MovieBudget], 64)
+	m.Budget, err = strconv.ParseFloat(data[RawMovieBudget], 64)
 	if err != nil {
-		return fmt.Errorf("failed to parse budget or budget is zero: %v", err)
+		return fmt.Errorf("failed to parse budget: %v", err)
 	}
 
-	m.Revenue, err = strconv.ParseFloat(data[MovieRevenue], 64)
+	m.Revenue, err = strconv.ParseFloat(data[RawMovieRevenue], 64)
 	if err != nil {
-		return fmt.Errorf("failed to parse revenue or revenue is zero: %v", err)
+		return fmt.Errorf("failed to parse revenue: %v", err)
 	}
 
 	productionCountries := make([]string, len(m.Countries))
