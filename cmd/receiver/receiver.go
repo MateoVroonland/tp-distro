@@ -68,14 +68,14 @@ func main() {
 		reader.FieldsPerRecord = 24
 		record, err := reader.Read()
 		if err != nil {
-			// log.Printf("Failed to read record: %v", err)
+			log.Printf("Failed to read record: %v", err)
 			d.Nack(false, false)
 			continue
 		}
 
 		movie := &messages.Movie{}
 		if err := movie.Deserialize(record); err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
+			// log.Printf("Failed to deserialize movie: %v", err)
 			d.Nack(false, false)
 			continue
 		}
@@ -103,10 +103,10 @@ func main() {
 		}
 
 		if movie.IncludesAllCountries([]string{"Argentina"}) {
-			// err = q3.Publish(serializedMovie)
-			// if err != nil {
-			// 	log.Printf("Failed to publish to queue 3: %v", err)
-			// }
+			err = q3.Publish(serializedMovie)
+			if err != nil {
+				log.Printf("Failed to publish to queue 3: %v", err)
+			}
 			err = q4.Publish(serializedMovie)
 			if err != nil {
 				log.Printf("Failed to publish to queue 4: %v", err)
@@ -125,7 +125,4 @@ func main() {
 	log.Printf("Total received messages: %d", totalReceivedMessages)
 	defer conn.Close()
 
-	var nilChan chan struct{}
-
-	<-nilChan
 }

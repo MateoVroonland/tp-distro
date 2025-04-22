@@ -31,6 +31,7 @@ func (r *RatingsJoiner) JoinRatings() error {
 
 	i := 0
 	for msg := range r.moviesJoinerConsumer.Consume() {
+		log.Printf("Received movie")
 
 		stringLine := string(msg.Body)
 
@@ -57,6 +58,8 @@ func (r *RatingsJoiner) JoinRatings() error {
 		moviesIds[movie.ID] = movie.Title
 	}
 
+	log.Printf("Movies ids: %v", moviesIds)
+
 
 	ratings := make(map[int]float64)
 	ratingsCount := make(map[int]int)
@@ -64,7 +67,6 @@ func (r *RatingsJoiner) JoinRatings() error {
 	log.Printf("Consuming ratings")
 	r.ratingsJoinerConsumer.AddFinishSubscriber(r.sinkProducer)
 	for msg := range r.ratingsJoinerConsumer.Consume() {
-		log.Printf("Received rating")
 
 		stringLine := string(msg.Body)
 		j++
@@ -88,6 +90,7 @@ func (r *RatingsJoiner) JoinRatings() error {
 		}
 
 		if _, ok := moviesIds[rating.MovieID]; !ok {
+			log.Printf("Movie %d not found", rating.MovieID)
 			msg.Ack(false)
 			continue
 		}

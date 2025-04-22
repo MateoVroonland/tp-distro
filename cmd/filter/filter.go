@@ -1,59 +1,73 @@
-package main
+package filters
 
 import (
-	"fmt"
+	"encoding/csv"
 	"log"
-	"os"
+	"strings"
 
-	"github.com/MateoVroonland/tp-distro/internal/filters"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
-	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func main() {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-	defer conn.Close()
+type Filter struct {
+	filteredByCountryConsumer *utils.ConsumerQueue
+	filteredByYearProducer    *utils.ProducerQueue
+	outputMessage             protocol.MovieToFilter
+}
 
-	query := os.Getenv("QUERY")
+func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearProducer *utils.ProducerQueue, outputMessage protocol.MovieToFilter) *Filter {
+	return &Filter{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer, outputMessage: outputMessage}
+}
 
-	if query != "1" && query != "3" && query != "4" {
-		log.Fatalf("QUERY must be set to 1, 3 or 4")
-	}
+func (f *Filter) FilterAndPublish(query string) error {
 
-	consumeQueueName := fmt.Sprintf("movies_metadata_q%s", query)
-	publishQueueName := fmt.Sprintf("movies_filtered_by_year_q%s", query)
-	consumeQueueNameInternal := fmt.Sprintf("filter_q%s_internal", query)
-
-	filteredByCountryConsumer, err := utils.NewConsumerQueue(conn, consumeQueueName, "movies", consumeQueueNameInternal)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
+	query = strings.ToLower(query)
+	if query == "1" {
+		f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
+	} else if query == "3" || query == "4" {
+		f.filteredByCountryConsumer.AddFinishSubscriberWithRoutingKey(f.filteredByYearProducer, "1") // send to the first queue in the hashed queues
 	}
 
-	filteredByYearProducer, err := utils.NewProducerQueue(conn, publishQueueName, publishQueueName)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
+	for msg := range f.filteredByCountryConsumer.Consume() {
+
+		stringLine := string(msg.Body)
+
+		reader := csv.NewReader(strings.NewReader(stringLine))
+		record, err := reader.Read()
+		if err != nil {
+			log.Printf("Failed to read record: %v", err)
+			msg.Nack(false, false)
+			continue
+		}
+		if err := f.outputMessage.Deserialize(record); err != nil {
+			log.Printf("Failed to deserialize movie: %s", string(msg.Body))
+			log.Printf("Error deserializing movie: %s", err)
+			msg.Nack(false, false)
+			continue
+		}
+		if f.outputMessage.PassesFilter() {
+			serializedMovie, err := protocol.Serialize(f.outputMessage)
+			if err != nil {
+				log.Printf("Error serializing movie: %s", err)
+				msg.Nack(false, false)
+				continue
+			}
+
+			routingKey := f.outputMessage.GetRoutingKey()
+
+			if routingKey == "" {
+				err = f.filteredByYearProducer.Publish(serializedMovie)
+			} else {
+				err = f.filteredByYearProducer.PublishWithRoutingKey(serializedMovie, routingKey)
+			}
+
+			if err != nil {
+				log.Printf("Error publishing movie: %s", err)
+				msg.Nack(false, false)
+				continue
+			}
+			msg.Ack(false)
+		}
 	}
-
-	log.Printf("Filter 2000s initialized")
-
-	var outputMessage protocol.MovieToFilter
-	switch query {
-	case "1":
-		outputMessage = &messages.Q1Movie{}
-	case "3":
-		outputMessage = &messages.Q3Movie{}
-	case "4":
-		outputMessage = &messages.Q4Movie{}
-	}
-	filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
-
-	forever := make(chan bool)
-	go filter.FilterAndPublish(query)
-
-	<-forever
+	return nil
 }

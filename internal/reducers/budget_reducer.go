@@ -16,6 +16,9 @@ type BudgetReducer struct {
 	publishQueue *utils.ProducerQueue
 }
 
+const BUDGET_REDUCER_AMOUNT = 5
+
+
 func NewBudgetReducer(queue *utils.ConsumerQueue, publishQueue *utils.ProducerQueue) *BudgetReducer {
 
 	return &BudgetReducer{queue: queue, publishQueue: publishQueue}

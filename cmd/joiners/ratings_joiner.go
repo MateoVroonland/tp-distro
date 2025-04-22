@@ -27,7 +27,7 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	moviesJoinerConsumer, err := utils.NewConsumerQueue(conn, "movies_filtered_by_year_q3", "movies_filtered_by_year_q3",  "ratings_joiner_movies_internal")
+	moviesJoinerConsumer, err := utils.NewConsumerQueueWithRoutingKey(conn, "movies_filtered_by_year_q3", "movies_filtered_by_year_q3", id, "ratings_joiner_movies_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
