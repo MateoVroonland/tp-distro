@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -42,21 +41,14 @@ const (
 )
 
 func (m *Movie) Deserialize(data []string) error {
+	if !m.IsValid(data) {
+		return fmt.Errorf("invalid data")
+	}
+
 	jsonStr := strings.ReplaceAll(data[RawMovieProductionCountries], "'", "\"")
 	err := json.Unmarshal([]byte(jsonStr), &m.Countries)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal production countries: %v", err)
-	}
-	var err1 error
-	m.Budget, err1 = strconv.ParseFloat(data[MovieBudget], 64)
-	if err1 != nil || m.Budget == 0 {
-		return fmt.Errorf("failed to parse budget or budget is zero: %v", err1)
-	}
-
-	var err2 error
-	m.Revenue, err2 = strconv.ParseFloat(data[MovieRevenue], 64)
-	if err2 != nil || m.Revenue == 0 {
-		return fmt.Errorf("failed to parse revenue or revenue is zero: %v", err2)
 	}
 
 	productionCountries := make([]string, len(m.Countries))
@@ -85,4 +77,18 @@ func (m *Movie) Deserialize(data []string) error {
 
 func (m *Movie) GetRawData() []string {
 	return m.RawData
+}
+
+func (m *Movie) IsValid(data []string) bool {
+	if len(data) < 8 {
+		return false
+	}
+	return data[RawMovieID] != "" &&
+		data[RawMovieTitle] != "" &&
+		data[RawMovieOverview] != "" &&
+		data[RawMovieProductionCountries] != "" &&
+		data[RawMovieGenres] != "" &&
+		data[RawMovieReleaseDate] != "" &&
+		data[RawMovieBudget] != "" &&
+		data[RawMovieRevenue] != ""
 }

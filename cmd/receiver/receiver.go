@@ -75,7 +75,7 @@ func main() {
 
 		movie := &messages.Movie{}
 		if err := movie.Deserialize(record); err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
+			// log.Printf("Failed to deserialize movie: %v", err)
 			d.Nack(false, false)
 			continue
 		}
@@ -125,7 +125,4 @@ func main() {
 	log.Printf("Total received messages: %d", totalReceivedMessages)
 	defer conn.Close()
 
-	var nilChan chan struct{}
-
-	<-nilChan
 }
