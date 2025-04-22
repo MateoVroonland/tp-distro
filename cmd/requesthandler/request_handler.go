@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -23,7 +24,8 @@ func main() {
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
-	go publishFile("ratings", conn, &wg)
+	time.Sleep(10 * time.Second)
+	go publishFile("ratings_small", conn, &wg)
 	// go publishFile("credits", conn, &wg)
 	go publishFile("movies_metadata", conn, &wg)
 
@@ -39,7 +41,7 @@ func main() {
 			log.Fatalf("Failed to register a consumer: %v", err)
 		}
 		queries := 5
-
+		log.Printf("starting to consume results")
 		for d := range msgs {
 			log.Printf("Received message: %s", string(d.Body))
 			err = json.Unmarshal(d.Body, &results)
@@ -80,6 +82,7 @@ func main() {
 }
 
 func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) error {
+
 	defer wg.Done()
 
 	log.Printf("Publishing file: %s", filename)
@@ -107,7 +110,6 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 		} else if err != nil {
 			return err
 		}
-
 		err = q.Publish([]byte(line))
 		if err != nil {
 			return err

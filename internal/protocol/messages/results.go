@@ -100,12 +100,12 @@ func NewQ2Result(rows []Q2Row) *QueryResult[Q2Row] {
 }
 
 type Q3Row struct {
-	MovieID string `json:"movie_id"`
+	MovieID int `json:"movie_id"`
 	Title   string `json:"title"`
 	Rating  float64 `json:"rating"`
 }
 
-func NewQ3Row(movieID string, title string, rating float64) *Q3Row {
+func NewQ3Row(movieID int, title string, rating float64) *Q3Row {
 	return &Q3Row{
 		MovieID: movieID,
 		Title:   title,

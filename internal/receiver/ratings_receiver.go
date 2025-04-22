@@ -3,8 +3,10 @@ package receiver
 import (
 	"encoding/csv"
 	"log"
+	"strconv"
 	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/joiners"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -22,6 +24,7 @@ func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQu
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
+	log.Printf("Receiving ratings")
 	msgs, err := r.ratingsConsumer.Consume()
 	if err != nil {
 		log.Printf("Error consuming messages: %s", err)
@@ -29,8 +32,18 @@ func (r *RatingsReceiver) ReceiveRatings() {
 	}
 
 	for msg := range msgs {
+		log.Printf("Received rating")
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
+		if stringLine == "FINISHED" {
+			log.Printf("Received FINISHED")
+			err = r.joinerProducer.PublishWithRoutingKey([]byte("FINISHED"), strconv.Itoa(joiners.RATINGS_JOINER_AMOUNT))
+			if err != nil {
+				log.Printf("Error publishing FINISHED: %s", err)
+			}
+			msg.Ack(false)
+			break
+		}
 		reader.FieldsPerRecord = 4
 		record, err := reader.Read()
 		if err != nil {
@@ -49,10 +62,13 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			continue
 		}
 
-		err = r.joinerProducer.Publish(serializedRating)
+		routingKey := utils.HashString(strconv.Itoa(rating.MovieID), joiners.RATINGS_JOINER_AMOUNT)
+		log.Printf("Publishing rating with routing key: %s", strconv.Itoa(routingKey))
+		err = r.joinerProducer.PublishWithRoutingKey(serializedRating, strconv.Itoa(routingKey))
 		if err != nil {
 			log.Printf("Error publishing rating: %s", err)
 			continue
 		}
+		msg.Ack(false)
 	}
 }

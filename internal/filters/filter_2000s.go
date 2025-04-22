@@ -28,7 +28,6 @@ func (f *Filter2000s) FilterAndPublish() error {
 
 	for msg := range msgs {
 
-		log.Printf("Received message: %s", string(msg.Body))
 		stringLine := string(msg.Body)
 		if stringLine == "FINISHED" {
 			f.filteredByYearProducer.Publish([]byte("FINISHED"))

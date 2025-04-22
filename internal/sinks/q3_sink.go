@@ -24,6 +24,7 @@ func NewQ3Sink(sinkConsumer *utils.ConsumerQueue, resultsProducer *utils.Produce
 }
 
 func (s *Q3Sink) GetMaxAndMinMovies() {
+	log.Printf("Getting max and min movies")
 	msgs, err := s.SinkConsumer.Consume()
 	if err != nil {
 		log.Printf("Failed to consume messages: %v", err)
@@ -33,7 +34,11 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 	maxMovie := messages.MovieRating{}
 	minMovie := messages.MovieRating{}
 
+	log.Printf("Consuming messages")
+
+
 	for msg := range msgs {
+		log.Printf("Received message: %s", string(msg.Body))
 		if string(msg.Body) == "FINISHED" {
 			msg.Ack(false)
 			break
@@ -63,14 +68,15 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		msg.Ack(false)
 	}
 
+	log.Printf("Getting results")
 	results := []messages.Q3Row{
 		{
-			MovieID: string(maxMovie.MovieID),
+			MovieID: maxMovie.MovieID,
 			Title:   maxMovie.Title,
 			Rating:  maxMovie.Rating,
 		},
 		{
-			MovieID: string(minMovie.MovieID),
+			MovieID: minMovie.MovieID,
 			Title:   minMovie.Title,
 			Rating:  minMovie.Rating,
 		},
@@ -93,6 +99,7 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		return
 	}
 
+	log.Printf("Publishing results")
 	err = s.ResultsProducer.Publish(bytes)
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)

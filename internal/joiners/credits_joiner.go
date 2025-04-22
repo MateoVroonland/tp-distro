@@ -65,7 +65,6 @@ func (c *CreditsJoiner) JoinCredits() error {
 		moviesIds[movie.ID] = true
 	}
 
-	log.Printf("Received %d movies", i)
 
 	creditsMsgs, err := c.creditsJoinerConsumer.Consume()
 	if err != nil {

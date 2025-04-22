@@ -36,10 +36,10 @@ func (r *RatingsJoiner) JoinRatings() error {
 
 	i := 0
 	for msg := range moviesMsgs {
+
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
-			r.sinkProducer.Publish([]byte("FINISHED"))
 			msg.Ack(false)
 			break
 		}
@@ -66,7 +66,6 @@ func (r *RatingsJoiner) JoinRatings() error {
 		moviesIds[movie.ID] = movie.Title
 	}
 
-	log.Printf("Received %d movies", i)
 
 	ratingsMsgs, err := r.ratingsJoinerConsumer.Consume()
 	if err != nil {
@@ -76,11 +75,13 @@ func (r *RatingsJoiner) JoinRatings() error {
 	ratings := make(map[int]float64)
 	ratingsCount := make(map[int]int)
 	j := 0
+	log.Printf("Consuming ratings")
 	for msg := range ratingsMsgs {
+		log.Printf("Received rating")
 
 		stringLine := string(msg.Body)
 		if stringLine == "FINISHED" {
-			r.sinkProducer.Publish([]byte("FINISHED"))
+			log.Printf("Received FINISHED when receiving ratings")
 			msg.Ack(false)
 			break
 		}
@@ -119,10 +120,9 @@ func (r *RatingsJoiner) JoinRatings() error {
 			ratingsCount[rating.MovieID]++
 		}
 
+		log.Printf("Partial ratings: %v", ratings)
 		msg.Ack(false)
 	}
-
-	log.Printf("Received %d ratings", j)
 
 	log.Printf("Ratings: %v", ratings)
 
