@@ -41,6 +41,10 @@ func (m *Q3Movie) GetRawData() []string {
 	return m.RawData
 }
 
-func (m *Q3Movie) Is2000s() bool {
+func (m *Q3Movie) PassesFilter() bool {
 	return m.ReleaseDate.Year() >= 2000
+}
+
+func (m *Q3Movie) GetRoutingKey() string {
+	return ""
 }

@@ -15,7 +15,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	sinkConsumer, err := utils.NewConsumerQueue(conn, "q3_sink", "q3_sink")
+	sinkConsumer, err := utils.NewConsumerQueue(conn, "q3_sink", "q3_sink", "q3_sink_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

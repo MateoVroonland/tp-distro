@@ -36,13 +36,8 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
 		if err != nil {
-<<<<<<< HEAD
-			// log.Printf("Failed to read record: %v", err)
-			d.Nack(false, false)
-=======
 			log.Printf("Failed to read record: %v", err)
 			msg.Nack(false, false)
->>>>>>> main
 			continue
 		}
 

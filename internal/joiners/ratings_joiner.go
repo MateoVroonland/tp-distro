@@ -23,26 +23,17 @@ func NewRatingsJoiner(ratingsJoinerConsumer *utils.ConsumerQueue, moviesJoinerCo
 }
 
 func (r *RatingsJoiner) JoinRatings() error {
-	moviesMsgs, err := r.moviesJoinerConsumer.Consume()
 	defer r.ratingsJoinerConsumer.CloseChannel()
 	defer r.moviesJoinerConsumer.CloseChannel()
 	defer r.sinkProducer.CloseChannel()
 
 	moviesIds := make(map[int]string)
 
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-	}
-
 	i := 0
-	for msg := range moviesMsgs {
+	for msg := range r.moviesJoinerConsumer.Consume() {
 
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
-			msg.Ack(false)
-			break
-		}
 		i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -67,24 +58,15 @@ func (r *RatingsJoiner) JoinRatings() error {
 	}
 
 
-	ratingsMsgs, err := r.ratingsJoinerConsumer.Consume()
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-	}
-
 	ratings := make(map[int]float64)
 	ratingsCount := make(map[int]int)
 	j := 0
 	log.Printf("Consuming ratings")
-	for msg := range ratingsMsgs {
+	r.ratingsJoinerConsumer.AddFinishSubscriber(r.sinkProducer)
+	for msg := range r.ratingsJoinerConsumer.Consume() {
 		log.Printf("Received rating")
 
 		stringLine := string(msg.Body)
-		if stringLine == "FINISHED" {
-			log.Printf("Received FINISHED when receiving ratings")
-			msg.Ack(false)
-			break
-		}
 		j++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -132,12 +114,6 @@ func (r *RatingsJoiner) JoinRatings() error {
 		log.Printf("Sending result: %s", res)
 		r.sinkProducer.Publish([]byte(res))
 	}
-	err = r.sinkProducer.Publish([]byte("FINISHED"))
-	if err != nil {
-		log.Printf("Failed to publish FINISHED: %v", err)
-	}
-
-
 	return nil
 }
 

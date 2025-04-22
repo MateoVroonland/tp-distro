@@ -28,15 +28,6 @@ func (r *RatingsReceiver) ReceiveRatings() {
 	for msg := range r.ratingsConsumer.Consume() {
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
-		if stringLine == "FINISHED" {
-			log.Printf("Received FINISHED")
-			err = r.joinerProducer.PublishWithRoutingKey([]byte("FINISHED"), strconv.Itoa(joiners.RATINGS_JOINER_AMOUNT))
-			if err != nil {
-				log.Printf("Error publishing FINISHED: %s", err)
-			}
-			msg.Ack(false)
-			break
-		}
 		reader.FieldsPerRecord = 4
 		record, err := reader.Read()
 		if err != nil {
