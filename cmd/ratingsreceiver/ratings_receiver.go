@@ -15,7 +15,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	rawRatingsConsumer, err := utils.NewConsumerQueue(conn, "ratings_small", "ratings_small")
+	rawRatingsConsumer, err := utils.NewConsumerQueue(conn, "ratings_small", "ratings_small", "ratings_receiver_ratings_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

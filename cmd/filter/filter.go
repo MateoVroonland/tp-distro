@@ -27,8 +27,9 @@ func main() {
 
 	consumeQueueName := fmt.Sprintf("movies_metadata_q%s", query)
 	publishQueueName := fmt.Sprintf("movies_filtered_by_year_q%s", query)
+	consumeQueueNameInternal := fmt.Sprintf("filter_q%s_internal", query)
 
-	filteredByCountryConsumer, err := utils.NewConsumerQueue(conn, consumeQueueName, "movies")
+	filteredByCountryConsumer, err := utils.NewConsumerQueue(conn, consumeQueueName, "movies", consumeQueueNameInternal)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
@@ -49,10 +50,10 @@ func main() {
 	case "4":
 		outputMessage = &messages.Q4Movie{}
 	}
-	filter := filters.NewFilter2000s(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
+	filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
 
 	forever := make(chan bool)
-	go filter.FilterAndPublish()
+	go filter.FilterAndPublish(query)
 
 	<-forever
 }

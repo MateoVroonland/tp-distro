@@ -22,12 +22,12 @@ func main() {
 		log.Fatalf("ID is not set")
 	}
 
-	ratingsJoinerConsumer, err := utils.NewConsumerQueueWithRoutingKey(conn, "ratings_joiner", "ratings_joiner", id)
+	ratingsJoinerConsumer, err := utils.NewConsumerQueueWithRoutingKey(conn, "ratings_joiner", "ratings_joiner", id, "ratings_joiner_ratings_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	moviesJoinerConsumer, err := utils.NewConsumerQueue(conn, "movies_filtered_by_year_q3", "movies_filtered_by_year_q3")
+	moviesJoinerConsumer, err := utils.NewConsumerQueue(conn, "movies_filtered_by_year_q3", "movies_filtered_by_year_q3",  "ratings_joiner_movies_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

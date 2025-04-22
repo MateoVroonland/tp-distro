@@ -3,6 +3,9 @@ package messages
 import (
 	"strconv"
 	"time"
+
+	"github.com/MateoVroonland/tp-distro/internal/constants"
+	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
 const (
@@ -41,6 +44,11 @@ func (m *Q4Movie) GetRawData() []string {
 	return m.RawData
 }
 
-func (m *Q4Movie) Is2000s() bool {
-	return m.ReleaseDate.Year() >= 2000 && m.ReleaseDate.Year() <= 2009
+func (m *Q4Movie) PassesFilter() bool {
+	return m.ReleaseDate.Year() >= 2000
+}
+
+func (m *Q4Movie) GetRoutingKey() string {
+	routingKey := utils.HashString(strconv.Itoa(m.ID), constants.CREDITS_JOINER_AMOUNT)
+	return strconv.Itoa(routingKey)
 }

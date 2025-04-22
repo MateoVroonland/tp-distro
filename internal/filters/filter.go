@@ -9,33 +9,30 @@ import (
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
-type Filter2000s struct {
+type Filter struct {
 	filteredByCountryConsumer *utils.ConsumerQueue
 	filteredByYearProducer    *utils.ProducerQueue
 	outputMessage             protocol.MovieToFilter
 }
 
-func NewFilter2000s(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearProducer *utils.ProducerQueue, outputMessage protocol.MovieToFilter) *Filter2000s {
-	return &Filter2000s{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer, outputMessage: outputMessage}
+func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearProducer *utils.ProducerQueue, outputMessage protocol.MovieToFilter) *Filter {
+	return &Filter{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer, outputMessage: outputMessage}
 }
 
-func (f *Filter2000s) FilterAndPublish() error {
-	msgs, err := f.filteredByCountryConsumer.Consume()
-	if err != nil {
-		log.Printf("Error consuming messages: %s", err)
-		return err
+func (f *Filter) FilterAndPublish(query string) error {
+
+	query = strings.ToLower(query)
+	if query == "1" {
+		f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
+	} else if query == "3" || query == "4" {
+		f.filteredByCountryConsumer.AddFinishSubscriberWithRoutingKey(f.filteredByYearProducer, "1") // send to the first queue in the hashed queues
 	}
 
-	for msg := range msgs {
+	for msg := range f.filteredByCountryConsumer.Consume() {
 
 		stringLine := string(msg.Body)
-		if stringLine == "FINISHED" {
-			f.filteredByYearProducer.Publish([]byte("FINISHED"))
-			msg.Ack(false)
-			break
-		}
+
 		reader := csv.NewReader(strings.NewReader(stringLine))
-		reader.FieldsPerRecord = 6
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
@@ -48,20 +45,27 @@ func (f *Filter2000s) FilterAndPublish() error {
 			msg.Nack(false, false)
 			continue
 		}
-		if f.outputMessage.Is2000s() {
+		if f.outputMessage.PassesFilter() {
 			serializedMovie, err := protocol.Serialize(f.outputMessage)
 			if err != nil {
 				log.Printf("Error serializing movie: %s", err)
 				msg.Nack(false, false)
 				continue
 			}
-			err = f.filteredByYearProducer.Publish(serializedMovie)
+
+			routingKey := f.outputMessage.GetRoutingKey()
+
+			if routingKey == "" {
+				err = f.filteredByYearProducer.Publish(serializedMovie)
+			} else {
+				err = f.filteredByYearProducer.PublishWithRoutingKey(serializedMovie, routingKey)
+			}
+
 			if err != nil {
 				log.Printf("Error publishing movie: %s", err)
 				msg.Nack(false, false)
 				continue
 			}
-			log.Printf("Published message: %s on queue %s", string(serializedMovie), f.filteredByYearProducer.QueueName)
 			msg.Ack(false)
 		}
 	}

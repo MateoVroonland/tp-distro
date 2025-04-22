@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/MateoVroonland/tp-distro/internal/joiners"
+	"github.com/MateoVroonland/tp-distro/internal/constants"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -24,23 +24,14 @@ func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.ConsumerQu
 }
 
 func (r *CreditsReceiver) ReceiveCredits() {
-	msgs, err := r.creditsConsumer.Consume()
-	if err != nil {
-		log.Printf("Error consuming messages: %s", err)
-		return
-	}
 
 	i := 0
 
-	for msg := range msgs {
+	r.creditsConsumer.AddFinishSubscriberWithRoutingKey(r.joinerProducer, "1")
+	for msg := range r.creditsConsumer.Consume() {
 
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
-			r.joinerProducer.PublishWithRoutingKey([]byte("FINISHED"), "1")
-			msg.Ack(false)
-			break
-		}
 		i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -64,8 +55,9 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			continue
 		}
 
-		routingKey := utils.HashString(strconv.Itoa(credits.MovieID), joiners.CREDITS_JOINER_AMOUNT)
+		routingKey := utils.HashString(strconv.Itoa(credits.MovieID), constants.CREDITS_JOINER_AMOUNT)
 		err = r.joinerProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey))
+		// err = r.joinerProducer.Publish(serializedCredits)
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)
 			continue

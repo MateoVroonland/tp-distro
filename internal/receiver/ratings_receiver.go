@@ -24,15 +24,8 @@ func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQu
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
-	log.Printf("Receiving ratings")
-	msgs, err := r.ratingsConsumer.Consume()
-	if err != nil {
-		log.Printf("Error consuming messages: %s", err)
-		return
-	}
 
-	for msg := range msgs {
-		log.Printf("Received rating")
+	for msg := range r.ratingsConsumer.Consume() {
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		if stringLine == "FINISHED" {

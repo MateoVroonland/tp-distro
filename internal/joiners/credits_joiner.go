@@ -5,11 +5,10 @@ import (
 	"log"
 	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
-
-const CREDITS_JOINER_AMOUNT = 1
 
 type CreditsJoiner struct {
 	creditsJoinerConsumer *utils.ConsumerQueue
@@ -22,26 +21,16 @@ func NewCreditsJoiner(creditsJoinerConsumer *utils.ConsumerQueue, moviesJoinerCo
 }
 
 func (c *CreditsJoiner) JoinCredits() error {
-	moviesMsgs, err := c.moviesJoinerConsumer.Consume()
 	defer c.creditsJoinerConsumer.CloseChannel()
 	defer c.moviesJoinerConsumer.CloseChannel()
 	defer c.sinkProducer.CloseChannel()
 
 	moviesIds := make(map[int]bool)
 
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-	}
-
 	i := 0
-	for msg := range moviesMsgs {
+	for msg := range c.moviesJoinerConsumer.Consume() {
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
-			c.sinkProducer.Publish([]byte("FINISHED"))
-			msg.Ack(false)
-			break
-		}
 		i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -66,22 +55,13 @@ func (c *CreditsJoiner) JoinCredits() error {
 	}
 
 
-	creditsMsgs, err := c.creditsJoinerConsumer.Consume()
-	if err != nil {
-		log.Printf("Failed to register a consumer: %v", err)
-	}
-
-	credits := make(map[int]messages.Credits)
+	var credits []messages.Credits
 
 	j := 0
-	for msg := range creditsMsgs {
+	c.creditsJoinerConsumer.AddFinishSubscriber(c.sinkProducer)
+	for msg := range c.creditsJoinerConsumer.Consume() {
 
 		stringLine := string(msg.Body)
-		if stringLine == "FINISHED" {
-			c.sinkProducer.Publish([]byte("FINISHED"))
-			msg.Ack(false)
-			break
-		}
 		j++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -98,6 +78,7 @@ func (c *CreditsJoiner) JoinCredits() error {
 		err = credit.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize credits: %v", err)
+			// log.Printf("json.Marshal: %v", err)
 			msg.Nack(false, false)
 			continue
 		}
@@ -107,22 +88,19 @@ func (c *CreditsJoiner) JoinCredits() error {
 			continue
 		}
 
-		currentCredits, ok := credits[credit.MovieID]
-
-		if !ok {
-			credits[credit.MovieID] = credit
-		} else {
-			log.Printf("APPENDING CREDITS")
-			currentCredits.Cast = append(currentCredits.Cast, credit.Cast...)
-			credits[credit.MovieID] = currentCredits
+		credits = append(credits, credit)
+		payload, err := protocol.Serialize(&credit)
+		if err != nil {
+			log.Printf("Failed to serialize credits: %v", record)
+			log.Printf("json.Marshal: %v", err)
+			msg.Nack(false, false)
+			continue
 		}
+		c.sinkProducer.Publish(payload)
 
 		msg.Ack(false)
 	}
 
-	log.Printf("Received %d credits", j)
-
-	log.Printf("Credits: %v", credits)
-
+	log.Printf("Saved %d credits", len(credits))
 	return nil
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
-	"github.com/MateoVroonland/tp-distro/internal/reducers"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -18,14 +17,10 @@ func main() {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 
-	q, err := utils.NewConsumerQueue(conn, "movies_metadata", "movies_metadata")
+	totalReceivedMessages := 0
+	q, err := utils.NewConsumerQueue(conn, "movies_metadata", "movies_metadata", "movies_receiver_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
-	msgs, err := q.Consume()
-	if err != nil {
-		log.Fatalf("Failed to register a consumer: %v", err)
 	}
 
 	q1, err := utils.NewProducerQueue(conn, "movies_metadata_q1", "movies")
@@ -58,22 +53,16 @@ func main() {
 	}
 	defer q5.CloseChannel()
 
-	for d := range msgs {
+	q2Messages := 0
+	q.AddFinishSubscriber(q1)
+	q.AddFinishSubscriber(q2)
+	q.AddFinishSubscriber(q3)
+	q.AddFinishSubscriber(q4)
+	q.AddFinishSubscriber(q5)
 
+	for d := range q.Consume() {
+		totalReceivedMessages++
 		stringLine := string(d.Body)
-
-		if stringLine == "FINISHED" {
-			log.Printf("Received message: %s", stringLine)
-			q1.Publish([]byte("FINISHED"))
-			for range reducers.BUDGET_REDUCER_AMOUNT {
-				q2.Publish([]byte("FINISHED"))
-			}
-			q3.Publish([]byte("FINISHED"))
-			q4.Publish([]byte("FINISHED"))
-			q5.Publish([]byte("FINISHED"))
-			d.Ack(false)
-			break
-		}
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 24
@@ -106,6 +95,7 @@ func main() {
 		}
 
 		if len(movie.Countries) == 1 {
+			q2Messages++
 			err = q2.Publish(serializedMovie)
 			if err != nil {
 				log.Printf("Failed to publish to queue 2: %v", err)
@@ -113,23 +103,29 @@ func main() {
 		}
 
 		if movie.IncludesAllCountries([]string{"Argentina"}) {
-			err = q3.Publish(serializedMovie)
-			if err != nil {
-				log.Printf("Failed to publish to queue 3: %v", err)
-			}
+			// err = q3.Publish(serializedMovie)
+			// if err != nil {
+			// 	log.Printf("Failed to publish to queue 3: %v", err)
+			// }
 			err = q4.Publish(serializedMovie)
 			if err != nil {
 				log.Printf("Failed to publish to queue 4: %v", err)
 			}
 		}
 
-		err = q5.Publish(serializedMovie)
-		if err != nil {
-			log.Printf("Failed to publish to queue 5: %v", err)
-		}
+		// err = q5.Publish(serializedMovie)
+		// if err != nil {
+		// 	log.Printf("Failed to publish to queue 5: %v", err)
+		// }
 
 		d.Ack(false)
 	}
 
+	log.Printf("Q2 messages: %d", q2Messages)
+	log.Printf("Total received messages: %d", totalReceivedMessages)
 	defer conn.Close()
+
+	var nilChan chan struct{}
+
+	<-nilChan
 }
