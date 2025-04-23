@@ -1,0 +1,117 @@
+import socket
+import logging
+
+from internal.utils.communication import CompleteSocket
+from internal.utils.format_checker import *
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(processName)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+BATCH_SIZE = 2 * 1024 * 1024
+SERVER_HOST="tbd"
+SERVER_PORT="tbd"
+
+def create_tcp_connection(host, port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    complete_sock = None
+    try:
+        sock.connect((host, port))
+        complete_sock = CompleteSocket(sock)
+        return complete_sock
+    except (ConnectionError, OSError) as e:
+        logger.error(f"Failed to connect to {host}:{port} - {str(e)}")
+        if complete_sock:
+            complete_sock.close()
+        return None
+    
+def create_batch_from_csv(file_path, validate_line):
+    current_batch = ""
+    current_batch_size = 0
+    
+    with open(file_path, 'r', encoding='utf-8') as file:       
+        for line in file:
+            if not validate_line(line):
+                continue
+            line_size = len(line.encode('utf-8'))
+            
+            if current_batch_size + line_size > BATCH_SIZE:
+                yield current_batch
+            
+            current_batch += line
+            current_batch_size += line_size
+    
+    if current_batch_size > 0:
+        yield current_batch
+
+def send_file(file_path, validate_func):
+    logger.info(f"Starting to send file: {file_path}")
+    batch_count = 0
+    complete_sock = None
+    try:
+        complete_sock = create_tcp_connection(SERVER_HOST, SERVER_PORT)
+        if not complete_sock:
+            logger.error("Failed to create TCP connection")
+            return False
+        
+        for batch in create_batch_from_csv(file_path, validate_func):
+            batch_count += 1
+            complete_sock.send_all(batch)
+            logger.info(f"Sent batch {batch_count} for file {file_path}")
+        
+        complete_sock.send_all(f"FINISHED_FILE")
+        logger.info(f"Completed sending file {file_path} with {batch_count} batches")
+        return True    
+    except (ConnectionError, OSError) as e:
+        logger.error(f"Failed to send file {file_path}: {str(e)}")
+    finally:
+        if complete_sock:
+            complete_sock.close()
+           
+
+def wait_for_results():  
+    try:
+        complete_sock = create_tcp_connection(SERVER_HOST, SERVER_PORT)
+        if not complete_sock:
+            return None
+        
+        while True:
+            try:
+                data = complete_sock.recv_all().decode('utf-8')
+                if not data:
+                    logger.info("Server closed the connection, all results received")
+                    break
+                
+                logger.info(f"Received result: {data}")
+                break
+            except ConnectionError:
+                logger.info("Server closed the connection")
+                break
+    except (ConnectionError, OSError) as e:
+        logger.error(f"Error while receiving results: {str(e)}")
+        return None
+    finally:
+        if complete_sock:
+            complete_sock.close()
+
+def main():
+    files = [
+        {"path": "docs/movies_metadata.csv", "validate_func": validate_movies_line},
+        {"path": "docs/credits.csv", "validate_func": validate_credits_line},
+        {"path": "docs/ratings.csv", "validate_func": validate_ratings_line}
+    ]
+    
+    for file_info in files:
+        file_path = file_info["path"]
+        validate_func = file_info["validate_func"]
+        
+        if send_file(file_path, validate_func):
+            logger.info(f"File {file_path} sent successfully")
+        
+    wait_for_results()
+    logger.info("Client execution completed")
+
+if __name__ == "__main__":
+    main()
