@@ -9,6 +9,7 @@ type Results struct {
 	Query1 *QueryResult[Q1Row] `json:"query1,omitempty"`
 	Query2 *QueryResult[Q2Row] `json:"query2,omitempty"`
 	Query4 *QueryResult[Q4Row] `json:"query4,omitempty"`
+	Query5 *QueryResult[Q5Row] `json:"query5,omitempty"`
 }
 
 type RawResult struct {
@@ -20,6 +21,7 @@ const (
 	Query1Type = "query1"
 	Query2Type = "query2"
 	Query4Type = "query4"
+	Query5Type = "query5"
 )
 
 func (aq *Results) UnmarshalJSON(data []byte) error {
@@ -53,6 +55,15 @@ func (aq *Results) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		aq.Query4 = &QueryResult[Q4Row]{
+			QueryID: raw.QueryID,
+			Results: results,
+		}
+	case Query5Type:
+		var results []Q5Row
+		if err := json.Unmarshal(raw.Results, &results); err != nil {
+			return err
+		}
+		aq.Query5 = &QueryResult[Q5Row]{
 			QueryID: raw.QueryID,
 			Results: results,
 		}
@@ -117,5 +128,17 @@ func NewQ4Row(actor string, moviesCount int) *Q4Row {
 	return &Q4Row{
 		Actor:       actor,
 		MoviesCount: moviesCount,
+	}
+}
+
+type Q5Row struct {
+	PositiveRatio float64 `json:"positive_ratio"`
+	NegativeRatio float64 `json:"negative_ratio"`
+}
+
+func NewQ5Row(positiveRatio float64, negativeRatio float64) *Q5Row {
+	return &Q5Row{
+		PositiveRatio: positiveRatio,
+		NegativeRatio: negativeRatio,
 	}
 }

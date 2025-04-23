@@ -49,6 +49,8 @@ func (r *SentimentReducer) Reduce() {
 	positiveStats := NewSentimentStats("POSITIVE")
 	negativeStats := NewSentimentStats("NEGATIVE")
 
+	r.queue.AddFinishSubscriber(r.publishQueue)
+
 	processedCount := 0
 	finishedCount := 0
 
@@ -127,6 +129,5 @@ func (r *SentimentReducer) Reduce() {
 		negativeStats.AverageRatio, negativeStats.TotalMovies, processedCount)
 	r.publishQueue.Publish([]byte(negativeCSV))
 
-	r.publishQueue.Publish([]byte("FINISHED"))
 	log.Printf("Sentiment reducer finished processing %d movies", processedCount)
 }

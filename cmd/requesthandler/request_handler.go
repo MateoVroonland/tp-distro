@@ -27,7 +27,7 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	// go publishFile("ratings", ch, &wg)
-	go publishFile("credits", conn, &wg)
+	// go publishFile("credits", conn, &wg)
 	go publishFile("movies_metadata", conn, &wg)
 
 	go listenForResults(conn, &wg)
@@ -129,6 +129,15 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 			continue
 		}
 		log.Printf("Query 4: %s", string(jsonQ4Bytes))
+		d.Ack(false)
+
+		jsonQ5Bytes, err := json.Marshal(results.Query5)
+		if err != nil {
+			log.Printf("Error al convertir a JSON: %v\n", err)
+			d.Nack(false, false)
+			continue
+		}
+		log.Printf("Query 5: %s", string(jsonQ5Bytes))
 		d.Ack(false)
 	}
 
