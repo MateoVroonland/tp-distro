@@ -74,12 +74,9 @@ class SentimentWorker:
             self.output_queue.publish(csv_line)
             # logger.info(f"Processed movie: {movie_title} with sentiment: {sentiment_result['label']}")
             ch.basic_ack(delivery_tag=method.delivery_tag)   
-        except Exception as e:
+        except e:
             logger.error(f"Error processing message: {e}")
-            try:
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-            except:
-                pass
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def start(self):
         self.input_queue.set_qos(prefetch_count=1)
@@ -95,8 +92,3 @@ class SentimentWorker:
             logger.info("Sentiment worker stopped")
         except Exception as e:
             logger.error(f"Error in consumer: {e}")
-            try:
-                self.output_queue.publish("FINISHED")
-                logger.info("Published FINISHED signal after error")
-            except Exception as publish_err:
-                logger.error(f"Failed to publish FINISHED: {publish_err}")

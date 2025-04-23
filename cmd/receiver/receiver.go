@@ -53,7 +53,6 @@ func main() {
 	}
 	defer q5.CloseChannel()
 
-	q2Messages := 0
 	q.AddFinishSubscriber(q1)
 	q.AddFinishSubscriber(q2)
 	q.AddFinishSubscriber(q3)
@@ -75,7 +74,7 @@ func main() {
 
 		movie := &messages.Movie{}
 		if err := movie.Deserialize(record); err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
+			//log.Printf("Failed to deserialize movie: %v", err)
 			d.Nack(false, false)
 			continue
 		}
@@ -95,7 +94,6 @@ func main() {
 		}
 
 		if len(movie.Countries) == 1 {
-			q2Messages++
 			err = q2.Publish(serializedMovie)
 			if err != nil {
 				log.Printf("Failed to publish to queue 2: %v", err)
@@ -103,10 +101,10 @@ func main() {
 		}
 
 		if movie.IncludesAllCountries([]string{"Argentina"}) {
-			// err = q3.Publish(serializedMovie)
-			// if err != nil {
-			// 	log.Printf("Failed to publish to queue 3: %v", err)
-			// }
+			err = q3.Publish(serializedMovie)
+			if err != nil {
+				log.Printf("Failed to publish to queue 3: %v", err)
+			}
 			err = q4.Publish(serializedMovie)
 			if err != nil {
 				log.Printf("Failed to publish to queue 4: %v", err)
@@ -114,6 +112,7 @@ func main() {
 		}
 
 		if !movie.HasValidBudgetAndRevenue() {
+			d.Nack(false, false)
 			continue
 		}
 
@@ -125,11 +124,6 @@ func main() {
 		d.Ack(false)
 	}
 
-	log.Printf("Q2 messages: %d", q2Messages)
 	log.Printf("Total received messages: %d", totalReceivedMessages)
 	defer conn.Close()
-
-	var nilChan chan struct{}
-
-	<-nilChan
 }

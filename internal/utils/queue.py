@@ -1,5 +1,4 @@
 import pika
-import logging
 
 class ConsumerQueue:
     def __init__(self, connection, name, exchange_name):
