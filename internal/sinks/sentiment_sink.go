@@ -24,8 +24,6 @@ func (s *SentimentSink) Sink() {
 	var positiveRatio float64
 	var negativeRatio float64
 
-	s.sinkConsumer.AddFinishSubscriber(s.resultsProducer)
-
 	log.Printf("Sentiment sink started, consuming messages...")
 
 	for msg := range s.sinkConsumer.Consume() {

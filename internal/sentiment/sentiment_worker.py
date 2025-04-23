@@ -40,6 +40,27 @@ class SentimentWorker:
         except Exception as e:
             logger.error(f"Error analyzing sentiment: {e}")
             return {"label": "ERROR", "score": 0.0}
+        
+    def parse_and_process_message(self, message_str):
+        try:
+            csv_reader = csv.reader(StringIO(message_str))
+            movie_data = next(csv_reader)
+            
+            movie_id = movie_data[MovieID]
+            movie_title = movie_data[MovieTitle]
+            overview = movie_data[MovieOverview]
+            movie_budget = movie_data[MovieBudget]
+            movie_revenue = movie_data[MovieRevenue]
+
+            sentiment_result = self.analyze_sentiment(overview)
+            
+            output_buffer = StringIO()
+            csv_writer = csv.writer(output_buffer)
+            csv_writer.writerow([movie_id, movie_title, movie_budget, movie_revenue, sentiment_result['label']])
+            return output_buffer.getvalue()
+        except Exception as e:
+            logger.error(f"CSV parsing error: {e}")
+            return None
 
     def process_message(self, ch, method, properties, body):     
         try:
@@ -55,22 +76,8 @@ class SentimentWorker:
                 return
         
             # logger.info(f"Received message: {message_str}")
-            csv_reader = csv.reader(StringIO(message_str))
-            movie_data = next(csv_reader)
-            movie_id = movie_data[MovieID]
-            movie_title = movie_data[MovieTitle]
-            overview = movie_data[MovieOverview]
-            movie_budget = movie_data[MovieBudget]
-            movie_revenue = movie_data[MovieRevenue]
-
-            sentiment_result = self.analyze_sentiment(overview)
+            csv_line = self.parse_and_process_message(message_str)
             
-            csv_line = f"{movie_id},{movie_title},{movie_budget},{movie_revenue},{sentiment_result['label']}\n"
-            output_buffer = StringIO()
-            csv_writer = csv.writer(output_buffer)
-            csv_writer.writerow([movie_id, movie_title, movie_budget, movie_revenue, sentiment_result['label']])
-            csv_line = output_buffer.getvalue()
-    
             self.output_queue.publish(csv_line)
             # logger.info(f"Processed movie: {movie_title} with sentiment: {sentiment_result['label']}")
             ch.basic_ack(delivery_tag=method.delivery_tag)   
