@@ -22,7 +22,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(15 * time.Second)
 
 	wg := sync.WaitGroup{}
 	wg.Add(3)
@@ -90,12 +90,13 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	queries := 5
+	queries := 4
 
 	for d := range resultsConsumer.Consume() {
 		log.Printf("Received message: %s", string(d.Body))
 		err = json.Unmarshal(d.Body, &results)
 		if err != nil {
+			log.Println("Body:", string(d.Body))
 			log.Printf("Failed to unmarshal results: %v", err)
 			d.Nack(false, false)
 			continue

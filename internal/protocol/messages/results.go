@@ -136,6 +136,13 @@ type Q5Row struct {
 	NegativeRatio float64 `json:"negative_ratio"`
 }
 
+func NewQ5Result(rows []Q5Row) *QueryResult[Q5Row] {
+	return &QueryResult[Q5Row]{
+		QueryID: Query5Type,
+		Results: rows,
+	}
+}
+
 func NewQ5Row(positiveRatio float64, negativeRatio float64) *Q5Row {
 	return &Q5Row{
 		PositiveRatio: positiveRatio,

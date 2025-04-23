@@ -57,16 +57,18 @@ func (s *SentimentSink) Sink() {
 	log.Printf("Average revenue/budget ratio for positive sentiment movies: %.6f", positiveRatio)
 	log.Printf("Average revenue/budget ratio for negative sentiment movies: %.6f", negativeRatio)
 
-	row := messages.NewQ5Row(positiveRatio, negativeRatio)
+	rows := []messages.Q5Row{
+		*messages.NewQ5Row(positiveRatio, negativeRatio),
+	}
 
-	rowsBytes, err := json.Marshal([]*messages.Q5Row{row})
+	rowsBytes, err := json.Marshal(rows)
 	if err != nil {
-		log.Printf("Failed to marshal results: %v", err)
+		log.Printf("Failed to marshal rows: %v", err)
 		return
 	}
 
 	results := messages.RawResult{
-		QueryID: "query5",
+		QueryID: messages.Query5Type,
 		Results: rowsBytes,
 	}
 
@@ -75,6 +77,8 @@ func (s *SentimentSink) Sink() {
 		log.Printf("Failed to marshal results: %v", err)
 		return
 	}
+
+	log.Printf("Publishing results: %s", string(bytes))
 
 	err = s.resultsProducer.Publish(bytes)
 	if err != nil {
