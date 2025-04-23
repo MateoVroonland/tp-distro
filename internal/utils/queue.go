@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"iter"
 	"log"
-	"os"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -226,32 +225,6 @@ func (q *ProducerQueue) Publish(body []byte) error {
 }
 
 func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string) error {
-
-	notifyReturn := make(chan amqp.Return)
-	q.ch.NotifyReturn(notifyReturn)
-	go func() {
-		outputFile, err := os.OpenFile("returned_messages.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Printf("Failed to open output file: %v", err)
-			outputFile = nil
-		}
-		outputFileInfo, err := os.OpenFile("returned_messages_info.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Printf("Failed to open output file: %v", err)
-			outputFileInfo = nil
-		}
-		for r := range notifyReturn {
-			body := string(r.Body)
-			info := fmt.Sprintf("exchange: %s, routingKey: %s, replyText: %s\n", r.Exchange, r.RoutingKey, r.ReplyText)
-			if outputFile != nil {
-				fmt.Fprint(outputFile, body)
-			}
-			if outputFileInfo != nil {
-				fmt.Fprint(outputFileInfo, info)
-			}
-		}
-	}()
-
 	err := q.ch.Publish(
 		q.exchangeName, // exchange
 		routingKey,     // routing key

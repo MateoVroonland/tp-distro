@@ -54,12 +54,12 @@ func main() {
 	defer q5.CloseChannel()
 
 	q2Messages := 0
-	q.AddFinishSubscriber(q1)
-	q.AddFinishSubscriber(q2)
+	// q.AddFinishSubscriber(q1)
+	// q.AddFinishSubscriber(q2)
 	q.AddFinishSubscriber(q3)
-	q.AddFinishSubscriber(q4)
-	q.AddFinishSubscriber(q5)
-
+	// q.AddFinishSubscriber(q4)
+	// q.AddFinishSubscriber(q5)
+	i := 0
 	for d := range q.Consume() {
 		totalReceivedMessages++
 		stringLine := string(d.Body)
@@ -86,31 +86,31 @@ func main() {
 			continue
 		}
 
-		if movie.IncludesAllCountries([]string{"Argentina", "Spain"}) {
-			err = q1.Publish(serializedMovie)
-			if err != nil {
-				log.Printf("Failed to publish to queue 1: %v", err)
+		// if movie.IncludesAllCountries([]string{"Argentina", "Spain"}) {
+		// 	err = q1.Publish(serializedMovie)
+		// 	if err != nil {
+		// 		log.Printf("Failed to publish to queue 1: %v", err)
 
-			}
-		}
+		// 	}
+		// }
 
-		if len(movie.Countries) == 1 {
-			q2Messages++
-			err = q2.Publish(serializedMovie)
-			if err != nil {
-				log.Printf("Failed to publish to queue 2: %v", err)
-			}
-		}
-
+		// if len(movie.Countries) == 1 {
+		// 	q2Messages++
+		// 	err = q2.Publish(serializedMovie)
+		// 	if err != nil {
+		// 		log.Printf("Failed to publish to queue 2: %v", err)
+		// 	}
+		// }
 		if movie.IncludesAllCountries([]string{"Argentina"}) {
-			// err = q3.Publish(serializedMovie)
-			// if err != nil {
-			// 	log.Printf("Failed to publish to queue 3: %v", err)
-			// }
-			err = q4.Publish(serializedMovie)
+			i++
+			err = q3.Publish(serializedMovie)
 			if err != nil {
-				log.Printf("Failed to publish to queue 4: %v", err)
+				log.Printf("Failed to publish to queue 3: %v", err)
 			}
+			// err = q4.Publish(serializedMovie)
+			// if err != nil {
+			// 	log.Printf("Failed to publish to queue 4: %v", err)
+			// }
 		}
 
 		// err = q5.Publish(serializedMovie)
@@ -120,6 +120,7 @@ func main() {
 
 		d.Ack(false)
 	}
+	log.Printf("total argentina movies: %d", i)
 
 	log.Printf("Q2 messages: %d", q2Messages)
 	log.Printf("Total received messages: %d", totalReceivedMessages)
