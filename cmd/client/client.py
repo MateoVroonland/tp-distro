@@ -4,7 +4,7 @@ import logging
 from io import StringIO
 
 from internal.utils.communication import CompleteSocket
-# from internal.utils.csv_formatters import clean_movies_csv, clean_ratings_csv, clean_credits_csv
+from internal.utils.csv_formatters import process_credits_row, process_movies_row
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,10 +32,26 @@ def create_tcp_connection(host, port):
 def create_batch_from_csv(file_path):
     current_batch = ""
     current_batch_size = 0
+    file_name = file_path.split("/")[-1]
+    file_processor = None
+    
+    if "movies_metadata.csv" in file_name:
+        file_processor = process_movies_row
+        logger.info("Processing movies_metadata.csv file")
+    elif "credits.csv" in file_name:
+        file_processor = process_credits_row
+        logger.info("Processing credits.csv file")
+    else:
+        logger.info(f"No specific processor for {file_name}, sending raw data")
     
     with open(file_path, 'r', encoding='utf-8') as file:
         csv_reader = csv.reader(file) 
         for row in csv_reader:
+            if not row:
+                continue
+            if file_processor:
+                row = file_processor(row)
+                
             output = StringIO()
             csv_writer = csv.writer(output)
             csv_writer.writerow(row)
@@ -117,7 +133,7 @@ def main():
         if send_file(file_path):
             logger.info(f"File {file_path} sent successfully")
         
-    # wait_for_results()
+    wait_for_results()
     logger.info("Client execution completed")
 
 if __name__ == "__main__":
