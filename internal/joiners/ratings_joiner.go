@@ -57,9 +57,8 @@ func (r *RatingsJoiner) JoinRatings() error {
 		msg.Ack(false)
 
 
-	}
 
-	log.Printf("Movies IDs: %v", len(moviesIds))
+	}
 
 
 
@@ -108,11 +107,14 @@ func (r *RatingsJoiner) JoinRatings() error {
 	}
 
 	log.Printf("Ratings: %v", ratings)
+	log.Printf("RatingsCount: %v", ratingsCount)
+	log.Printf("MoviesIds: %v", moviesIds)
+
+
 
 	for movieId, rating := range ratings {
 		count := ratingsCount[movieId]
 		res := fmt.Sprintf("%d,%s,%f", movieId, moviesIds[movieId], rating/float64(count))
-		log.Printf("Sending result: %s", res)
 		r.sinkProducer.Publish([]byte(res))
 	}
 	return nil

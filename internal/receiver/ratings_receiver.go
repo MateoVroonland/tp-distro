@@ -24,38 +24,47 @@ func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQu
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
+	forever := make(chan bool)
+	sendingToRoutingKey := map[int]int{}
 
 	r.ratingsConsumer.AddFinishSubscriberWithRoutingKey(r.joinerProducer, "1")
+	ratingsConsumed := 0
 	for msg := range r.ratingsConsumer.Consume() {
+		ratingsConsumed++
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 4
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Error reading record: %s", err)
+			msg.Nack(false, false)
 			continue
 		}
 
 		rating := &messages.RawRatings{}
 		if err := rating.Deserialize(record); err != nil {
 			log.Printf("Error deserializing rating: %s", err)
+			msg.Nack(false, false)
 			continue
 		}
 		serializedRating, err := protocol.Serialize(rating)
 		if err != nil {
 			log.Printf("Error serializing rating: %s", err)
+			msg.Nack(false, false)
 			continue
 		}
 
 		routingKey := utils.HashString(strconv.Itoa(rating.MovieID), constants.RATINGS_JOINER_AMOUNT)
 		err = r.joinerProducer.PublishWithRoutingKey(serializedRating, strconv.Itoa(routingKey))
-		if rating.MovieID == 259843 || rating.MovieID == 7234 || rating.MovieID == 288312 || rating.MovieID == 81022 {
-			log.Printf("Published movie id %d to joiner %d", rating.MovieID, routingKey)
-		}
 		if err != nil {
 			log.Printf("Error publishing rating: %s", err)
+			msg.Nack(false, true)
 			continue
 		}
+		sendingToRoutingKey[routingKey]++
 		msg.Ack(false)
 	}
+	log.Printf("Sending to routing key: %v", sendingToRoutingKey)
+	log.Printf("Ratings consumed: %d", ratingsConsumed)
+	<-forever
 }

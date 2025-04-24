@@ -93,10 +93,9 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 	queries := 5
 
 	for d := range resultsConsumer.Consume() {
-		log.Printf("Received message: %s", string(d.Body))
 		err = json.Unmarshal(d.Body, &results)
 		if err != nil {
-			log.Printf("Failed to unmarshal results: %v", err)
+			// log.Printf("Failed to unmarshal results: %v", err)
 			d.Nack(false, false)
 			continue
 		}
