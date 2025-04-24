@@ -29,7 +29,7 @@ func main() {
 	defer conn.Close()
 
 	startServer()
-	time.Sleep(5 * time.Second)
+	time.Sleep(15 * time.Second)
 
 	wg := sync.WaitGroup{}
 	wg.Add(4)
@@ -97,7 +97,7 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	queries := 5
+	queries := 4
 
 	for d := range resultsConsumer.Consume() {
 		err = json.Unmarshal(d.Body, &results)
@@ -142,6 +142,14 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 			continue
 		}
 		log.Printf("Query 4: %s", string(jsonQ4Bytes))
+
+		jsonQ5Bytes, err := json.Marshal(results.Query5)
+		if err != nil {
+			log.Printf("Error al convertir a JSON: %v\n", err)
+			d.Nack(false, false)
+			continue
+		}
+		log.Printf("Query 5: %s", string(jsonQ5Bytes))
 		d.Ack(false)
 	}
 

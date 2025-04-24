@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/receiver/receiver.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/sinks_q5/q5_sink.go
 
 ENTRYPOINT ["/main"]
 
