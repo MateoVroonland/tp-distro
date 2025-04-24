@@ -166,10 +166,6 @@ func startServer() {
 
 	filesRemaining := 3
 
-	movies := ""
-	credits := ""
-	ratings := ""
-
 	for filesRemaining > 0 {
 
 		var file string
@@ -190,56 +186,27 @@ func startServer() {
 			log.Printf("Failed to accept connection: %v", err)
 			continue
 		}
-		message, err := handleConnection(conn)
+		err = handleConnection(conn, file)
 		if err != nil {
 			log.Printf("Failed to handle connection: %v", err)
 			continue
 		}
 
-		switch file {
-		case "movies":
-			movies += string(message)
-		case "credits":
-			credits += string(message)
-		case "ratings":
-			ratings += string(message)
-		}
-
 		filesRemaining--
 	}
-
-	outMoviesFile, err := os.Create("movies.csv")
-	if err != nil {
-		log.Printf("Failed to create movies.csv: %v", err)
-		return
-	}
-	defer outMoviesFile.Close()
-
-	outCreditsFile, err := os.Create("credits.csv")
-	if err != nil {
-		log.Printf("Failed to create credits.csv: %v", err)
-		return
-	}
-	defer outCreditsFile.Close()
-
-	outRatingsFile, err := os.Create("ratings.csv")
-	if err != nil {
-		log.Printf("Failed to create ratings.csv: %v", err)
-		return
-	}
-	defer outRatingsFile.Close()
-
-	outMoviesFile.WriteString(movies)
-	outCreditsFile.WriteString(credits)
-	outRatingsFile.WriteString(ratings)
 
 	log.Printf("Finished writing files")
 }
 
-func handleConnection(conn net.Conn) (string, error) {
+func handleConnection(conn net.Conn, filename string) error {
 	defer conn.Close()
 
-	buffer := ""
+	file, err := os.Create(fmt.Sprintf("%s.csv", filename))
+	if err != nil {
+		log.Printf("Failed to create file: %v", err)
+		return err
+	}
+	defer file.Close()
 
 	i := 0
 	for {
@@ -247,19 +214,19 @@ func handleConnection(conn net.Conn) (string, error) {
 		message, err := MessageFromSocket(&conn)
 		if err != nil {
 			log.Printf("Failed to read message: %v", err)
-			return "", err
+			return err
 		}
 
 		if string(message) == "FINISHED_FILE" {
 			log.Printf("Finished file")
-			return buffer, nil
+			return nil
 		}
 
 		if i%100_000 == 0 {
 			log.Printf("Processed %d messages", i)
 		}
 
-		buffer += string(message)
+		file.Write(message)
 	}
 
 }
