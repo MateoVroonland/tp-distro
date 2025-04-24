@@ -35,15 +35,11 @@ def create_batch_from_csv(file_path):
     
     with open(file_path, 'r', encoding='utf-8') as file:
         csv_reader = csv.reader(file) 
-        for row in csv_reader: #verificar si se leen bein las rows
-            # here we will parse json values inside csv
-
-            # Convert row back to CSV format
+        for row in csv_reader:
             output = StringIO()
             csv_writer = csv.writer(output)
             csv_writer.writerow(row)
             encoded_csv_row = output.getvalue()
-
 
             line_size = len(encoded_csv_row.encode('utf-8'))
             
@@ -72,7 +68,6 @@ def send_file(file_path):
         for batch in create_batch_from_csv(file_path):
             batch_count += 1
             complete_sock.send_all(batch)
-            logger.info(f"Sent batch {batch_count} of size {len(batch)} for file {file_path}")
         
         sent = complete_sock.send_all("FINISHED_FILE")
         logger.info(f"Sent {sent} bytes of FINISHED_FILE")
@@ -83,7 +78,6 @@ def send_file(file_path):
     finally:
         if complete_sock:
             complete_sock.close()
-           
 
 def wait_for_results():  
     try:

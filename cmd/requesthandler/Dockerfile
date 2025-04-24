@@ -2,11 +2,11 @@ FROM golang:latest AS builder
 
 WORKDIR /app
 
-# COPY go.mod go.sum ./
-# RUN go mod download
+COPY go.mod go.sum ./
+RUN go mod download
 
 
-# COPY . .
+COPY . .
 
 COPY cmd/requesthandler/request_handler.go cmd/requesthandler/request_handler.go
 

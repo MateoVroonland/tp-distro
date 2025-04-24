@@ -18,7 +18,7 @@ func main() {
 	}
 
 	totalReceivedMessages := 0
-	q, err := utils.NewConsumerQueue(conn, "movies_metadata", "movies_metadata", "movies_receiver_internal")
+	q, err := utils.NewConsumerQueue(conn, "movies", "movies", "movies_receiver_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
