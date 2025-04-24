@@ -1,9 +1,10 @@
 import csv
 import socket
 import logging
+from io import StringIO
 
 from internal.utils.communication import CompleteSocket
-from internal.utils.csv_formatters import clean_movies_csv, clean_ratings_csv, clean_credits_csv
+# from internal.utils.csv_formatters import clean_movies_csv, clean_ratings_csv, clean_credits_csv
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,8 +13,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 2 * 1024 * 1024
-SERVER_HOST="tbd"
-SERVER_PORT="tbd"
+SERVER_HOST="requesthandler"
+SERVER_PORT=8888
 
 def create_tcp_connection(host, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -35,12 +36,24 @@ def create_batch_from_csv(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         csv_reader = csv.reader(file) 
         for row in csv_reader: #verificar si se leen bein las rows
-            line_size = len(row.encode('utf-8'))
+            # here we will parse json values inside csv
+
+            # Convert row back to CSV format
+            output = StringIO()
+            csv_writer = csv.writer(output)
+            csv_writer.writerow(row)
+            encoded_csv_row = output.getvalue()
+
+
+            line_size = len(encoded_csv_row.encode('utf-8'))
             
             if current_batch_size + line_size > BATCH_SIZE:
+
                 yield current_batch
+                current_batch = ""
+                current_batch_size = 0
             
-            current_batch += row
+            current_batch += encoded_csv_row
             current_batch_size += line_size
     
     if current_batch_size > 0:
@@ -59,9 +72,10 @@ def send_file(file_path):
         for batch in create_batch_from_csv(file_path):
             batch_count += 1
             complete_sock.send_all(batch)
-            logger.info(f"Sent batch {batch_count} for file {file_path}")
+            logger.info(f"Sent batch {batch_count} of size {len(batch)} for file {file_path}")
         
-        complete_sock.send_all(f"FINISHED_FILE")
+        sent = complete_sock.send_all("FINISHED_FILE")
+        logger.info(f"Sent {sent} bytes of FINISHED_FILE")
         logger.info(f"Completed sending file {file_path} with {batch_count} batches")
         return True    
     except (ConnectionError, OSError) as e:
@@ -98,9 +112,9 @@ def wait_for_results():
 
 def main():
     files = [
-        {"path": "docs/movies_metadata.csv"},
-        {"path": "docs/credits.csv"},
-        {"path": "docs/ratings.csv"}
+        {"path": "/docs/movies_metadata.csv"},
+        {"path": "/docs/credits.csv"},
+        {"path": "/docs/ratings.csv"}
     ]
     
     for file_info in files:
@@ -109,7 +123,7 @@ def main():
         if send_file(file_path):
             logger.info(f"File {file_path} sent successfully")
         
-    wait_for_results()
+    # wait_for_results()
     logger.info("Client execution completed")
 
 if __name__ == "__main__":

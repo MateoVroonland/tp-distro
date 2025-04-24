@@ -14,7 +14,7 @@ class CompleteSocket:
         length_prefix = length.to_bytes(LENGTH_PREFIX_SIZE, byteorder='big')
         return length_prefix + data_bytes
 
-    def send_all(self, data):
+    def send_all(self, data: str):
         self._buffer.clear()
         final_data = self.append_message_length(data)
         total_sent = 0
@@ -23,6 +23,7 @@ class CompleteSocket:
             if sent == 0:
                 raise OSError
             total_sent += sent
+        return total_sent
     
     def recv_length(self):
         data = self._sock.recv(LENGTH_PREFIX_SIZE)
