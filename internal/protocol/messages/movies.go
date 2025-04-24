@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strings"
 )
 
 type Movie struct {
@@ -48,7 +49,9 @@ func (m *Movie) Deserialize(data []string) error {
 		return fmt.Errorf("invalid data")
 	}
 
-	err := json.Unmarshal([]byte(data[RawMovieProductionCountries]), &m.Countries)
+	escaped := strings.ReplaceAll(data[MovieProductionCountries], "'", "\"")
+	jsonString := strings.ReplaceAll(escaped, "None", "null")
+	err := json.Unmarshal([]byte(jsonString), &m.Countries)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal production countries: %v", err)
 	}

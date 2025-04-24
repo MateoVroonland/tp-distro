@@ -34,6 +34,8 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /requesthandler/request_handler.go
+    # volumes:
+    #   - ./docs:/docs
 
   receiver:
     build:

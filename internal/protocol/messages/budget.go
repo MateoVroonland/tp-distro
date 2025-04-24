@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"strconv"
+	"strings"
 )
 
 type Budget struct {
@@ -21,7 +22,9 @@ const (
 func (m *Budget) Deserialize(data []string) error {
 
 	var countries []string
-	err := json.Unmarshal([]byte(data[MovieProductionCountries]), &countries)
+	escaped := strings.ReplaceAll(data[MovieProductionCountries], "'", "\"")
+	jsonString := strings.ReplaceAll(escaped, "None", "null")
+	err := json.Unmarshal([]byte(jsonString), &countries)
 	if err != nil {
 		log.Printf("Failed to unmarshal production countries: %v", data[MovieProductionCountries])
 		log.Printf("Error: %v", err)
