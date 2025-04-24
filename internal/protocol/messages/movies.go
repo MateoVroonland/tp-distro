@@ -29,6 +29,10 @@ func (m *Movie) IncludesAllCountries(countries []string) bool {
 	return remainingCountries == 0
 }
 
+func (m *Movie) HasValidBudgetAndRevenue() bool {
+	return m.Budget > 0 && m.Revenue > 0
+}
+
 const (
 	MovieID = iota
 	MovieTitle

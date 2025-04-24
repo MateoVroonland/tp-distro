@@ -204,7 +204,7 @@ func NewProducerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 		return nil, err
 	}
 	// notifyReturn := make(chan amqp.Return)
- 	// ch.NotifyReturn(notifyReturn)
+	// ch.NotifyReturn(notifyReturn)
 	// go func() {
 	// 	outputFile, err := os.OpenFile("returned_messages.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	// 	if err != nil {
@@ -255,8 +255,6 @@ func (q *ProducerQueue) Publish(body []byte) error {
 }
 
 func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string) error {
-	
- 	
 	err := q.ch.Publish(
 		q.exchangeName, // exchange
 		routingKey,     // routing key

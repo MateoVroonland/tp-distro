@@ -96,7 +96,7 @@ services:
     build:
       context: .
       dockerfile: cmd/joiners/Dockerfile
-    depends_on: 
+    depends_on:
       rabbitmq:
         condition: service_healthy
   ratingsjoiner_3:
@@ -144,24 +144,25 @@ services:
         condition: service_healthy
     command: /budget_sink/budget_sink.go
 
-  # sentiment_worker:
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/sentiment/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   deploy:
-  #     replicas: 2
+  sentiment_reducer:
+    build:
+      context: .
+      dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /sentiment_reducer/sentiment_reducer.go
+    deploy:
+      replicas: 3
 
-  # sentiment_reducer:
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /sentiment_reducer/sentiment_reducer.go
+  sentiment_sink:
+    build:
+      context: .
+      dockerfile: cmd/sinks_q5/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /sentiment_sink/sentiment_sink.go
 
   credits_joiner:
     environment:
