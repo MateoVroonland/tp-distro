@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"iter"
 	"log"
-	"os"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -117,21 +116,21 @@ func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
 
 				message := string(delivery.Body)
 				if message == "FINISHED-RECEIVED" {
-					log.Printf("Received FINISHED-RECEIVED")
+					// log.Printf("Received FINISHED-RECEIVED")
 					q.timer = time.After(time.Millisecond * 1500)
 					q.closeQueueProducer.Publish([]byte("FINISHED-ACK"))
-					log.Printf("Sent FINISHED-ACK to %s", q.closeQueueProducer.queueName)
+					// log.Printf("Sent FINISHED-ACK to %s", q.closeQueueProducer.queueName)
 				}
 
 				if message == "FINISHED-ACK" && q.isLeader {
-					log.Printf("Received FINISHED-ACK")
+					// log.Printf("Received FINISHED-ACK")
 					q.replicas++
-					log.Printf("Replicas counted: %d", q.replicas)
+					// log.Printf("Replicas counted: %d", q.replicas)
 				}
 				if message == "FINISHED-DONE" && q.isLeader {
-					log.Printf("Received FINISHED-DONE")
+					// log.Printf("Received FINISHED-DONE")
 					q.replicas--
-					log.Printf("Replicas remaining: %d", q.replicas)
+					// log.Printf("Replicas remaining: %d", q.replicas)
 					if q.replicas == 0 {
 						q.sendFinished()
 						return
@@ -142,11 +141,11 @@ func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
 					q.timer = time.After(time.Millisecond * 1500)
 				}
 				if string(delivery.Body) == "FINISHED" && q.fanoutName != "" {
-					log.Printf("Received FINISHED from %s", q.queueName)
+					// log.Printf("Received FINISHED from %s", q.queueName)
 					q.isLeader = true
 					log.Printf("Is leader: %t", q.isLeader)
 					q.closeQueueProducer.Publish([]byte("FINISHED-RECEIVED"))
-					log.Printf("Sent FINISHED-RECEIVED to")
+					// log.Printf("Sent FINISHED-RECEIVED to")
 					err := delivery.Ack(false)
 					if err != nil {
 						log.Printf("Failed to ack delivery: %v", err)
@@ -204,6 +203,36 @@ func NewProducerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 	if err != nil {
 		return nil, err
 	}
+	// notifyReturn := make(chan amqp.Return)
+ 	// ch.NotifyReturn(notifyReturn)
+	// go func() {
+	// 	outputFile, err := os.OpenFile("returned_messages.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// 	if err != nil {
+	// 		log.Printf("Failed to open output file: %v", err)
+	// 		outputFile = nil
+	// 	}
+	// 	outputFileInfo, err := os.OpenFile("returned_messages_info.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// 	if err != nil {
+	// 		log.Printf("Failed to open output file: %v", err)
+	// 		outputFileInfo = nil
+	// 	}
+	//    i := 0
+	// 	for r := range notifyReturn {
+	// 	   i++
+	// 		body := string(r.Body)
+	// 		info := fmt.Sprintf("exchange: %s, routingKey: %s, replyText: %s\n", r.Exchange, r.RoutingKey, r.ReplyText)
+	// 		if outputFile != nil {
+	// 			fmt.Fprint(outputFile, body)
+	// 		}
+	// 		if outputFileInfo != nil {
+	// 			fmt.Fprint(outputFileInfo, info)
+	// 		}
+	// 	   if i == 2000 {
+	// 		   log.Printf("Sent %d messages", i)
+	// 		   break
+	// 	   }
+	// 	}
+	// }()
 
 	err = ch.ExchangeDeclare(
 		exchangeName, // name
@@ -226,32 +255,8 @@ func (q *ProducerQueue) Publish(body []byte) error {
 }
 
 func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string) error {
-
-	notifyReturn := make(chan amqp.Return)
-	q.ch.NotifyReturn(notifyReturn)
-	go func() {
-		outputFile, err := os.OpenFile("returned_messages.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Printf("Failed to open output file: %v", err)
-			outputFile = nil
-		}
-		outputFileInfo, err := os.OpenFile("returned_messages_info.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Printf("Failed to open output file: %v", err)
-			outputFileInfo = nil
-		}
-		for r := range notifyReturn {
-			body := string(r.Body)
-			info := fmt.Sprintf("exchange: %s, routingKey: %s, replyText: %s\n", r.Exchange, r.RoutingKey, r.ReplyText)
-			if outputFile != nil {
-				fmt.Fprint(outputFile, body)
-			}
-			if outputFileInfo != nil {
-				fmt.Fprint(outputFileInfo, info)
-			}
-		}
-	}()
-
+	
+ 	
 	err := q.ch.Publish(
 		q.exchangeName, // exchange
 		routingKey,     // routing key
