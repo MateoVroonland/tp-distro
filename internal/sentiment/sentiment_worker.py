@@ -75,13 +75,10 @@ class SentimentWorker:
                 ch.stop_consuming()
                 return
         
-            # logger.info(f"Received message: {message_str}")
             csv_line = self.parse_and_process_message(message_str)
-            
             self.output_queue.publish(csv_line)
-            # logger.info(f"Processed movie: {movie_title} with sentiment: {sentiment_result['label']}")
             ch.basic_ack(delivery_tag=method.delivery_tag)   
-        except e:
+        except Exception as e:
             logger.error(f"Error processing message: {e}")
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 

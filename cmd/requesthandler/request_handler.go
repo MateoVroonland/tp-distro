@@ -130,7 +130,6 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 			continue
 		}
 		log.Printf("Query 4: %s", string(jsonQ4Bytes))
-		d.Ack(false)
 
 		jsonQ5Bytes, err := json.Marshal(results.Query5)
 		if err != nil {

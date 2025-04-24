@@ -51,10 +51,6 @@ func (s *SentimentSink) Sink() {
 		msg.Ack(false)
 	}
 
-	log.Printf("Finished consuming messages")
-	log.Printf("Average revenue/budget ratio for positive sentiment movies: %.6f", positiveRatio)
-	log.Printf("Average revenue/budget ratio for negative sentiment movies: %.6f", negativeRatio)
-
 	rows := []messages.Q5Row{
 		*messages.NewQ5Row(positiveRatio, negativeRatio),
 	}
@@ -75,8 +71,6 @@ func (s *SentimentSink) Sink() {
 		log.Printf("Failed to marshal results: %v", err)
 		return
 	}
-
-	log.Printf("Publishing results: %s", string(bytes))
 
 	err = s.resultsProducer.Publish(bytes)
 	if err != nil {
