@@ -15,7 +15,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	inputQueue, err := utils.NewConsumerQueue(conn, "movies_sentiment_processed", "movies_sentiment_processed")
+	inputQueue, err := utils.NewConsumerQueue(conn, "movies_sentiment_processed", "movies_sentiment_processed", "sentiment_reducer_movies_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare input queue: %v", err)
 	}
