@@ -115,6 +115,8 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /sentiment_reducer/sentiment_reducer.go
+    deploy:
+      replicas: 3
 
   sentiment_sink:
     build:

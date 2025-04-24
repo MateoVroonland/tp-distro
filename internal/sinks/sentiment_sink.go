@@ -21,8 +21,10 @@ func NewSentimentSink(queue *utils.ConsumerQueue, resultsProducer *utils.Produce
 }
 
 func (s *SentimentSink) Sink() {
-	var positiveRatio float64
-	var negativeRatio float64
+	var totalPositiveRatio float64
+	var totalNegativeRatio float64
+	var totalPositiveMovies int
+	var totalNegativeMovies int
 
 	log.Printf("Sentiment sink started, consuming messages...")
 
@@ -37,11 +39,13 @@ func (s *SentimentSink) Sink() {
 		}
 
 		if stats.Sentiment == "POSITIVE" {
-			positiveRatio = stats.AverageRatio
+			totalPositiveRatio += stats.AverageRatio * float64(stats.TotalMovies)
+			totalPositiveMovies += stats.TotalMovies
 			log.Printf("Received positive sentiment stats: ratio=%.6f, movies=%d, total=%d",
 				stats.AverageRatio, stats.TotalMovies, stats.ProcessedCount)
 		} else if stats.Sentiment == "NEGATIVE" {
-			negativeRatio = stats.AverageRatio
+			totalNegativeRatio += stats.AverageRatio * float64(stats.TotalMovies)
+			totalNegativeMovies += stats.TotalMovies
 			log.Printf("Received negative sentiment stats: ratio=%.6f, movies=%d, total=%d",
 				stats.AverageRatio, stats.TotalMovies, stats.ProcessedCount)
 		} else {
@@ -51,8 +55,19 @@ func (s *SentimentSink) Sink() {
 		msg.Ack(false)
 	}
 
+	var finalPositiveRatio float64
+	var finalNegativeRatio float64
+
+	if totalPositiveMovies > 0 {
+		finalPositiveRatio = totalPositiveRatio / float64(totalPositiveMovies)
+	}
+
+	if totalNegativeMovies > 0 {
+		finalNegativeRatio = totalNegativeRatio / float64(totalNegativeMovies)
+	}
+
 	rows := []messages.Q5Row{
-		*messages.NewQ5Row(positiveRatio, negativeRatio),
+		*messages.NewQ5Row(finalPositiveRatio, finalNegativeRatio),
 	}
 
 	rowsBytes, err := json.Marshal(rows)
