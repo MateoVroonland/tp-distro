@@ -88,24 +88,24 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-  # ratingsjoiner_2:
-  #   environment:
-  #     ID: 2
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/joiners/Dockerfile
-  #   depends_on: 
-  #     rabbitmq:
-  #       condition: service_healthy
-  # ratingsjoiner_3:
-  #   environment:
-  #     ID: 3
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/joiners/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
+  ratingsjoiner_2:
+    environment:
+      ID: 2
+    build:
+      context: .
+      dockerfile: cmd/joiners/Dockerfile
+    depends_on: 
+      rabbitmq:
+        condition: service_healthy
+  ratingsjoiner_3:
+    environment:
+      ID: 3
+    build:
+      context: .
+      dockerfile: cmd/joiners/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
   # ratingsjoiner_4:
   #   environment:
   #     ID: 4

@@ -25,7 +25,7 @@ func main() {
 	time.Sleep(5 * time.Second)
 
 	wg := sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(4)
 	go publishFile("ratings", conn, &wg)
 	go publishFile("credits", conn, &wg)
 	go publishFile("movies_metadata", conn, &wg)
