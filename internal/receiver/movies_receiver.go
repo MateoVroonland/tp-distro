@@ -83,10 +83,12 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			}
 		}
 
-		// err = q5.Publish(serializedMovie)
-		// if err != nil {
-		// 	log.Printf("Failed to publish to queue 5: %v", err)
-		// }
+		if movie.HasValidBudgetAndRevenue() {
+			err = r.Q5Producer.Publish(serializedMovie)
+			if err != nil {
+				log.Printf("Failed to publish to queue 5: %v", err)
+			}
+		}
 
 		d.Ack(false)
 	}
