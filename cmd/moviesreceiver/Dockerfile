@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/receiver/receiver.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/moviesreceiver/movies_receiver.go
 
 ENTRYPOINT ["/main"]
 
