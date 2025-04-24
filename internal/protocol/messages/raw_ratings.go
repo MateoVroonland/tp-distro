@@ -12,17 +12,18 @@ type RawRatings struct {
 
 func (r *RawRatings) Deserialize(data []string) error {
 	var err error
-	r.MovieID, err = strconv.Atoi(data[0])
+	r.MovieID, err = strconv.Atoi(data[1])
 	if err != nil {
 		return err
 	}
-	r.Rating, err = strconv.ParseFloat(data[1], 64)
+	r.Rating, err = strconv.ParseFloat(data[2], 64)
 	if err != nil {
 		return err
 	}
 	rawData := make([]string, 2)
 	rawData[0] = data[1]
 	rawData[1] = data[2]
+
 	r.RawData = rawData
 	return nil
 }

@@ -33,7 +33,7 @@ services:
       rabbitmq:
         condition: service_healthy
     deploy:
-      replicas: 3
+      replicas: 1
 
   filter_q1:
     environment:
@@ -48,6 +48,16 @@ services:
     deploy:
       replicas: 3
 
+  filter_q3:
+    environment:
+      QUERY: 3
+    build:
+      context: .
+      dockerfile: cmd/filter/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /filter/filter.go
   filter_q4:
     environment:
       QUERY: 4
@@ -69,6 +79,33 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  ratingsjoiner:
+    environment:
+      ID: 1
+    build:
+      context: .
+      dockerfile: cmd/joiners/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  ratingsjoiner_2:
+    environment:
+      ID: 2
+    build:
+      context: .
+      dockerfile: cmd/joiners/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  ratingsjoiner_3:
+    environment:
+      ID: 3
+    build:
+      context: .
+      dockerfile: cmd/joiners/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
   q1_sink:
     build:
       context: .
@@ -77,6 +114,14 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /q1_sink/q1_sink.go
+
+  q3_sink:
+    build:
+      context: .
+      dockerfile: cmd/sinks_q3/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
   budget_reducer:
     build:
       context: .
@@ -105,7 +150,7 @@ services:
       rabbitmq:
         condition: service_healthy
     deploy:
-      replicas: 1
+      replicas: 2
 
   sentiment_reducer:
     build:
@@ -130,6 +175,24 @@ services:
   credits_joiner:
     environment:
       ID: 1
+    build:
+      context: .
+      dockerfile: cmd/joiners_q4/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  credits_joiner_2:
+    environment:
+      ID: 2
+    build:
+      context: .
+      dockerfile: cmd/joiners_q4/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  credits_joiner_3:
+    environment:
+      ID: 3
     build:
       context: .
       dockerfile: cmd/joiners_q4/Dockerfile

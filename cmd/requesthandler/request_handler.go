@@ -25,9 +25,9 @@ func main() {
 	time.Sleep(15 * time.Second)
 
 	wg := sync.WaitGroup{}
-	wg.Add(3)
-	// go publishFile("ratings", ch, &wg)
-	// go publishFile("credits", conn, &wg)
+	wg.Add(4)
+	go publishFile("ratings", conn, &wg)
+	go publishFile("credits", conn, &wg)
 	go publishFile("movies_metadata", conn, &wg)
 
 	go listenForResults(conn, &wg)
@@ -93,11 +93,8 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 	queries := 4
 
 	for d := range resultsConsumer.Consume() {
-		log.Printf("Received message: %s", string(d.Body))
 		err = json.Unmarshal(d.Body, &results)
 		if err != nil {
-			log.Println("Body:", string(d.Body))
-			log.Printf("Failed to unmarshal results: %v", err)
 			d.Nack(false, false)
 			continue
 		}
@@ -122,6 +119,14 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 			continue
 		}
 		log.Printf("Query 2: %s", string(jsonQ2Bytes))
+
+		jsonQ3Bytes, err := json.Marshal(results.Query3)
+		if err != nil {
+			log.Printf("Error al convertir a JSON: %v\n", err)
+			d.Nack(false, false)
+			continue
+		}
+		log.Printf("Query 3: %s", string(jsonQ3Bytes))
 
 		jsonQ4Bytes, err := json.Marshal(results.Query4)
 		if err != nil {

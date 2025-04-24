@@ -58,7 +58,7 @@ func main() {
 	q.AddFinishSubscriber(q3)
 	q.AddFinishSubscriber(q4)
 	q.AddFinishSubscriber(q5)
-
+	i := 0
 	for d := range q.Consume() {
 		totalReceivedMessages++
 		stringLine := string(d.Body)
@@ -99,7 +99,6 @@ func main() {
 				log.Printf("Failed to publish to queue 2: %v", err)
 			}
 		}
-
 		if movie.IncludesAllCountries([]string{"Argentina"}) {
 			err = q3.Publish(serializedMovie)
 			if err != nil {
@@ -123,6 +122,7 @@ func main() {
 
 		d.Ack(false)
 	}
+	log.Printf("total argentina movies: %d", i)
 
 	log.Printf("Total received messages: %d", totalReceivedMessages)
 	defer conn.Close()

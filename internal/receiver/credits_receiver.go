@@ -3,8 +3,10 @@ package receiver
 import (
 	"encoding/csv"
 	"log"
+	"strconv"
 	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/constants"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -25,7 +27,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 
 	i := 0
 
-	r.creditsConsumer.AddFinishSubscriber(r.joinerProducer)
+	r.creditsConsumer.AddFinishSubscriberWithRoutingKey(r.joinerProducer, "1")
 	for msg := range r.creditsConsumer.Consume() {
 
 		stringLine := string(msg.Body)
@@ -53,9 +55,9 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			continue
 		}
 
-		// routingKey := utils.HashString(strconv.Itoa(credits.MovieID), constants.CREDITS_JOINER_AMOUNT)
-		// err = r.joinerProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey))
-		err = r.joinerProducer.Publish(serializedCredits)
+		routingKey := utils.HashString(strconv.Itoa(credits.MovieID), constants.CREDITS_JOINER_AMOUNT)
+		err = r.joinerProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey))
+		// err = r.joinerProducer.Publish(serializedCredits)
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)
 			continue
