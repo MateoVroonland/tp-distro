@@ -28,7 +28,7 @@ services:
   receiver:
     build:
       context: .
-      dockerfile: cmd/receiver/Dockerfile
+      dockerfile: cmd/moviesreceiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -142,24 +142,24 @@ services:
         condition: service_healthy
     command: /budget_sink/budget_sink.go
 
-  sentiment_worker:
-    build:
-      context: .
-      dockerfile: cmd/sentiment/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    deploy:
-      replicas: 2
+  # sentiment_worker:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sentiment/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   deploy:
+  #     replicas: 2
 
-  sentiment_reducer:
-    build:
-      context: .
-      dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /sentiment_reducer/sentiment_reducer.go
+  # sentiment_reducer:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /sentiment_reducer/sentiment_reducer.go
 
   credits_joiner:
     environment:

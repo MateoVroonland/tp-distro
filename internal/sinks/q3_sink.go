@@ -33,7 +33,6 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 
 
 	for msg := range s.SinkConsumer.Consume() {
-		log.Printf("Received message: %s", string(msg.Body))
 		var movie messages.MovieRating
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -72,7 +71,6 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 			Rating:  minMovie.Rating,
 		},
 	}
-	log.Printf("Results after getting max and min movies: %v", results)
 	resultsBytes, err := json.Marshal(results)
 	if err != nil {
 		log.Printf("Failed to marshal results: %v", err)
