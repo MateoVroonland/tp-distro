@@ -22,28 +22,18 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ./out:/out
-    command: /requesthandler/request_handler.go
-
-  client:
-    build:
-      context: .
-      dockerfile: cmd/client/Dockerfile
-    volumes:
       - ./docs:/docs
-    depends_on:
-      requesthandler:
-        condition: service_started
+    command: /requesthandler/request_handler.go
 
   receiver:
     build:
       context: .
-      dockerfile: cmd/receiver/Dockerfile
+      dockerfile: cmd/moviesreceiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
     deploy:
-      replicas: 1
+      replicas: 3
 
   filter_q1:
     environment:
@@ -68,6 +58,9 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
+    deploy:
+      replicas: 3
+
   filter_q4:
     environment:
       QUERY: 4
@@ -88,6 +81,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    deploy:
+      replicas: 3
 
   ratingsjoiner:
     environment:
@@ -152,16 +147,6 @@ services:
         condition: service_healthy
     command: /budget_sink/budget_sink.go
 
-  sentiment_worker:
-    build:
-      context: .
-      dockerfile: cmd/sentiment/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    deploy:
-      replicas: 2
-
   sentiment_reducer:
     build:
       context: .
@@ -170,6 +155,25 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /sentiment_reducer/sentiment_reducer.go
+    deploy:
+      replicas: 3
+
+  sentiment_worker:
+    build:
+      context: .
+      dockerfile: cmd/sentiment/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  sentiment_sink:
+    build:
+      context: .
+      dockerfile: cmd/sinks_q5/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /sentiment_sink/sentiment_sink.go
 
   credits_joiner:
     environment:
