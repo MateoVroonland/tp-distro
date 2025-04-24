@@ -33,7 +33,7 @@ services:
       rabbitmq:
         condition: service_healthy
     deploy:
-      replicas: 1
+      replicas: 3
 
   filter_q1:
     environment:
@@ -78,6 +78,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    deploy:
+      replicas: 3
 
   ratingsjoiner:
     environment:
