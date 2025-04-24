@@ -3,7 +3,6 @@ package messages
 import (
 	"encoding/json"
 	"log"
-	"strings"
 	"time"
 )
 
@@ -28,9 +27,7 @@ type Genre struct {
 }
 
 func (m *Q1Movie) Deserialize(data []string) error {
-	escaped := strings.ReplaceAll(data[Q1Genres], "'", "\"")
-	jsonString := strings.ReplaceAll(escaped, "None", "null")
-	err := json.Unmarshal([]byte(jsonString), &m.Genres)
+	err := json.Unmarshal([]byte(data[Q1Genres]), &m.Genres)
 	if err != nil {
 		log.Printf("Failed to unmarshal genres: %v", data[MovieGenres])
 		log.Printf("Error: %v", err)

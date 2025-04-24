@@ -25,7 +25,7 @@ def process_movies_row(row):
     
 def process_credits_row(row):
     try:
-        cast_idx = 1
+        cast_idx = 0
         
         if len(row) > cast_idx:
             cast = ast.literal_eval(row[cast_idx])

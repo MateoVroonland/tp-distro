@@ -3,7 +3,6 @@ package messages
 import (
 	"encoding/json"
 	"strconv"
-	"strings"
 )
 
 type CreditsSink struct {
@@ -29,9 +28,7 @@ func (c *CreditsSink) Deserialize(data []string) error {
 	}
 	parsedCredits := []ParsedCreditJSON{}
 
-	escaped := strings.ReplaceAll(data[CreditsSinkCastIndex], "'", "\"")
-	jsonString := strings.ReplaceAll(escaped, "None", "null")
-	err = json.Unmarshal([]byte(jsonString), &parsedCredits)
+	err = json.Unmarshal([]byte(data[CreditsCastIndex]), &parsedCredits)
 	if err != nil {
 		return err
 	}

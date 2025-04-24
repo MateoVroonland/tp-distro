@@ -12,7 +12,7 @@ import (
 )
 
 type MoviesReceiver struct {
-	conn            *amqp.Connection
+	conn           *amqp.Connection
 	MoviesConsumer *utils.ConsumerQueue
 	Q1Producer     *utils.ProducerQueue
 	Q2Producer     *utils.ProducerQueue
@@ -30,7 +30,7 @@ func (r *MoviesReceiver) ReceiveMovies() {
 	r.MoviesConsumer.AddFinishSubscriber(r.Q2Producer)
 	r.MoviesConsumer.AddFinishSubscriber(r.Q3Producer)
 	r.MoviesConsumer.AddFinishSubscriber(r.Q4Producer)
-	// r.MoviesConsumer.AddFinishSubscriber(r.Q5Producer)
+	r.MoviesConsumer.AddFinishSubscriber(r.Q5Producer)
 	i := 0
 	for d := range r.MoviesConsumer.Consume() {
 		stringLine := string(d.Body)

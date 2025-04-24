@@ -35,9 +35,9 @@ def create_batch_from_csv(file_path):
     file_name = file_path.split("/")[-1]
     file_processor = None
     
-    if "movies_metadata.csv" in file_name:
+    if "movies.csv" in file_name:
         file_processor = process_movies_row
-        logger.info("Processing movies_metadata.csv file")
+        logger.info("Processing movies.csv file")
     elif "credits.csv" in file_name:
         file_processor = process_credits_row
         logger.info("Processing credits.csv file")
@@ -122,7 +122,7 @@ def wait_for_results():
 
 def main():
     files = [
-        {"path": "/docs/movies_metadata.csv"},
+        {"path": "/docs/movies.csv"},
         {"path": "/docs/credits.csv"},
         {"path": "/docs/ratings.csv"}
     ]
