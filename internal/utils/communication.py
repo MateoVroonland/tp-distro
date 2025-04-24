@@ -50,7 +50,7 @@ class CompleteSocket:
 
     def recv_all(self):
         try:
-            length = self.recv_length_prefix()
+            length = self.recv_length()
             payload = self.recv_exact(length)
             return payload
         except (ConnectionError, ValueError) as e:

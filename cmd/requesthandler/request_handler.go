@@ -31,6 +31,8 @@ func main() {
 	startServer()
 	time.Sleep(15 * time.Second)
 
+	log.Printf("Distributing files")
+
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go publishFile("ratings", conn, &wg)
@@ -47,7 +49,7 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 
 	log.Printf("Publishing file: %s", filename)
 
-	file, err := os.Open(fmt.Sprintf("out/%s.csv", filename))
+	file, err := os.Open(fmt.Sprintf("/out/%s.csv", filename))
 	if err != nil {
 		log.Fatalf("Failed to open file: %v", err)
 		return err
@@ -97,7 +99,7 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	queries := 4
+	queries := 5
 
 	for d := range resultsConsumer.Consume() {
 		err = json.Unmarshal(d.Body, &results)
@@ -206,21 +208,21 @@ func startServer() {
 		filesRemaining--
 	}
 
-	outMoviesFile, err := os.Create("out/movies.csv")
+	outMoviesFile, err := os.Create("/out/movies.csv")
 	if err != nil {
 		log.Printf("Failed to create out/movies.csv: %v", err)
 		return
 	}
 	defer outMoviesFile.Close()
 
-	outCreditsFile, err := os.Create("out/credits.csv")
+	outCreditsFile, err := os.Create("/out/credits.csv")
 	if err != nil {
 		log.Printf("Failed to create out/credits.csv: %v", err)
 		return
 	}
 	defer outCreditsFile.Close()
 
-	outRatingsFile, err := os.Create("out/ratings.csv")
+	outRatingsFile, err := os.Create("/out/ratings.csv")
 	if err != nil {
 		log.Printf("Failed to create out/ratings.csv: %v", err)
 		return
@@ -251,6 +253,10 @@ func handleConnection(conn net.Conn) (string, error) {
 		if string(message) == "FINISHED_FILE" {
 			log.Printf("Finished file")
 			return buffer, nil
+		}
+
+		if i%100_000 == 0 {
+			log.Printf("Processed %d messages", i)
 		}
 
 		buffer += string(message)
