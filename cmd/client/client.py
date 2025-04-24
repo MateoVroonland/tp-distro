@@ -1,8 +1,9 @@
+import csv
 import socket
 import logging
 
 from internal.utils.communication import CompleteSocket
-from internal.utils.format_checker import *
+from internal.utils.csv_formatters import clean_movies_csv, clean_ratings_csv, clean_credits_csv
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,26 +28,25 @@ def create_tcp_connection(host, port):
             complete_sock.close()
         return None
     
-def create_batch_from_csv(file_path, validate_line):
+def create_batch_from_csv(file_path):
     current_batch = ""
     current_batch_size = 0
     
-    with open(file_path, 'r', encoding='utf-8') as file:       
-        for line in file:
-            if not validate_line(line):
-                continue
-            line_size = len(line.encode('utf-8'))
+    with open(file_path, 'r', encoding='utf-8') as file:
+        csv_reader = csv.reader(file) 
+        for row in csv_reader: #verificar si se leen bein las rows
+            line_size = len(row.encode('utf-8'))
             
             if current_batch_size + line_size > BATCH_SIZE:
                 yield current_batch
             
-            current_batch += line
+            current_batch += row
             current_batch_size += line_size
     
     if current_batch_size > 0:
         yield current_batch
 
-def send_file(file_path, validate_func):
+def send_file(file_path):
     logger.info(f"Starting to send file: {file_path}")
     batch_count = 0
     complete_sock = None
@@ -56,7 +56,7 @@ def send_file(file_path, validate_func):
             logger.error("Failed to create TCP connection")
             return False
         
-        for batch in create_batch_from_csv(file_path, validate_func):
+        for batch in create_batch_from_csv(file_path):
             batch_count += 1
             complete_sock.send_all(batch)
             logger.info(f"Sent batch {batch_count} for file {file_path}")
@@ -98,16 +98,15 @@ def wait_for_results():
 
 def main():
     files = [
-        {"path": "docs/movies_metadata.csv", "validate_func": validate_movies_line},
-        {"path": "docs/credits.csv", "validate_func": validate_credits_line},
-        {"path": "docs/ratings.csv", "validate_func": validate_ratings_line}
+        {"path": "docs/movies_metadata.csv"},
+        {"path": "docs/credits.csv"},
+        {"path": "docs/ratings.csv"}
     ]
     
     for file_info in files:
         file_path = file_info["path"]
-        validate_func = file_info["validate_func"]
         
-        if send_file(file_path, validate_func):
+        if send_file(file_path):
             logger.info(f"File {file_path} sent successfully")
         
     wait_for_results()
