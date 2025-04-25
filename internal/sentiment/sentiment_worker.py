@@ -65,7 +65,6 @@ class SentimentWorker:
     def process_message(self, ch, method, properties, body):     
         try:
             message_str = body.decode('utf-8').strip()
-            print(message_str)
             if message_str == "FINISHED":
                 logger.info("Received FINISHED message, forwarding...")
                 try:

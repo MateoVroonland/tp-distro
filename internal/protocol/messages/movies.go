@@ -59,7 +59,7 @@ func (m *Movie) Deserialize(data []string) error {
 		productionCountries[i] = c.Name
 	}
 
-	m.Budget, err = strconv.ParseFloat(data[RawMovieRevenue], 64)
+	m.Budget, err = strconv.ParseFloat(data[RawMovieBudget], 64)
 	if err != nil {
 		return fmt.Errorf("failed to parse revenue: %v", err)
 	}
