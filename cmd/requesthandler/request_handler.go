@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -21,27 +20,39 @@ const (
 	PORT = "8888"
 )
 
-func main() {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+type Server struct {
+	results     *messages.Results
+	resultsLock sync.Mutex
+	conn        *amqp.Connection
+	wg          sync.WaitGroup
+}
+
+func NewServer(conn *amqp.Connection) *Server {
+	return &Server{
+		results:     nil,
+		resultsLock: sync.Mutex{},
+		conn:        conn,
+		wg:          sync.WaitGroup{},
 	}
-	defer conn.Close()
+}
+
+func (s *Server) Start() {
+	defer s.conn.Close()
 
 	startServer()
-	time.Sleep(15 * time.Second)
 
 	log.Printf("Distributing files")
 
-	wg := sync.WaitGroup{}
-	wg.Add(4)
-	go publishFile("ratings", conn, &wg)
-	go publishFile("credits", conn, &wg)
-	go publishFile("movies", conn, &wg)
+	s.wg.Add(5)
+	go publishFile("ratings", s.conn, &s.wg)
+	go publishFile("credits", s.conn, &s.wg)
+	go publishFile("movies", s.conn, &s.wg)
 
-	go listenForResults(conn, &wg)
+	go s.listenForResults()
 
-	wg.Wait()
+	go s.respondResults()
+
+	s.wg.Wait()
 }
 
 func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) error {
@@ -91,15 +102,15 @@ func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) err
 	return nil
 }
 
-func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (s *Server) listenForResults() {
+	defer s.wg.Done()
 	var results messages.Results
-	resultsConsumer, err := utils.NewConsumerQueue(conn, "results", "results", "")
+	resultsConsumer, err := utils.NewConsumerQueue(s.conn, "results", "results", "")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	queries := 5
+	queries := 1
 
 	for d := range resultsConsumer.Consume() {
 		err = json.Unmarshal(d.Body, &results)
@@ -152,8 +163,13 @@ func listenForResults(conn *amqp.Connection, wg *sync.WaitGroup) {
 			continue
 		}
 		log.Printf("Query 5: %s", string(jsonQ5Bytes))
+
 		d.Ack(false)
 	}
+
+	s.resultsLock.Lock()
+	s.results = &results
+	s.resultsLock.Unlock()
 
 }
 
@@ -251,4 +267,61 @@ func MessageFromSocket(socket *net.Conn) ([]byte, error) {
 	}
 
 	return payload, nil
+}
+
+func (s *Server) respondResults() error {
+	defer s.wg.Done()
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", PORT))
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+	defer listener.Close()
+
+	for {
+		log.Printf("Waiting for connection")
+		conn, err := listener.Accept()
+		log.Printf("Accepted connection")
+
+		if err != nil {
+			log.Printf("Failed to accept connection: %v", err)
+			continue
+		}
+
+		s.resultsLock.Lock()
+		if s.results == nil {
+			conn.Write([]byte("NO_RESULTS"))
+			s.resultsLock.Unlock()
+			continue
+		}
+
+		resultsBytes, err := json.Marshal(s.results)
+		if err != nil {
+			log.Printf("Error al convertir a JSON: %v\n", err)
+			s.resultsLock.Unlock()
+			continue
+		}
+
+		lengthBytes := make([]byte, 4)
+		binary.BigEndian.PutUint32(lengthBytes, uint32(len(resultsBytes)))
+
+		messageToSend := append(lengthBytes, resultsBytes...)
+		conn.Write(messageToSend)
+
+		log.Printf("Sent results %s", resultsBytes)
+
+		s.resultsLock.Unlock()
+		return nil
+	}
+
+}
+
+func main() {
+	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+	if err != nil {
+		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+	}
+	defer conn.Close()
+
+	server := NewServer(conn)
+	server.Start()
 }

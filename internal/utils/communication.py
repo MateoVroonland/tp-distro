@@ -27,7 +27,7 @@ class CompleteSocket:
     
     def recv_length(self):
         data = self._sock.recv(LENGTH_PREFIX_SIZE)
-        while data < LENGTH_PREFIX_SIZE:
+        while len(data) < LENGTH_PREFIX_SIZE:
             if not data:
                 raise ConnectionError("Connection closed while reading length prefix")
             data += self._sock.recv(LENGTH_PREFIX_SIZE - len(data))

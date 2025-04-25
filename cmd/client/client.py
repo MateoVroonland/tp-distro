@@ -2,6 +2,7 @@ import csv
 import socket
 import logging
 from io import StringIO
+import time
 
 from internal.utils.communication import CompleteSocket
 from internal.utils.csv_formatters import process_credits_row, process_movies_row
@@ -109,7 +110,7 @@ def wait_for_results():
                     break
                 
                 logger.info(f"Received result: {data}")
-                break
+                return data
             except ConnectionError:
                 logger.info("Server closed the connection")
                 break
@@ -127,13 +128,18 @@ def main():
         {"path": "/docs/ratings.csv"}
     ]
     
-    for file_info in files:
-        file_path = file_info["path"]
+    # for file_info in files:
+    #     file_path = file_info["path"]
         
-        if send_file(file_path):
-            logger.info(f"File {file_path} sent successfully")
+    if send_file(files[0]["path"]):
+        logger.info(f"File {files[0]['path']} sent successfully")
         
-    wait_for_results()
+
+    time.sleep(60 * 7)
+    logger.info("Waiting for results")
+    data = wait_for_results()
+    while data is None or data == "NO_RESULTS":
+        data = wait_for_results()
     logger.info("Client execution completed")
 
 if __name__ == "__main__":

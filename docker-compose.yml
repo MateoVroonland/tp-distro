@@ -139,53 +139,53 @@ services:
   #   depends_on:
   #     rabbitmq:
   #       condition: service_healthy
-  # budget_reducer:
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/reducers/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /budget_reducer.go
-  #   deploy:
-  #     replicas: 2
-
-  # budget_sink:
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/sinks_q2/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /budget_sink/budget_sink.go
-
-  sentiment_reducer:
+  budget_reducer:
     build:
       context: .
-      dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
+      dockerfile: cmd/reducers/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
-    command: /sentiment_reducer/sentiment_reducer.go
+    command: /budget_reducer.go
     deploy:
       replicas: 2
 
-  sentiment_worker:
+  budget_sink:
     build:
       context: .
-      dockerfile: cmd/sentiment/Dockerfile
+      dockerfile: cmd/sinks_q2/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
+    command: /budget_sink/budget_sink.go
 
-  sentiment_sink:
-    build:
-      context: .
-      dockerfile: cmd/sinks_q5/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /sentiment_sink/sentiment_sink.go
+  # sentiment_reducer:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /sentiment_reducer/sentiment_reducer.go
+  #   deploy:
+  #     replicas: 2
+
+  # sentiment_worker:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sentiment/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  # sentiment_sink:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sinks_q5/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /sentiment_sink/sentiment_sink.go
 
   # credits_joiner:
   #   environment:
