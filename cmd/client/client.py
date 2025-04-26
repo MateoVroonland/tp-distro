@@ -172,7 +172,6 @@ def main():
     logger.info("All files sent, sleeping for 5 minutes")
         
 
-    time.sleep(60 * 5)
     logger.info("Waiting for results")
 
     data = wait_for_results(complete_sock, id)
