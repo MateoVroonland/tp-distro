@@ -160,19 +160,16 @@ func (s *Server) handleDataStream(conn net.Conn) {
 		if msgContent == "FINISHED_FILE" {
 			log.Printf("Received FINISHED_FILE signal for %s", fileType)
 
-			filesRemaining--
-
-			if filesRemaining == 0 {
-				log.Printf("All files processed, closing connection")
-				finishedMessage := []byte("FINISHED")
-				for fileType, producer := range s.producers {
-					err := producer.Publish(finishedMessage)
-					if err != nil {
-						log.Printf("Error publishing finished message to %s: %v", fileType, err)
-					}
-				}
+			producer, exists := s.producers[fileType]
+			if !exists {
+				log.Printf("No producer found for %s", fileType)
 				return
 			}
+
+			producer.Publish([]byte("FINISHED"))
+
+			filesRemaining--
+
 			continue
 		}
 

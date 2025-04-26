@@ -31,8 +31,8 @@ func (r *MoviesReceiver) ReceiveMovies() {
 	r.MoviesConsumer.AddFinishSubscriber(r.Q3Producer)
 	r.MoviesConsumer.AddFinishSubscriber(r.Q4Producer)
 	r.MoviesConsumer.AddFinishSubscriber(r.Q5Producer)
-	i := 0
 	for d := range r.MoviesConsumer.Consume() {
+	
 		stringLine := string(d.Body)
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -72,7 +72,6 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			}
 		}
 		if movie.IncludesAllCountries([]string{"Argentina"}) {
-			i++
 			err = r.Q3Producer.Publish(serializedMovie)
 			if err != nil {
 				log.Printf("Failed to publish to queue 3: %v", err)

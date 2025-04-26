@@ -151,7 +151,6 @@ def main():
 
         
 
-    time.sleep(60 * 7)
     logger.info("Waiting for results")
     wait_for_results()
 
