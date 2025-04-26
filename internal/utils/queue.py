@@ -23,12 +23,21 @@ class ConsumerQueue:
             routing_key=name
         )
         self.queue_name = name
+        self.exchange_name = exchange_name
 
     def consume(self, auto_ack, callback):
         return self.channel.basic_consume(
             queue=self.queue_name,
             on_message_callback=callback,
             auto_ack=auto_ack
+        )
+    
+    def publish(self, body):
+        encoded_body = body.encode('utf-8')
+        self.channel.basic_publish(
+            exchange=self.exchange_name,
+            routing_key=self.queue_name,
+            body=encoded_body
         )
     
     def set_qos(self, prefetch_count=1):
