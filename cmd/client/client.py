@@ -72,16 +72,11 @@ def create_batch_from_csv(file_path):
     if current_batch_size > 0:
         yield current_batch
 
-def send_file(file_path):
+def send_file_through_connection(complete_sock, file_path):
     logger.info(f"Starting to send file: {file_path}")
+    
     batch_count = 0
-    complete_sock = None
     try:
-        complete_sock = create_tcp_connection(SERVER_HOST, SERVER_PORT)
-        if not complete_sock:
-            logger.error("Failed to create TCP connection")
-            return False
-        
         for batch in create_batch_from_csv(file_path):
             batch_count += 1
             complete_sock.send_all(batch)
@@ -89,12 +84,10 @@ def send_file(file_path):
         sent = complete_sock.send_all("FINISHED_FILE")
         logger.info(f"Sent {sent} bytes of FINISHED_FILE")
         logger.info(f"Completed sending file {file_path} with {batch_count} batches")
-        return True    
-    except (ConnectionError, OSError) as e:
+        return True
+    except Exception as e:
         logger.error(f"Failed to send file {file_path}: {str(e)}")
-    finally:
-        if complete_sock:
-            complete_sock.close()
+        return False
 
 def wait_for_results():  
     try:
@@ -104,10 +97,16 @@ def wait_for_results():
         
         while True:
             try:
+                complete_sock.send_all("WAITING_FOR_RESULTS")
                 data = complete_sock.recv_all().decode('utf-8')
                 if not data:
                     logger.info("Server closed the connection, all results received")
                     break
+
+                if data == "NO_RESULTS":
+                    logger.info("No results available yet")
+                    time.sleep(20)
+                    continue
                 
                 logger.info(f"Received result: {data}")
                 return data
@@ -127,20 +126,34 @@ def main():
         {"path": "/docs/credits.csv"},
         {"path": "/docs/ratings.csv"}
     ]
-    
-    # for file_info in files:
-    #     file_path = file_info["path"]
-        
-    if send_file(files[0]["path"]):
-        logger.info(f"File {files[0]['path']} sent successfully")
+    time.sleep(15)
+
+    complete_sock = create_tcp_connection(SERVER_HOST, SERVER_PORT)
+    if not complete_sock:
+        logger.error("Failed to create TCP connection, aborting")
+        return
+    try:
+        logger.info("Starting data transmission through single connection")
+        complete_sock.send_all(f"STARTING_FILE")
+        for file_info in files:
+            file_path = file_info["path"]
+            success = send_file_through_connection(complete_sock, file_path)
+            if not success:
+                logger.error(f"Failed to send {file_path}, aborting remaining files")
+                break
+    except Exception as e:
+        logger.error(f"Error during data transmission: {str(e)}")
+    finally:
+        if complete_sock:
+            complete_sock.close()
+            logger.info("Data transmission connection closed")
+
+
         
 
     time.sleep(60 * 7)
     logger.info("Waiting for results")
-    data = wait_for_results()
-    while data is None or data == "NO_RESULTS":
-        data = wait_for_results()
-    logger.info("Client execution completed")
+    wait_for_results()
 
 if __name__ == "__main__":
     main()

@@ -131,8 +131,8 @@ func NewQ2Result(rows []Q2Row) *QueryResult[Q2Row] {
 }
 
 type Q3Row struct {
-	MovieID int `json:"movie_id"`
-	Title   string `json:"title"`
+	MovieID int     `json:"movie_id"`
+	Title   string  `json:"title"`
 	Rating  float64 `json:"rating"`
 }
 
@@ -180,4 +180,8 @@ func NewQ5Row(positiveRatio float64, negativeRatio float64) *Q5Row {
 		PositiveRatio: positiveRatio,
 		NegativeRatio: negativeRatio,
 	}
+}
+
+func (r *Results) IsComplete() bool {
+	return r.Query1 != nil && r.Query2 != nil && r.Query3 != nil && r.Query4 != nil && r.Query5 != nil
 }
