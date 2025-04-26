@@ -5,14 +5,23 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
-    volumes:
-      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
-      - ./definitions.json:/etc/rabbitmq/definitions.json:ro
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  client:
+    build:
+      context: .
+      dockerfile: cmd/client/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      requesthandler:
+        condition: service_started
+    volumes:
+      - ./docs:/docs
 
   requesthandler:
     build:
@@ -21,11 +30,9 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    volumes:
-      - ./docs:/docs
     command: /requesthandler/request_handler.go
 
-  receiver:
+  moviesreceiver:
     build:
       context: .
       dockerfile: cmd/moviesreceiver/Dockerfile
@@ -33,7 +40,7 @@ services:
       rabbitmq:
         condition: service_healthy
     deploy:
-      replicas: 3
+      replicas: 2
 
   filter_q1:
     environment:
@@ -46,7 +53,7 @@ services:
         condition: service_healthy
     command: /filter/filter.go
     deploy:
-      replicas: 3
+      replicas: 2
 
   filter_q3:
     environment:
@@ -58,6 +65,9 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
+    deploy:
+      replicas: 2
+
   filter_q4:
     environment:
       QUERY: 4
@@ -69,7 +79,7 @@ services:
         condition: service_healthy
     command: /filter/filter.go
     deploy:
-      replicas: 3
+      replicas: 2
 
   ratingsreceiver:
     build:
@@ -79,7 +89,7 @@ services:
       rabbitmq:
         condition: service_healthy
     deploy:
-      replicas: 3
+      replicas: 2
 
   ratingsjoiner:
     environment:
@@ -133,7 +143,7 @@ services:
         condition: service_healthy
     command: /budget_reducer.go
     deploy:
-      replicas: 3
+      replicas: 2
 
   budget_sink:
     build:
@@ -147,11 +157,21 @@ services:
   sentiment_reducer:
     build:
       context: .
-      dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
+      dockerfile: cmd/reducers/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
-    command: /sentiment_reducer/sentiment_reducer.go
+    command: /budget_reducer.go
+    deploy:
+      replicas: 2
+
+  sentiment_worker:
+    build:
+      context: .
+      dockerfile: cmd/sentiment/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     deploy:
       replicas: 3
 
@@ -201,7 +221,7 @@ services:
         condition: service_healthy
     command: /credits_receiver/credits_receiver.go
     deploy:
-      replicas: 3
+      replicas: 2
 
   credits_sink:
     build:

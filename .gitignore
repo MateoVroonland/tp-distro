@@ -3,3 +3,4 @@ docs/movies_metadata.csv
 docs/ratings.csv
 .DS_Store
 **/.DS_Store
+out/

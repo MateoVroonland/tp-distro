@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+
 	"github.com/MateoVroonland/tp-distro/internal/receiver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -14,8 +15,7 @@ func main() {
 	}
 	defer conn.Close()
 
-
-	q, err := utils.NewConsumerQueue(conn, "movies_metadata", "movies_metadata", "movies_receiver_internal")
+	q, err := utils.NewConsumerQueue(conn, "movies", "movies", "movies_receiver_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
@@ -52,7 +52,5 @@ func main() {
 
 	receiver := receiver.NewMoviesReceiver(conn, q, q1, q2, q3, q4, q5)
 	receiver.ReceiveMovies()
-
-	
 
 }

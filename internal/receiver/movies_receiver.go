@@ -12,7 +12,7 @@ import (
 )
 
 type MoviesReceiver struct {
-	conn            *amqp.Connection
+	conn           *amqp.Connection
 	MoviesConsumer *utils.ConsumerQueue
 	Q1Producer     *utils.ProducerQueue
 	Q2Producer     *utils.ProducerQueue
@@ -30,9 +30,9 @@ func (r *MoviesReceiver) ReceiveMovies() {
 	r.MoviesConsumer.AddFinishSubscriber(r.Q2Producer)
 	r.MoviesConsumer.AddFinishSubscriber(r.Q3Producer)
 	r.MoviesConsumer.AddFinishSubscriber(r.Q4Producer)
-	// r.MoviesConsumer.AddFinishSubscriber(r.Q5Producer)
-	i := 0
+	r.MoviesConsumer.AddFinishSubscriber(r.Q5Producer)
 	for d := range r.MoviesConsumer.Consume() {
+	
 		stringLine := string(d.Body)
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -72,7 +72,6 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			}
 		}
 		if movie.IncludesAllCountries([]string{"Argentina"}) {
-			i++
 			err = r.Q3Producer.Publish(serializedMovie)
 			if err != nil {
 				log.Printf("Failed to publish to queue 3: %v", err)
@@ -83,10 +82,12 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			}
 		}
 
-		// err = q5.Publish(serializedMovie)
-		// if err != nil {
-		// 	log.Printf("Failed to publish to queue 5: %v", err)
-		// }
+		if movie.HasValidBudgetAndRevenue() {
+			err = r.Q5Producer.Publish(serializedMovie)
+			if err != nil {
+				log.Printf("Failed to publish to queue 5: %v", err)
+			}
+		}
 
 		d.Ack(false)
 	}

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
-	"strings"
+	"strconv"
 )
 
 type Movie struct {
@@ -49,8 +49,7 @@ func (m *Movie) Deserialize(data []string) error {
 		return fmt.Errorf("invalid data")
 	}
 
-	jsonStr := strings.ReplaceAll(data[RawMovieProductionCountries], "'", "\"")
-	err := json.Unmarshal([]byte(jsonStr), &m.Countries)
+	err := json.Unmarshal([]byte(data[RawMovieProductionCountries]), &m.Countries)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal production countries: %v", err)
 	}
@@ -58,6 +57,16 @@ func (m *Movie) Deserialize(data []string) error {
 	productionCountries := make([]string, len(m.Countries))
 	for i, c := range m.Countries {
 		productionCountries[i] = c.Name
+	}
+
+	m.Budget, err = strconv.ParseFloat(data[RawMovieBudget], 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse revenue: %v", err)
+	}
+
+	m.Revenue, err = strconv.ParseFloat(data[RawMovieRevenue], 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse revenue: %v", err)
 	}
 
 	m.RawData = make([]string, 8)

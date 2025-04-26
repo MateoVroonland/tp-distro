@@ -3,6 +3,9 @@ from transformers import pipeline
 import csv
 from io import StringIO
 
+NUMBER_OF_SENTIMENT_WORKERS = 3
+FINISHED_IDENTIFIER = "FINISHED"
+
 MovieID = 0
 MovieTitle = 1
 MovieBudget = 4
@@ -28,6 +31,7 @@ class SentimentWorker:
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')
+        self.current_finished_count = 0
         logger.info("Sentiment worker initialized with transformer model")
 
     def analyze_sentiment(self, text):
@@ -40,6 +44,12 @@ class SentimentWorker:
         except Exception as e:
             logger.error(f"Error analyzing sentiment: {e}")
             return {"label": "ERROR", "score": 0.0}
+        
+    def publish_message_wrapper(self, queue, message):
+        try:
+            queue.publish(message)
+        except Exception as e:
+            logger.error(f"Failed to forward FINISHED message: {e}")
         
     def parse_and_process_message(self, message_str):
         try:
@@ -61,23 +71,37 @@ class SentimentWorker:
         except Exception as e:
             logger.error(f"CSV parsing error: {e}")
             return None
+        
+    def handle_message(self, message_str, ch, method):
+        if message_str == FINISHED_IDENTIFIER:
+            logger.info("Received FINISHED from lower layer")
+            self.current_finished_count += 1
+            self.publish_message_wrapper(self.input_queue, f"{FINISHED_IDENTIFIER}-{self.current_finished_count}")
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            ch.stop_consuming()
+            return
+        
+        if f"{FINISHED_IDENTIFIER}-" in message_str:
+            logger.info("Received FINISHED from another node")
+            self.current_finished_count = int(message_str.split("-")[1])
+            self.current_finished_count += 1
+            if self.current_finished_count >= NUMBER_OF_SENTIMENT_WORKERS:
+                logger.info("Received FINISHED from all nodes, propagating finish...")
+                self.publish_message_wrapper(self.output_queue, FINISHED_IDENTIFIER)
+            else:
+                self.publish_message_wrapper(self.input_queue, f"{FINISHED_IDENTIFIER}-{self.current_finished_count}")
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            ch.stop_consuming()
+            return
+    
+        csv_line = self.parse_and_process_message(message_str)
+        self.output_queue.publish(csv_line)
+        ch.basic_ack(delivery_tag=method.delivery_tag)  
 
-    def process_message(self, ch, method, properties, body):     
+    def process_message(self, ch, method, properties, body):    
         try:
             message_str = body.decode('utf-8').strip()
-            if message_str == "FINISHED":
-                logger.info("Received FINISHED message, forwarding...")
-                try:
-                    self.output_queue.publish("FINISHED")
-                except Exception as e:
-                    logger.error(f"Failed to forward FINISHED message: {e}")
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-                ch.stop_consuming()
-                return
-        
-            csv_line = self.parse_and_process_message(message_str)
-            self.output_queue.publish(csv_line)
-            ch.basic_ack(delivery_tag=method.delivery_tag)   
+            self.handle_message(message_str, ch, method)
         except Exception as e:
             logger.error(f"Error processing message: {e}")
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)

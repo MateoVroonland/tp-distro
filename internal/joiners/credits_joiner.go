@@ -52,6 +52,7 @@ func (c *CreditsJoiner) JoinCredits() error {
 		}
 
 		moviesIds[movie.ID] = true
+		msg.Ack(false)
 	}
 
 	log.Printf("Received %d movies", i)
@@ -79,7 +80,6 @@ func (c *CreditsJoiner) JoinCredits() error {
 		err = credit.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize credits: %v", err)
-			// log.Printf("json.Marshal: %v", err)
 			msg.Nack(false, false)
 			continue
 		}
