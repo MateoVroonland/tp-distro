@@ -3,12 +3,12 @@ package main
 import (
 	"bufio"
 	"encoding/binary"
-	"encoding/json"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
 	"net"
-	"os"
+	"strings"
 	"sync"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
@@ -21,231 +21,269 @@ const (
 )
 
 type Server struct {
-	results     *messages.Results
+	results     map[string]messages.Results
 	resultsLock sync.Mutex
 	conn        *amqp.Connection
 	wg          sync.WaitGroup
+	connections map[string]net.Conn
+	moviesQueue *utils.ProducerQueue
+	creditsQueue *utils.ProducerQueue
+	ratingsQueue *utils.ProducerQueue
 }
 
 func NewServer(conn *amqp.Connection) *Server {
+	moviesQueue, err := utils.NewProducerQueue(conn, MOVIES.GetQueueName(), MOVIES.GetQueueName())
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err) // TODO: handle this
+	}
+	creditsQueue, err := utils.NewProducerQueue(conn, CREDITS.GetQueueName(), CREDITS.GetQueueName())
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err) // TODO: handle this
+	}
+	ratingsQueue, err := utils.NewProducerQueue(conn, RATINGS.GetQueueName(), RATINGS.GetQueueName())
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+
+	
 	return &Server{
-		results:     nil,
+		results:     make(map[string]messages.Results),
 		resultsLock: sync.Mutex{},
 		conn:        conn,
 		wg:          sync.WaitGroup{},
+		connections: make(map[string]net.Conn),
+		moviesQueue: moviesQueue,
+		creditsQueue: creditsQueue,
+		ratingsQueue: ratingsQueue,
+	}
+}
+
+type FileType string
+
+const (
+	RATINGS FileType = "ratings"
+	CREDITS FileType = "credits"
+	MOVIES  FileType = "movies"
+)
+
+func (f FileType) GetQueueName() string {
+	return string(f)
+}
+
+func fileTypeFromMessage(message string) FileType {
+	switch message {
+	case "ratings":
+		return RATINGS
+	case "credits":
+		return CREDITS
+	case "movies":
+		return MOVIES
+	default:
+		panic("Invalid file type: " + message) // TODO: handle this
 	}
 }
 
 func (s *Server) Start() {
-	defer s.conn.Close()
-
-	startServer()
-
-	log.Printf("Distributing files")
-
-	s.wg.Add(5)
-	go publishFile("ratings", s.conn, &s.wg)
-	go publishFile("credits", s.conn, &s.wg)
-	go publishFile("movies", s.conn, &s.wg)
-
-	go s.listenForResults()
-
-	go s.respondResults()
-
+	defer s.conn.Close()	
+	s.wg.Add(1)
+	go s.startServer()
 	s.wg.Wait()
 }
 
-func publishFile(filename string, conn *amqp.Connection, wg *sync.WaitGroup) error {
-	defer wg.Done()
 
-	log.Printf("Publishing file: %s", filename)
+// func (s *Server) listenForResults() {
+// 	defer s.wg.Done()
 
-	file, err := os.Open(fmt.Sprintf("%s.csv", filename))
-	if err != nil {
-		log.Fatalf("Failed to open file: %v", err)
-		return err
-	}
-	defer file.Close()
+// 	var results messages.Results
+// 	resultsConsumer, err := utils.NewConsumerQueue(s.conn, "results", "results", "")
+// 	if err != nil {
+// 		log.Fatalf("Failed to declare a queue: %v", err)
+// 	}
 
-	q, err := utils.NewProducerQueue(conn, filename, filename)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-		return err
-	}
+// 	queries := 1
 
-	lineReader := bufio.NewReader(file)
-	lineReader.ReadString('\n')
-	i := 0
-	j := 0
-	for {
-		i++
-		line, err := lineReader.ReadString('\n')
-		if err == io.EOF {
-			q.Publish([]byte("FINISHED"))
-			break
-		} else if err != nil {
-			return err
-		}
+// 	for d := range resultsConsumer.Consume() {
+// 		err = json.Unmarshal(d.Body, &results)
+// 		if err != nil {
+// 			d.Nack(false, false)
+// 			continue
+// 		}
+// 		queries--
+// 		if queries == 0 {
+// 			d.Ack(false)
+// 			break
+// 		}
 
-		err = q.Publish([]byte(line))
-		if err != nil {
-			log.Printf("Failed to publish line: %v", err)
-			continue
-		}
-		j++
+// 		jsonQ1Bytes, err := json.Marshal(results.Query1)
+// 		if err != nil {
+// 			log.Printf("Error al convertir a JSON: %v\n", err)
+// 			d.Nack(false, false)
+// 			continue
+// 		}
+// 		log.Printf("Query 1: %s", string(jsonQ1Bytes))
 
-	}
+// 		jsonQ2Bytes, err := json.Marshal(results.Query2)
+// 		if err != nil {
+// 			log.Printf("Error al convertir a JSON: %v\n", err)
+// 			d.Nack(false, false)
+// 			continue
+// 		}
+// 		log.Printf("Query 2: %s", string(jsonQ2Bytes))
 
-	log.Printf("Processed lines: %d", i)
-	log.Printf("Published lines: %d", j)
+// 		jsonQ3Bytes, err := json.Marshal(results.Query3)
+// 		if err != nil {
+// 			log.Printf("Error al convertir a JSON: %v\n", err)
+// 			d.Nack(false, false)
+// 			continue
+// 		}
+// 		log.Printf("Query 3: %s", string(jsonQ3Bytes))
 
-	return nil
-}
+// 		jsonQ4Bytes, err := json.Marshal(results.Query4)
+// 		if err != nil {
+// 			log.Printf("Error al convertir a JSON: %v\n", err)
+// 			d.Nack(false, false)
+// 			continue
+// 		}
+// 		log.Printf("Query 4: %s", string(jsonQ4Bytes))
 
-func (s *Server) listenForResults() {
+// 		jsonQ5Bytes, err := json.Marshal(results.Query5)
+// 		if err != nil {
+// 			log.Printf("Error al convertir a JSON: %v\n", err)
+// 			d.Nack(false, false)
+// 			continue
+// 		}
+// 		log.Printf("Query 5: %s", string(jsonQ5Bytes))
+
+// 		d.Ack(false)
+// 	}
+
+// 	s.resultsLock.Lock()
+// 	s.results = &results
+// 	s.resultsLock.Unlock()
+
+// }
+
+func (s *Server) startServer() {
 	defer s.wg.Done()
-	var results messages.Results
-	resultsConsumer, err := utils.NewConsumerQueue(s.conn, "results", "results", "")
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
-	queries := 1
-
-	for d := range resultsConsumer.Consume() {
-		err = json.Unmarshal(d.Body, &results)
-		if err != nil {
-			d.Nack(false, false)
-			continue
-		}
-		queries--
-		if queries == 0 {
-			d.Ack(false)
-			break
-		}
-
-		jsonQ1Bytes, err := json.Marshal(results.Query1)
-		if err != nil {
-			log.Printf("Error al convertir a JSON: %v\n", err)
-			d.Nack(false, false)
-			continue
-		}
-		log.Printf("Query 1: %s", string(jsonQ1Bytes))
-
-		jsonQ2Bytes, err := json.Marshal(results.Query2)
-		if err != nil {
-			log.Printf("Error al convertir a JSON: %v\n", err)
-			d.Nack(false, false)
-			continue
-		}
-		log.Printf("Query 2: %s", string(jsonQ2Bytes))
-
-		jsonQ3Bytes, err := json.Marshal(results.Query3)
-		if err != nil {
-			log.Printf("Error al convertir a JSON: %v\n", err)
-			d.Nack(false, false)
-			continue
-		}
-		log.Printf("Query 3: %s", string(jsonQ3Bytes))
-
-		jsonQ4Bytes, err := json.Marshal(results.Query4)
-		if err != nil {
-			log.Printf("Error al convertir a JSON: %v\n", err)
-			d.Nack(false, false)
-			continue
-		}
-		log.Printf("Query 4: %s", string(jsonQ4Bytes))
-
-		jsonQ5Bytes, err := json.Marshal(results.Query5)
-		if err != nil {
-			log.Printf("Error al convertir a JSON: %v\n", err)
-			d.Nack(false, false)
-			continue
-		}
-		log.Printf("Query 5: %s", string(jsonQ5Bytes))
-
-		d.Ack(false)
-	}
-
-	s.resultsLock.Lock()
-	s.results = &results
-	s.resultsLock.Unlock()
-
-}
-
-func startServer() {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", PORT))
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 	defer listener.Close()
 
-	filesRemaining := 3
+	log.Printf("Listening for connections")
 
-	for filesRemaining > 0 {
-
-		var file string
-
-		switch filesRemaining {
-		case 3:
-			file = "movies"
-		case 2:
-			file = "credits"
-		case 1:
-			file = "ratings"
-		}
-		log.Printf("Waiting for %s", file)
-
+	for {
 		conn, err := listener.Accept()
 		log.Printf("Accepted connection")
+
 		if err != nil {
 			log.Printf("Failed to accept connection: %v", err)
 			continue
 		}
-		err = handleConnection(conn, file)
-		if err != nil {
-			log.Printf("Failed to handle connection: %v", err)
+
+			message, err := MessageFromSocket(&conn)
+			if err != nil {
+			log.Printf("Failed to read message: %v", err)
 			continue
 		}
 
-		filesRemaining--
-	}
+		messageString := string(message)
+		log.Printf("Message: %s", messageString)
+		connId := utils.GenerateRandomID()
+		log.Printf("Conn ID: %s", connId)
 
-	log.Printf("Finished writing files")
+		if messageString != "INITIALIZE_CONNECTION" {
+			panic("Invalid message: " + messageString)
+		}
+
+		s.connections[connId] = conn
+
+		written, err := sendMessage(conn, []byte("ACK:" + connId)) 
+		if err != nil {
+			log.Printf("Failed to write ACK: %v", err)
+		}
+		log.Printf("Sent ACK: %d bytes", written)
+		s.handleConnection(connId)
+	}
 }
 
-func handleConnection(conn net.Conn, filename string) error {
-	defer conn.Close()
+func (s *Server) handleConnection(connId string) {
+	// defer s.wg.Done()
 
-	file, err := os.Create(fmt.Sprintf("%s.csv", filename))
-	if err != nil {
-		log.Printf("Failed to create file: %v", err)
-		return err
+	conn := s.connections[connId]
+	if conn == nil {
+		log.Printf("Connection not found")
+		return
 	}
-	defer file.Close()
 
-	i := 0
-	for {
-		i++
+	filesRemaining := 3
+
+	for filesRemaining > 0 {
 		message, err := MessageFromSocket(&conn)
 		if err != nil {
 			log.Printf("Failed to read message: %v", err)
-			return err
+			continue
 		}
 
-		if string(message) == "FINISHED_FILE" {
-			log.Printf("Finished file")
-			return nil
+		messageString := string(message)
+		
+		if strings.HasPrefix(messageString, "FILE_BATCH:") {
+
+			messageString = strings.TrimPrefix(messageString, "FILE_BATCH:")
+			split := strings.Split(messageString, ":")
+			if len(split) != 2 {
+				log.Printf("Invalid message: %s", messageString)
+				continue
+			}
+			filename := split[0]
+			batch := split[1]
+			fileType := fileTypeFromMessage(filename)
+			s.publishBatch(fileType, batch)
+
+		} else if strings.HasPrefix(messageString, "FINISHED_FILE:") {
+
+			messageString = strings.TrimPrefix(messageString, "FINISHED_FILE:")
+			filename := messageString
+			fileType := fileTypeFromMessage(filename)
+			queue := s.getQueue(fileType)
+			queue.Publish([]byte("FINISHED"))
+
+			filesRemaining--
 		}
 
-		if i%100_000 == 0 {
-			log.Printf("Processed %d messages", i)
-		}
-
-		file.Write(message)
 	}
-
 }
+
+func (s *Server) getQueue(filename FileType) *utils.ProducerQueue {
+	switch filename {
+	case RATINGS:
+		return s.ratingsQueue
+	case CREDITS:
+		return s.creditsQueue
+	case MOVIES:
+		return s.moviesQueue
+	default:
+		panic("Invalid file type: " + filename) // TODO: handle this
+	}
+		
+}
+func (s *Server) publishBatch(filename FileType, batch string) {
+	log.Printf("Publishing batch for %s", filename)
+	queue := s.getQueue(filename)
+	reader := csv.NewReader(strings.NewReader(batch))
+
+	for {
+		line, err := reader.Read()
+		if err != nil {
+			log.Printf("Failed to read line: %v", err)
+			continue
+		}
+
+		queue.Publish([]byte(utils.EncodeArrayToCsv(line)))
+	}
+}
+	
 
 func MessageFromSocket(socket *net.Conn) ([]byte, error) {
 	reader := bufio.NewReader(*socket)
@@ -269,51 +307,71 @@ func MessageFromSocket(socket *net.Conn) ([]byte, error) {
 	return payload, nil
 }
 
-func (s *Server) respondResults() error {
-	defer s.wg.Done()
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", PORT))
-	if err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
-	defer listener.Close()
-
-	for {
-		log.Printf("Waiting for connection")
-		conn, err := listener.Accept()
-		log.Printf("Accepted connection")
-
-		if err != nil {
-			log.Printf("Failed to accept connection: %v", err)
-			continue
-		}
-
-		s.resultsLock.Lock()
-		if s.results == nil {
-			conn.Write([]byte("NO_RESULTS"))
-			s.resultsLock.Unlock()
-			continue
-		}
-
-		resultsBytes, err := json.Marshal(s.results)
-		if err != nil {
-			log.Printf("Error al convertir a JSON: %v\n", err)
-			s.resultsLock.Unlock()
-			continue
-		}
+func sendMessage(conn net.Conn, message []byte) (int, error) {
 
 		lengthBytes := make([]byte, 4)
-		binary.BigEndian.PutUint32(lengthBytes, uint32(len(resultsBytes)))
+		binary.BigEndian.PutUint32(lengthBytes, uint32(len(message)))
 
-		messageToSend := append(lengthBytes, resultsBytes...)
-		conn.Write(messageToSend)
+		messageToSend := append(lengthBytes, message...)
+	
+	written := 0
 
-		log.Printf("Sent results %s", resultsBytes)
-
-		s.resultsLock.Unlock()
-		return nil
+	for written < len(messageToSend) {
+		written, err := conn.Write(messageToSend[written:])
+		if err != nil {
+			log.Printf("Failed to write message: %v", err)
+			return written, err
+		}
+		written += written
 	}
-
+	return written, nil
 }
+
+// func (s *Server) respondResults() error {
+// 	defer s.wg.Done()
+// 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", PORT))
+// 	if err != nil {
+// 		log.Fatalf("Failed to start server: %v", err)
+// 	}
+// 	defer listener.Close()
+
+// 	for {
+// 		log.Printf("Waiting for connection")
+// 		conn, err := listener.Accept()
+// 		log.Printf("Accepted connection")
+
+// 		if err != nil {
+// 			log.Printf("Failed to accept connection: %v", err)
+// 			continue
+// 		}
+
+// 		s.resultsLock.Lock()
+// 		if s.results == nil {
+// 			conn.Write([]byte("NO_RESULTS"))
+// 			s.resultsLock.Unlock()
+// 			continue
+// 		}
+
+// 		resultsBytes, err := json.Marshal(s.results)
+// 		if err != nil {
+// 			log.Printf("Error al convertir a JSON: %v\n", err)
+// 			s.resultsLock.Unlock()
+// 			continue
+// 		}
+
+// 		lengthBytes := make([]byte, 4)
+// 		binary.BigEndian.PutUint32(lengthBytes, uint32(len(resultsBytes)))
+
+// 		messageToSend := append(lengthBytes, resultsBytes...)
+// 		conn.Write(messageToSend)
+
+// 		log.Printf("Sent results %s", resultsBytes)
+
+// 		s.resultsLock.Unlock()
+// 		return nil
+// 	}
+
+// }
 
 func main() {
 	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
