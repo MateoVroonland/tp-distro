@@ -28,7 +28,7 @@ type Server struct {
 	wg              sync.WaitGroup
 	producers       map[string]*utils.ProducerQueue
 	isListening     bool
-	listener        net.Listener
+	listener        *net.TCPListener
 	shuttingDown    bool
 	shutdownChannel chan struct{}
 }
@@ -66,7 +66,7 @@ func (s *Server) initializeProducers() error {
 	for _, fileType := range fileTypes {
 		producer, err := utils.NewProducerQueue(s.conn, fileType, fileType)
 		if err != nil {
-			return fmt.Errorf("Error creating producer for %s: %v", fileType, err)
+			return fmt.Errorf("error creating producer for %s: %v", fileType, err)
 		}
 		s.producers[fileType] = producer
 		log.Printf("Producer for %s initialized", fileType)
@@ -77,9 +77,13 @@ func (s *Server) initializeProducers() error {
 
 func (s *Server) startTCPServer() error {
 	var err error
-	s.listener, err = net.Listen("tcp", fmt.Sprintf(":%s", PORT))
+	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%s", PORT))
 	if err != nil {
-		return fmt.Errorf("Failed to start TCP server: %v", err)
+		return fmt.Errorf("failed to resolve TCP address: %v", err)
+	}
+	s.listener, err = net.ListenTCP("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to start TCP server: %v", err)
 	}
 
 	s.isListening = true
@@ -90,7 +94,9 @@ func (s *Server) startTCPServer() error {
 		defer s.listener.Close()
 
 		for !s.shuttingDown {
-			conn, err := s.listener.Accept()
+			conn, err := s.listener.AcceptTCP()
+			conn.SetKeepAlive(true)
+
 			if err != nil {
 				if s.shuttingDown {
 					return
@@ -108,24 +114,30 @@ func (s *Server) startTCPServer() error {
 }
 
 func (s *Server) handleClientConnection(conn net.Conn) {
-	defer conn.Close()
+
 	defer s.wg.Done()
+
+	resultsSent := false
 
 	log.Printf("New client connected: %s", conn.RemoteAddr())
 
-	message, err := utils.MessageFromSocket(&conn)
-	if err != nil {
-		log.Printf("Error reading message: %v", err)
-		return
-	}
+	for !resultsSent {
 
-	msgContent := string(message)
+		message, err := utils.MessageFromSocket(&conn)
+		if err != nil {
+			log.Printf("Error reading message: %v, reading message: %v", err, string(message))
 
-	switch {
-	case msgContent == "WAITING_FOR_RESULTS":
-		s.handleResultRequest(conn)
-	case msgContent == "STARTING_FILE":
-		s.handleDataStream(conn)
+			return
+		}
+
+		msgContent := string(message)
+
+		switch {
+		case msgContent == "WAITING_FOR_RESULTS":
+			resultsSent = s.handleResultRequest(conn)
+		case msgContent == "STARTING_FILE":
+			s.handleDataStream(conn)
+		}
 	}
 }
 
@@ -135,7 +147,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 	filesRemaining := 3
 	fileType := ""
 
-	for {
+	for filesRemaining > 0 {
 		switch filesRemaining {
 		case 3:
 			fileType = "movies"
@@ -151,6 +163,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 				log.Printf("End of stream reached for %s", fileType)
 			} else {
 				log.Printf("Error reading message: %v", err)
+				log.Printf("Message: %v", string(message))
 			}
 			return
 		}
@@ -186,6 +199,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 			}
 			if err != nil {
 				log.Printf("Error reading CSV line: %v", err)
+				log.Printf("Record: %v", record)
 				continue
 			}
 
@@ -205,7 +219,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 	}
 }
 
-func (s *Server) handleResultRequest(conn net.Conn) {
+func (s *Server) handleResultRequest(conn net.Conn) bool {
 	log.Printf("Client requested results")
 
 	s.resultsLock.Lock()
@@ -213,16 +227,17 @@ func (s *Server) handleResultRequest(conn net.Conn) {
 
 	if !s.results.IsComplete() {
 		utils.SendMessage(conn, []byte("NO_RESULTS"))
-		return
+		return false
 	}
 
 	resultsBytes, err := json.Marshal(s.results)
 	if err != nil {
 		log.Printf("Error marshalling results: %v", err)
-		return
+		return true
 	}
 
 	utils.SendMessage(conn, resultsBytes)
+	return true
 }
 
 func (s *Server) listenForResults() {

@@ -92,6 +92,7 @@ def send_file_through_connection(complete_sock, file_path):
 def wait_for_results():  
     try:
         complete_sock = create_tcp_connection(SERVER_HOST, SERVER_PORT)
+        complete_sock.set_keep_alive(True)
         if not complete_sock:
             return None
         
@@ -105,13 +106,14 @@ def wait_for_results():
 
                 if data == "NO_RESULTS":
                     logger.info("No results available yet")
-                    time.sleep(20)
+                    time.sleep(10)
                     continue
                 
                 logger.info(f"Received result: {data}")
                 return data
-            except ConnectionError:
+            except ConnectionError as e:
                 logger.info("Server closed the connection")
+                logger.info(f"Error: {e}")
                 break
     except (ConnectionError, OSError) as e:
         logger.error(f"Error while receiving results: {str(e)}")
