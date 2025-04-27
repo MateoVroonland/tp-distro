@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/MateoVroonland/tp-distro/internal/filters"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
@@ -25,6 +27,9 @@ func main() {
 		log.Fatalf("QUERY must be set to 1, 3 or 4")
 	}
 
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM)
+	
 	consumeQueueName := fmt.Sprintf("movies_metadata_q%s", query)
 	publishQueueName := fmt.Sprintf("movies_filtered_by_year_q%s", query)
 	consumeQueueNameInternal := fmt.Sprintf("filter_q%s_internal", query)
@@ -52,8 +57,8 @@ func main() {
 	}
 	filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
 
-	forever := make(chan bool)
 	go filter.FilterAndPublish(query)
 
-	<-forever
+	<-sigs
+	log.Printf("Received SIGTERM signal, closing connection")
 }

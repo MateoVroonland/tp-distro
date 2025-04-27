@@ -32,7 +32,14 @@ class SentimentWorker:
         self.output_queue = output_queue
         self.sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')
         self.current_finished_count = 0
+        signal.signal(signal.SIGTERM, self.signal_handler)
         logger.info("Sentiment worker initialized with transformer model")
+
+    def signal_handler(self, signum, frame):
+        logger.info("Received SIGTERM signal, closing connection")
+        self.input_queue.close()
+        self.output_queue.close()
+        exit(0)
 
     def analyze_sentiment(self, text):
         if not text or len(text.strip()) == 0:

@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"iter"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -25,6 +28,7 @@ type ConsumerQueue struct {
 	isLeader           bool
 	replicas           int
 	finishSubscribers  []FinishSubscriber
+	signalChan         chan os.Signal
 }
 
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string, fanoutName string) (*ConsumerQueue, error) {
@@ -36,6 +40,9 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 	if err != nil {
 		return nil, err
 	}
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGTERM)
 
 	err = ch.ExchangeDeclare(
 		exchangeName, // name
@@ -95,7 +102,7 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 			return nil, err
 		}
 
-		return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, closeQueueConsumer: closeQueueConsumer, closeQueueProducer: closeQueueProducer, deliveryChannel: deliveryChannel, fanoutName: fanoutName}, nil
+		return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, closeQueueConsumer: closeQueueConsumer, closeQueueProducer: closeQueueProducer, deliveryChannel: deliveryChannel, fanoutName: fanoutName, signalChan: signalChan}, nil
 	}
 
 	return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, deliveryChannel: deliveryChannel, fanoutName: fanoutName}, nil
@@ -111,6 +118,9 @@ func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
 
 		for {
 			select {
+			case <-q.signalChan:
+				log.Printf("Received SIGTERM signal, closing connection")
+				return
 			case delivery := <-closeQueueDelivery: // FINISHED-RECEIVED | FINISHED-DONE | FINISHED-ACK
 				delivery.Ack(false)
 
@@ -166,6 +176,7 @@ func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
 		}
 	}
 }
+
 
 func (q *ConsumerQueue) AddFinishSubscriber(pq *ProducerQueue) {
 	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: ""})

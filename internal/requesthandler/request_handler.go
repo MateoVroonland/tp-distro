@@ -8,8 +8,11 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
@@ -49,6 +52,16 @@ func NewServer(conn *amqp.Connection) *Server {
 func (s *Server) Start() {
 	defer s.conn.Close()
 
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM)
+	go func() {
+        <-sigs
+		log.Printf("Received SIGTERM signal, closing connection")
+        s.conn.Close()
+		s.Shutdown()
+		s.wg.Wait()
+    }()
+
 	s.initializeProducers()
 	time.Sleep(15 * time.Second)
 	s.wg.Add(1)
@@ -60,6 +73,8 @@ func (s *Server) Start() {
 
 	s.wg.Wait()
 }
+
+
 
 func (s *Server) initializeProducers() error {
 	fileTypes := []string{"movies", "credits", "ratings"}
@@ -110,6 +125,14 @@ func (s *Server) startTCPServer() error {
 func (s *Server) handleClientConnection(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
+	ch := make(chan os.Signal, 1)
+
+	signal.Notify(ch, syscall.SIGTERM)
+
+	go func() {
+		<-ch
+		conn.Close()
+	}()
 
 	log.Printf("New client connected: %s", conn.RemoteAddr())
 
@@ -135,7 +158,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 	filesRemaining := 3
 	fileType := ""
 
-	for {
+	for !s.shuttingDown {
 		switch filesRemaining {
 		case 3:
 			fileType = "movies"
