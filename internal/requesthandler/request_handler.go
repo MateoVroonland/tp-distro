@@ -55,12 +55,10 @@ func (s *Server) Start() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
 	go func() {
-        <-sigs
+		<-sigs
 		log.Printf("Received SIGTERM signal, closing connection")
-        s.conn.Close()
 		s.Shutdown()
-		s.wg.Wait()
-    }()
+	}()
 
 	s.initializeProducers()
 	time.Sleep(15 * time.Second)
@@ -73,8 +71,6 @@ func (s *Server) Start() {
 
 	s.wg.Wait()
 }
-
-
 
 func (s *Server) initializeProducers() error {
 	fileTypes := []string{"movies", "credits", "ratings"}

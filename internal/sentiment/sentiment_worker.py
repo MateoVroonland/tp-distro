@@ -2,6 +2,7 @@ import logging
 from transformers import pipeline
 import csv
 from io import StringIO
+import signal
 
 NUMBER_OF_SENTIMENT_WORKERS = 3
 FINISHED_IDENTIFIER = "FINISHED"
