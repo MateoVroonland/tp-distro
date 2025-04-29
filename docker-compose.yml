@@ -89,7 +89,7 @@ services:
       rabbitmq:
         condition: service_healthy
     deploy:
-      replicas: 2
+      replicas: 3
 
   ratingsjoiner:
     environment:
@@ -157,11 +157,11 @@ services:
   sentiment_reducer:
     build:
       context: .
-      dockerfile: cmd/reducers/Dockerfile
+      dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
-    command: /budget_reducer.go
+    command: /sentiment_reducer/sentiment_reducer.go
     deploy:
       replicas: 2
 
