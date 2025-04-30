@@ -106,8 +106,7 @@ func (s *Server) startTCPServer() error {
 
 		for !s.shuttingDown {
 			conn, err := s.listener.AcceptTCP()
-			conn.SetKeepAlive(true)
-
+			
 			if err != nil {
 				if s.shuttingDown {
 					return
@@ -116,6 +115,13 @@ func (s *Server) startTCPServer() error {
 				continue
 			}
 
+			err = conn.SetKeepAlive(true)
+			
+			if err != nil {
+				log.Printf("Error setting keep alive: %v", err)
+				conn.Close()
+				continue
+			}
 			s.wg.Add(1)
 			go s.handleClientConnection(conn)
 		}
@@ -132,7 +138,7 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 	log.Printf("New client connected: %s", conn.RemoteAddr())
 
-	for !resultsSent {
+	for !resultsSent && !s.shuttingDown {
 
 		message, err := utils.MessageFromSocket(&conn)
 		if err != nil {
