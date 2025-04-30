@@ -8,8 +8,11 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
@@ -48,6 +51,14 @@ func NewServer(conn *amqp.Connection) *Server {
 
 func (s *Server) Start() {
 	defer s.conn.Close()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		s.Shutdown()
+	}()
 
 	s.initializeProducers()
 	time.Sleep(15 * time.Second)

@@ -5,6 +5,7 @@ from io import StringIO
 import time
 import signal
 import sys
+
 from internal.utils.communication import CompleteSocket
 from internal.utils.csv_formatters import process_credits_row, process_movies_row
 
@@ -145,10 +146,10 @@ class Client:
 
                     if data == "NO_RESULTS":
                         logger.info("No results available yet")
-                        time.sleep(20)
-                        if not self.is_running:
-                            logger.info("Shutdown requested during results wait")
-                            return None
+                        for _ in range(20):
+                            if not self.is_running:
+                                break
+                            time.sleep(1)
                         continue
                     
                     logger.info(f"Received result: {data}")
