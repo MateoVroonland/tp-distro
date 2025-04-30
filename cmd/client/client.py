@@ -145,10 +145,10 @@ class Client:
 
                     if data == "NO_RESULTS":
                         logger.info("No results available yet")
-                        for _ in range(20):
-                            if not self.is_running:
-                                break
-                            time.sleep(1)
+                        time.sleep(20)
+                        if not self.is_running:
+                            logger.info("Shutdown requested during results wait")
+                            return None
                         continue
                     
                     logger.info(f"Received result: {data}")
@@ -172,7 +172,11 @@ class Client:
         ]
         
         logger.info("Waiting 15 seconds before starting...")
-        time.sleep(15)
+        for i in range(15):
+            if not self.is_running:
+                logger.info("Shutdown requested during initial wait")
+                return
+            time.sleep(1)
 
         self.create_tcp_connection(self.SERVER_HOST, self.SERVER_PORT)
         if not self.current_connection:

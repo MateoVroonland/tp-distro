@@ -1,6 +1,5 @@
-docs/credits.csv
-docs/movies_metadata.csv
-docs/ratings.csv
+docs/*
+!docs/.gitkeep
 .DS_Store
 **/.DS_Store
 out/

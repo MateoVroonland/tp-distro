@@ -56,6 +56,12 @@ class CompleteSocket:
         except (ConnectionError, ValueError) as e:
             raise
 
+    def set_keep_alive(self, keep_alive):
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1 if keep_alive else 0)
+        self._sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPIDLE, 10)
+        self._sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPINTVL, 10)
+        self._sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPCNT, 5)
+
     def close(self):
         if self._sock is not None:
             try:
