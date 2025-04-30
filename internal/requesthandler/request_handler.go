@@ -8,11 +8,8 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
@@ -51,14 +48,6 @@ func NewServer(conn *amqp.Connection) *Server {
 
 func (s *Server) Start() {
 	defer s.conn.Close()
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		log.Printf("Received SIGTERM signal, initiating graceful shutdown")
-		s.Shutdown()
-	}()
 
 	s.initializeProducers()
 	time.Sleep(15 * time.Second)
@@ -125,25 +114,19 @@ func (s *Server) startTCPServer() error {
 }
 
 func (s *Server) handleClientConnection(conn net.Conn) {
-	defer conn.Close()
+
 	defer s.wg.Done()
-	ch := make(chan os.Signal, 1)
-
-	signal.Notify(ch, syscall.SIGTERM)
-
-	go func() {
-		<-ch
-		conn.Close()
-	}()
 
 	resultsSent := false
 
 	log.Printf("New client connected: %s", conn.RemoteAddr())
 
 	for !resultsSent {
+
 		message, err := utils.MessageFromSocket(&conn)
 		if err != nil {
 			log.Printf("Error reading message: %v, reading message: %v", err, string(message))
+
 			return
 		}
 
@@ -164,7 +147,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 	filesRemaining := 3
 	fileType := ""
 
-	for filesRemaining > 0 && !s.shuttingDown {
+	for filesRemaining > 0 {
 		switch filesRemaining {
 		case 3:
 			fileType = "movies"
@@ -311,23 +294,12 @@ func (s *Server) logResults(results *messages.Results) {
 }
 
 func (s *Server) Shutdown() {
-	log.Printf("Starting graceful shutdown sequence")
 	s.shuttingDown = true
 	close(s.shutdownChannel)
 
-	for name, producer := range s.producers {
-		log.Printf("Closing producer: %s", name)
-		if err := producer.Close(); err != nil {
-			log.Printf("Error closing producer %s: %v", name, err)
-		}
-	}
-
 	if s.listener != nil {
-		log.Printf("Closing TCP listener")
 		s.listener.Close()
 	}
 
-	log.Printf("Waiting for all goroutines to finish")
 	s.wg.Wait()
-	log.Printf("Graceful shutdown completed")
 }
