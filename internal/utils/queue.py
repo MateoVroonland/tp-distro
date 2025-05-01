@@ -1,8 +1,10 @@
 import pika
+import signal
 
 class ConsumerQueue:
     def __init__(self, connection, name, exchange_name):
         self.channel = connection.channel()
+        signal.signal(signal.SIGTERM, self.signal_handler)
         
         self.channel.exchange_declare(
             exchange=exchange_name,
@@ -31,6 +33,10 @@ class ConsumerQueue:
             on_message_callback=callback,
             auto_ack=auto_ack
         )
+
+    def signal_handler(self, signum, frame):
+        logger.info("Received SIGTERM signal, closing connection")
+        self.channel.close()
     
     def publish(self, body):
         encoded_body = body.encode('utf-8')
@@ -56,6 +62,7 @@ class ConsumerQueue:
 class ProducerQueue:
     def __init__(self, connection, name):
         self.channel = connection.channel()
+        signal.signal(signal.SIGTERM, self.signal_handler)
 
         self.channel.exchange_declare(
             exchange=name,
@@ -75,3 +82,7 @@ class ProducerQueue:
     def close(self):
         if self.channel.is_open:
             self.channel.close()
+
+    def signal_handler(self, signum, frame):
+        logger.info("Received SIGTERM signal, closing connection")
+        self.channel.close()

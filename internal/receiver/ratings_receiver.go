@@ -24,7 +24,6 @@ func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQu
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
-	forever := make(chan bool)
 
 	r.ratingsConsumer.AddFinishSubscriberWithRoutingKey(r.joinerProducer, "1")
 	ratingsConsumed := 0
@@ -63,5 +62,4 @@ func (r *RatingsReceiver) ReceiveRatings() {
 		msg.Ack(false)
 	}
 	log.Printf("Ratings consumed: %d", ratingsConsumed)
-	<-forever
 }

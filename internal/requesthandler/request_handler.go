@@ -8,8 +8,11 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
@@ -48,6 +51,14 @@ func NewServer(conn *amqp.Connection) *Server {
 
 func (s *Server) Start() {
 	defer s.conn.Close()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		s.Shutdown()
+	}()
 
 	s.initializeProducers()
 	time.Sleep(15 * time.Second)
@@ -95,8 +106,7 @@ func (s *Server) startTCPServer() error {
 
 		for !s.shuttingDown {
 			conn, err := s.listener.AcceptTCP()
-			conn.SetKeepAlive(true)
-
+			
 			if err != nil {
 				if s.shuttingDown {
 					return
@@ -105,6 +115,13 @@ func (s *Server) startTCPServer() error {
 				continue
 			}
 
+			err = conn.SetKeepAlive(true)
+			
+			if err != nil {
+				log.Printf("Error setting keep alive: %v", err)
+				conn.Close()
+				continue
+			}
 			s.wg.Add(1)
 			go s.handleClientConnection(conn)
 		}
@@ -121,7 +138,7 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 	log.Printf("New client connected: %s", conn.RemoteAddr())
 
-	for !resultsSent {
+	for !resultsSent && !s.shuttingDown {
 
 		message, err := utils.MessageFromSocket(&conn)
 		if err != nil {

@@ -2,6 +2,9 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/MateoVroonland/tp-distro/internal/sinks"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -14,6 +17,10 @@ func main() {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 	defer conn.Close()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM)
+	
 
 	filteredByYearConsumer, err := utils.NewConsumerQueue(conn, "movies_filtered_by_year_q1", "movies_filtered_by_year_q1", "q1_sink_internal")
 	if err != nil {
@@ -29,8 +36,9 @@ func main() {
 
 	sink := sinks.NewQ1Sink(filteredByYearConsumer, resultsProducer)
 
-	forever := make(chan bool)
 	go sink.Reduce()
 
-	<-forever
+	<-sigs
+	log.Printf("Received SIGTERM signal, closing connection")
+	conn.Close()
 }

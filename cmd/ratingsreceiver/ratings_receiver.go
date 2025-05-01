@@ -2,6 +2,9 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/MateoVroonland/tp-distro/internal/receiver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -15,6 +18,10 @@ func main() {
 	}
 	defer conn.Close()
 
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM)
+
+
 	rawRatingsConsumer, err := utils.NewConsumerQueue(conn, "ratings", "ratings", "ratings_receiver_ratings_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
@@ -25,11 +32,11 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	var forever chan struct{}
 
 	receiver := receiver.NewRatingsReceiver(conn, rawRatingsConsumer, joinerProducer)
 	go receiver.ReceiveRatings()
 
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-	<-forever
+	<-sigs
+	log.Printf("Received SIGTERM signal, closing connection")
 }
