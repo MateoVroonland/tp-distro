@@ -34,6 +34,7 @@ type Server struct {
 	listener        *net.TCPListener
 	shuttingDown    bool
 	shutdownChannel chan struct{}
+	clients         map[string]net.Conn
 }
 
 func NewServer(conn *amqp.Connection) *Server {
@@ -46,6 +47,7 @@ func NewServer(conn *amqp.Connection) *Server {
 		isListening:     false,
 		shuttingDown:    false,
 		shutdownChannel: make(chan struct{}),
+		clients:         make(map[string]net.Conn),
 	}
 }
 
@@ -106,7 +108,7 @@ func (s *Server) startTCPServer() error {
 
 		for !s.shuttingDown {
 			conn, err := s.listener.AcceptTCP()
-			
+
 			if err != nil {
 				if s.shuttingDown {
 					return
@@ -116,7 +118,7 @@ func (s *Server) startTCPServer() error {
 			}
 
 			err = conn.SetKeepAlive(true)
-			
+
 			if err != nil {
 				log.Printf("Error setting keep alive: %v", err)
 				conn.Close()
@@ -150,12 +152,20 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 		msgContent := string(message)
 
 		switch {
+		case msgContent == "CLIENT_ID_REQUEST":
+			s.handleClientIDRequest(conn)
 		case msgContent == "WAITING_FOR_RESULTS":
 			resultsSent = s.handleResultRequest(conn)
 		case msgContent == "STARTING_FILE":
 			s.handleDataStream(conn)
 		}
 	}
+}
+
+func (s *Server) handleClientIDRequest(conn net.Conn) {
+	clientID := utils.GenerateRandomID()
+	s.clients[clientID] = conn
+	utils.SendMessage(conn, []byte(clientID))
 }
 
 func (s *Server) handleDataStream(conn net.Conn) {

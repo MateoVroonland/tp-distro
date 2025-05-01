@@ -19,6 +19,7 @@ class Client:
     BATCH_SIZE = 2 * 1024 * 1024
     SERVER_HOST = "requesthandler"
     SERVER_PORT = 8888
+    client_id = None
 
     def __init__(self):
         self.is_running = True
@@ -43,6 +44,7 @@ class Client:
         try:
             sock.connect((host, port))
             self.current_connection = CompleteSocket(sock)
+            self.current_connection.set_keep_alive(True)
             return self.current_connection
         except (ConnectionError, OSError) as e:
             logger.error(f"Failed to connect to {host}:{port} - {str(e)}")
@@ -50,6 +52,8 @@ class Client:
                 self.current_connection.close()
             self.current_connection = None
             return None
+        
+
     
     def create_batch_from_csv(self, file_path):
         if not self.is_running:
@@ -183,6 +187,14 @@ class Client:
         if not self.current_connection:
             logger.error("Failed to create TCP connection, aborting")
             return
+        
+        self.current_connection.send_all("CLIENT_ID_REQUEST")
+        logger.info("Waiting for client ID")
+        self.client_id = self.current_connection.recv_all().decode('utf-8')
+        if not self.client_id:
+            logger.error("Failed to receive client ID, aborting")
+            return
+        logger.info(f"Client ID: {self.client_id}")
             
         try:
             logger.info("Starting data transmission through single connection")
