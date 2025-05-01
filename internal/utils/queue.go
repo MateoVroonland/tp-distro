@@ -105,7 +105,7 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, closeQueueConsumer: closeQueueConsumer, closeQueueProducer: closeQueueProducer, deliveryChannel: deliveryChannel, fanoutName: fanoutName, signalChan: signalChan}, nil
 	}
 
-	return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, deliveryChannel: deliveryChannel, fanoutName: fanoutName}, nil
+	return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, deliveryChannel: deliveryChannel, fanoutName: fanoutName, signalChan: signalChan}, nil
 }
 
 func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
