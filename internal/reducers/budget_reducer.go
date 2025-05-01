@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
@@ -64,12 +63,12 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		if budget.Amount < 1 {
 			continue
 		}
-		serializedBudget, err := protocol.Serialize(&budget)
-		if err != nil {
-			log.Printf("Failed to serialize budget: %v", err)
-			continue
-		}
-		r.publishQueue.Publish(serializedBudget)
+		// serializedBudget, err := protocol.Serialize(&budget)
+		// if err != nil {
+		// 	log.Printf("Failed to serialize budget: %v", err)
+		// 	continue
+		// }
+		// r.publishQueue.Publish(serializedBudget)
 	}
 
 	return budgetPerCountry

@@ -142,7 +142,8 @@ class Client:
             
             while self.is_running:
                 try:
-                    self.current_connection.send_all("WAITING_FOR_RESULTS")
+                    self.current_connection.send_all(f"WAITING_FOR_RESULTS:{self.client_id}")
+                    logger.info(f"Sent WAITING_FOR_RESULTS:{self.client_id}")
                     data = self.current_connection.recv_all().decode('utf-8')
                     if not data:
                         logger.info("Server closed the connection, all results received")

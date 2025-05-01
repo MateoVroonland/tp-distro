@@ -2,7 +2,6 @@ package sinks
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"log"
 	"strings"
 
@@ -57,39 +56,39 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 	}
 
 	log.Printf("Getting results")
-	results := []messages.Q3Row{
-		{
-			MovieID: maxMovie.MovieID,
-			Title:   maxMovie.Title,
-			Rating:  maxMovie.Rating,
-		},
-		{
-			MovieID: minMovie.MovieID,
-			Title:   minMovie.Title,
-			Rating:  minMovie.Rating,
-		},
-	}
-	resultsBytes, err := json.Marshal(results)
-	if err != nil {
-		log.Printf("Failed to marshal results: %v", err)
-		return
-	}
+	// results := []messages.Q3Row{
+	// 	{
+	// 		MovieID: maxMovie.MovieID,
+	// 		Title:   maxMovie.Title,
+	// 		Rating:  maxMovie.Rating,
+	// 	},
+	// 	{
+	// 		MovieID: minMovie.MovieID,
+	// 		Title:   minMovie.Title,
+	// 		Rating:  minMovie.Rating,
+	// 	},
+	// }
+	// resultsBytes, err := json.Marshal(results)
+	// if err != nil {
+	// 	log.Printf("Failed to marshal results: %v", err)
+	// 	return
+	// }
 
-	rawResult := messages.RawResult{
-		QueryID: "query3",
-		Results: resultsBytes,
-	}
+	// rawResult := messages.RawResult{
+	// 	QueryID: "query3",
+	// 	Results: resultsBytes,
+	// }
 
-	bytes, err := json.Marshal(rawResult)
-	if err != nil {
-		log.Printf("Failed to marshal results: %v", err)
-		return
-	}
+	// bytes, err := json.Marshal(rawResult)
+	// if err != nil {
+	// 	log.Printf("Failed to marshal results: %v", err)
+	// 	return
+	// }
 
-	log.Printf("Publishing results")
-	err = s.ResultsProducer.Publish(bytes)
-	if err != nil {
-		log.Printf("Failed to publish results: %v", err)
-		return
-	}
+	// log.Printf("Publishing results")
+	// err = s.ResultsProducer.Publish(bytes)
+	// if err != nil {
+	// 	log.Printf("Failed to publish results: %v", err)
+	// 	return
+	// }
 }

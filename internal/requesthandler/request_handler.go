@@ -26,7 +26,7 @@ const (
 
 type Server struct {
 	conn            *amqp.Connection
-	results         map[string]*messages.Results
+	results         map[string]messages.Results
 	resultsLock     sync.Mutex
 	wg              sync.WaitGroup
 	producers       map[string]*utils.ProducerQueue
@@ -35,13 +35,13 @@ type Server struct {
 	shuttingDown    bool
 	shutdownChannel chan struct{}
 	clientsLock     sync.Mutex
-	clients         map[string]net.Conn
+	clients         map[string]bool
 }
 
 func NewServer(conn *amqp.Connection) *Server {
 	return &Server{
 		conn:            conn,
-		results:         make(map[string]*messages.Results),
+		results:         make(map[string]messages.Results),
 		resultsLock:     sync.Mutex{},
 		wg:              sync.WaitGroup{},
 		producers:       make(map[string]*utils.ProducerQueue),
@@ -49,7 +49,7 @@ func NewServer(conn *amqp.Connection) *Server {
 		shuttingDown:    false,
 		shutdownChannel: make(chan struct{}),
 		clientsLock:     sync.Mutex{},
-		clients:         make(map[string]net.Conn),
+		clients:         make(map[string]bool),
 	}
 }
 
@@ -142,10 +142,9 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 	var clientId string
 
-	log.Printf("New client connected: %s", conn.RemoteAddr())
-
 	for !resultsSent && !s.shuttingDown {
 
+		log.Printf("Waiting for message from client: %s", clientId)
 		message, err := utils.MessageFromSocket(&conn)
 		if err != nil {
 			log.Printf("Error reading message: %v, reading message: %v", err, string(message))
@@ -158,8 +157,13 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 		switch {
 		case msgContent == "CLIENT_ID_REQUEST":
 			clientId = s.handleClientIDRequest(conn)
-		case msgContent == "WAITING_FOR_RESULTS":
+			log.Printf("New client connected: %s", clientId)
+		case strings.Contains(msgContent, "WAITING_FOR_RESULTS:"):
+			clientId = strings.Split(msgContent, ":")[1]
 			resultsSent = s.handleResultRequest(conn, clientId)
+			if resultsSent {
+				log.Printf("Results sent to client: %s", clientId)
+			}
 		case msgContent == "STARTING_FILE":
 			s.handleDataStream(conn, clientId)
 		}
@@ -169,7 +173,7 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 func (s *Server) handleClientIDRequest(conn net.Conn) string {
 	clientID := utils.GenerateRandomID()
 	s.clientsLock.Lock()
-	s.clients[clientID] = conn
+	s.clients[clientID] = true
 	s.clientsLock.Unlock()
 	utils.SendMessage(conn, []byte(clientID))
 	return clientID
@@ -257,21 +261,21 @@ func (s *Server) handleResultRequest(conn net.Conn, clientId string) bool {
 	log.Printf("Client requested results, clientId: %s", clientId)
 
 	s.resultsLock.Lock()
-	defer s.resultsLock.Unlock()
+	clientResults, exists := s.results[clientId]
+	s.resultsLock.Unlock()
 
-	results, exists := s.results[clientId]
 	if !exists {
 		log.Printf("No results found for clientId: %s", clientId)
 		utils.SendMessage(conn, []byte("NO_RESULTS"))
 		return false
 	}
 
-	if !results.IsComplete() {
+	if !clientResults.IsComplete() {
 		utils.SendMessage(conn, []byte("NO_RESULTS"))
 		return false
 	}
 
-	resultsBytes, err := json.Marshal(s.results)
+	resultsBytes, err := json.Marshal(clientResults)
 	if err != nil {
 		log.Printf("Error marshalling results: %v", err)
 		return true
@@ -311,10 +315,7 @@ func (s *Server) listenForResults() {
 	}
 }
 
-func (s *Server) logResults(results *messages.Results) {
-	if results == nil {
-		return
-	}
+func (s *Server) logResults(results messages.Results) {
 
 	if jsonBytes, err := json.Marshal(results.Query1); err == nil {
 		log.Printf("Query 1: %s", string(jsonBytes))

@@ -2,7 +2,6 @@ package sinks
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"log"
 	"sort"
 	"strings"
@@ -59,26 +58,26 @@ func (s *BudgetSink) Sink() {
 		top5 = append(top5, *messages.NewQ2Row(budgets[i].Country, budgets[i].Amount))
 	}
 
-	rowsBytes, err := json.Marshal(top5)
-	if err != nil {
-		log.Printf("Failed to marshal results: %v", err)
-		return
-	}
+	// rowsBytes, err := json.Marshal(top5)
+	// if err != nil {
+	// 	log.Printf("Failed to marshal results: %v", err)
+	// 	return
+	// }
 
-	results := messages.RawResult{
-		QueryID: "query2",
-		Results: rowsBytes,
-	}
+	// results := messages.RawResult{
+	// 	QueryID: "query2",
+	// 	Results: rowsBytes,
+	// }
 
-	bytes, err := json.Marshal(results)
-	if err != nil {
-		log.Printf("Failed to marshal results: %v", err)
-		return
-	}
+	// bytes, err := json.Marshal(results)
+	// if err != nil {
+	// 	log.Printf("Failed to marshal results: %v", err)
+	// 	return
+	// }
 
-	err = s.resultsProducer.Publish(bytes)
-	if err != nil {
-		log.Printf("Failed to publish results: %v", err)
-		return
-	}
+	// err = s.resultsProducer.Publish(bytes)
+	// if err != nil {
+	// 	log.Printf("Failed to publish results: %v", err)
+	// 	return
+	// }
 }

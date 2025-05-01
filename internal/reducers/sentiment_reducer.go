@@ -2,7 +2,6 @@ package reducers
 
 import (
 	"encoding/csv"
-	"fmt"
 	"log"
 	"strings"
 
@@ -98,13 +97,13 @@ func (r *SentimentReducer) Reduce() {
 		positiveStats.AverageRatio, positiveStats.TotalMovies,
 		negativeStats.AverageRatio, negativeStats.TotalMovies)
 
-	positiveCSV := fmt.Sprintf("POSITIVE,%.6f,%d,%d",
-		positiveStats.AverageRatio, positiveStats.TotalMovies, processedCount)
-	r.publishQueue.Publish([]byte(positiveCSV))
+	// positiveCSV := fmt.Sprintf("POSITIVE,%.6f,%d,%d",
+	// 	positiveStats.AverageRatio, positiveStats.TotalMovies, processedCount)
+	// r.publishQueue.Publish([]byte(positiveCSV))
 
-	negativeCSV := fmt.Sprintf("NEGATIVE,%.6f,%d,%d",
-		negativeStats.AverageRatio, negativeStats.TotalMovies, processedCount)
-	r.publishQueue.Publish([]byte(negativeCSV))
+	// negativeCSV := fmt.Sprintf("NEGATIVE,%.6f,%d,%d",
+	// 	negativeStats.AverageRatio, negativeStats.TotalMovies, processedCount)
+	// r.publishQueue.Publish([]byte(negativeCSV))
 
 	log.Printf("Sentiment reducer finished processing %d movies", processedCount)
 }
