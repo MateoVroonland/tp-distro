@@ -30,8 +30,16 @@ func (f *Filter) FilterAndPublish(query string) error {
 		f.filteredByCountryConsumer.AddFinishSubscriberWithRoutingKey(f.filteredByYearProducer, "1") // send to the first queue in the hashed queues
 	}
 
+	var clientId string
+	var ok bool
+
 	for msg := range f.filteredByCountryConsumer.Consume() {
-		log.Printf("Received message: %s", string(msg.Body))
+		if clientId, ok = msg.Headers["clientId"].(string); !ok {
+			log.Printf("Failed to get clientId from message headers")
+			msg.Nack(false, false)
+			continue
+		}
+
 		stringLine := string(msg.Body)
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -58,10 +66,10 @@ func (f *Filter) FilterAndPublish(query string) error {
 			routingKey := f.outputMessage.GetRoutingKey()
 
 			if routingKey == "" {
-				err = f.filteredByYearProducer.Publish(serializedMovie)
+				err = f.filteredByYearProducer.Publish(serializedMovie, clientId)
 				log.Printf("Published movie with routing key: empty")
 			} else {
-				err = f.filteredByYearProducer.PublishWithRoutingKey(serializedMovie, routingKey)
+				err = f.filteredByYearProducer.PublishWithRoutingKey(serializedMovie, routingKey, clientId)
 				log.Printf("Published movie with routing key: %s", routingKey)
 			}
 

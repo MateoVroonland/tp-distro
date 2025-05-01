@@ -23,6 +23,18 @@ services:
     volumes:
       - ./docs:/docs
 
+  client2:
+    build:
+      context: .
+      dockerfile: cmd/client/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      requesthandler:
+        condition: service_started
+    volumes:
+      - ./docs:/docs
+
   requesthandler:
     build:
       context: .
@@ -33,6 +45,8 @@ services:
     command: /requesthandler/request_handler.go
 
   moviesreceiver:
+    environment:
+      REPLICAS: 2
     build:
       context: .
       dockerfile: cmd/moviesreceiver/Dockerfile
@@ -45,6 +59,7 @@ services:
   filter_q1:
     environment:
       QUERY: 1
+      REPLICAS: 2
     build:
       context: .
       dockerfile: cmd/filter/Dockerfile
@@ -55,69 +70,69 @@ services:
     deploy:
       replicas: 2
 
-  filter_q3:
-    environment:
-      QUERY: 3
-    build:
-      context: .
-      dockerfile: cmd/filter/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /filter/filter.go
-    deploy:
-      replicas: 2
+  # filter_q3:
+  #   environment:
+  #     QUERY: 3
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/filter/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  #   deploy:
+  #     replicas: 2
 
-  filter_q4:
-    environment:
-      QUERY: 4
-    build:
-      context: .
-      dockerfile: cmd/filter/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /filter/filter.go
-    deploy:
-      replicas: 2
+  # filter_q4:
+  #   environment:
+  #     QUERY: 4
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/filter/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  #   deploy:
+  #     replicas: 2
 
-  ratingsreceiver:
-    build:
-      context: .
-      dockerfile: cmd/ratingsreceiver/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    deploy:
-      replicas: 3
+  # ratingsreceiver:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/ratingsreceiver/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   deploy:
+  #     replicas: 3
 
-  ratingsjoiner:
-    environment:
-      ID: 1
-    build:
-      context: .
-      dockerfile: cmd/joiners/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  ratingsjoiner_2:
-    environment:
-      ID: 2
-    build:
-      context: .
-      dockerfile: cmd/joiners/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  ratingsjoiner_3:
-    environment:
-      ID: 3
-    build:
-      context: .
-      dockerfile: cmd/joiners/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+  # ratingsjoiner:
+  #   environment:
+  #     ID: 1
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/joiners/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # ratingsjoiner_2:
+  #   environment:
+  #     ID: 2
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/joiners/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # ratingsjoiner_3:
+  #   environment:
+  #     ID: 3
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/joiners/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
   q1_sink:
     build:
       context: .
@@ -127,107 +142,107 @@ services:
         condition: service_healthy
     command: /q1_sink/q1_sink.go
 
-  q3_sink:
-    build:
-      context: .
-      dockerfile: cmd/sinks_q3/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  budget_reducer:
-    build:
-      context: .
-      dockerfile: cmd/reducers/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /budget_reducer.go
-    deploy:
-      replicas: 2
+  # q3_sink:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sinks_q3/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # budget_reducer:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/reducers/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_reducer.go
+  #   deploy:
+  #     replicas: 2
 
-  budget_sink:
-    build:
-      context: .
-      dockerfile: cmd/sinks_q2/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /budget_sink/budget_sink.go
+  # budget_sink:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sinks_q2/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_sink/budget_sink.go
 
-  sentiment_reducer:
-    build:
-      context: .
-      dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /sentiment_reducer/sentiment_reducer.go
-    deploy:
-      replicas: 2
+  # sentiment_reducer:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /sentiment_reducer/sentiment_reducer.go
+  #   deploy:
+  #     replicas: 2
 
-  sentiment_worker:
-    build:
-      context: .
-      dockerfile: cmd/sentiment/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    deploy:
-      replicas: 3
+  # sentiment_worker:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sentiment/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   deploy:
+  #     replicas: 3
 
-  sentiment_sink:
-    build:
-      context: .
-      dockerfile: cmd/sinks_q5/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /sentiment_sink/sentiment_sink.go
+  # sentiment_sink:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sinks_q5/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /sentiment_sink/sentiment_sink.go
 
-  credits_joiner:
-    environment:
-      ID: 1
-    build:
-      context: .
-      dockerfile: cmd/joiners_q4/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  credits_joiner_2:
-    environment:
-      ID: 2
-    build:
-      context: .
-      dockerfile: cmd/joiners_q4/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  credits_joiner_3:
-    environment:
-      ID: 3
-    build:
-      context: .
-      dockerfile: cmd/joiners_q4/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+  # credits_joiner:
+  #   environment:
+  #     ID: 1
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/joiners_q4/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # credits_joiner_2:
+  #   environment:
+  #     ID: 2
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/joiners_q4/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # credits_joiner_3:
+  #   environment:
+  #     ID: 3
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/joiners_q4/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
 
-  credits_receiver:
-    build:
-      context: .
-      dockerfile: cmd/credits_receiver/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /credits_receiver/credits_receiver.go
-    deploy:
-      replicas: 2
+  # credits_receiver:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/credits_receiver/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /credits_receiver/credits_receiver.go
+  #   deploy:
+  #     replicas: 2
 
-  credits_sink:
-    build:
-      context: .
-      dockerfile: cmd/sinks_q4/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /credits_sink/credits_sink.go
+  # credits_sink:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sinks_q4/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /credits_sink/credits_sink.go

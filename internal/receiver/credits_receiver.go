@@ -31,6 +31,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 	for msg := range r.creditsConsumer.Consume() {
 
 		stringLine := string(msg.Body)
+		clientId := msg.Headers["clientId"].(string)
 
 		i++
 
@@ -56,7 +57,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 		}
 
 		routingKey := utils.HashString(strconv.Itoa(credits.MovieID), constants.CREDITS_JOINER_AMOUNT)
-		err = r.joinerProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey))
+		err = r.joinerProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey), clientId)
 		// err = r.joinerProducer.Publish(serializedCredits)
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)

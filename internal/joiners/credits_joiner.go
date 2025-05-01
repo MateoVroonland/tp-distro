@@ -5,7 +5,6 @@ import (
 	"log"
 	"strings"
 
-	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
@@ -30,7 +29,6 @@ func (c *CreditsJoiner) JoinCredits() error {
 	i := 0
 	for msg := range c.moviesJoinerConsumer.Consume() {
 		stringLine := string(msg.Body)
-
 		i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -90,14 +88,14 @@ func (c *CreditsJoiner) JoinCredits() error {
 		}
 
 		credits = append(credits, credit)
-		payload, err := protocol.Serialize(&credit)
-		if err != nil {
-			log.Printf("Failed to serialize credits: %v", record)
-			log.Printf("json.Marshal: %v", err)
-			msg.Nack(false, false)
-			continue
-		}
-		c.sinkProducer.Publish(payload)
+		// payload, err := protocol.Serialize(&credit)
+		// if err != nil {
+		// 	log.Printf("Failed to serialize credits: %v", record)
+		// 	log.Printf("json.Marshal: %v", err)
+		// 	msg.Nack(false, false)
+		// 	continue
+		// }
+		// c.sinkProducer.Publish(payload)
 
 		msg.Ack(false)
 	}

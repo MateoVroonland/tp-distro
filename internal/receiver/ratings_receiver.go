@@ -27,7 +27,16 @@ func (r *RatingsReceiver) ReceiveRatings() {
 
 	r.ratingsConsumer.AddFinishSubscriberWithRoutingKey(r.joinerProducer, "1")
 	ratingsConsumed := 0
+
+	var clientId string
+	var ok bool
+
 	for msg := range r.ratingsConsumer.Consume() {
+		if clientId, ok = msg.Headers["clientId"].(string); !ok {
+			log.Printf("Failed to get clientId from message headers")
+			msg.Nack(false, false)
+			continue
+		}
 		ratingsConsumed++
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -53,7 +62,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 		}
 
 		routingKey := utils.HashString(strconv.Itoa(rating.MovieID), constants.RATINGS_JOINER_AMOUNT)
-		err = r.joinerProducer.PublishWithRoutingKey(serializedRating, strconv.Itoa(routingKey))
+		err = r.joinerProducer.PublishWithRoutingKey(serializedRating, strconv.Itoa(routingKey), clientId)
 		if err != nil {
 			log.Printf("Error publishing rating: %s", err)
 			msg.Nack(false, true)

@@ -26,7 +26,7 @@ const (
 
 type Server struct {
 	conn            *amqp.Connection
-	results         *messages.Results
+	results         map[string]*messages.Results
 	resultsLock     sync.Mutex
 	wg              sync.WaitGroup
 	producers       map[string]*utils.ProducerQueue
@@ -34,19 +34,21 @@ type Server struct {
 	listener        *net.TCPListener
 	shuttingDown    bool
 	shutdownChannel chan struct{}
+	clientsLock     sync.Mutex
 	clients         map[string]net.Conn
 }
 
 func NewServer(conn *amqp.Connection) *Server {
 	return &Server{
 		conn:            conn,
-		results:         nil,
+		results:         make(map[string]*messages.Results),
 		resultsLock:     sync.Mutex{},
 		wg:              sync.WaitGroup{},
 		producers:       make(map[string]*utils.ProducerQueue),
 		isListening:     false,
 		shuttingDown:    false,
 		shutdownChannel: make(chan struct{}),
+		clientsLock:     sync.Mutex{},
 		clients:         make(map[string]net.Conn),
 	}
 }
@@ -138,6 +140,8 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 	resultsSent := false
 
+	var clientId string
+
 	log.Printf("New client connected: %s", conn.RemoteAddr())
 
 	for !resultsSent && !s.shuttingDown {
@@ -153,22 +157,25 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 		switch {
 		case msgContent == "CLIENT_ID_REQUEST":
-			s.handleClientIDRequest(conn)
+			clientId = s.handleClientIDRequest(conn)
 		case msgContent == "WAITING_FOR_RESULTS":
-			resultsSent = s.handleResultRequest(conn)
+			resultsSent = s.handleResultRequest(conn, clientId)
 		case msgContent == "STARTING_FILE":
-			s.handleDataStream(conn)
+			s.handleDataStream(conn, clientId)
 		}
 	}
 }
 
-func (s *Server) handleClientIDRequest(conn net.Conn) {
+func (s *Server) handleClientIDRequest(conn net.Conn) string {
 	clientID := utils.GenerateRandomID()
+	s.clientsLock.Lock()
 	s.clients[clientID] = conn
+	s.clientsLock.Unlock()
 	utils.SendMessage(conn, []byte(clientID))
+	return clientID
 }
 
-func (s *Server) handleDataStream(conn net.Conn) {
+func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 	log.Println("Processing data stream...")
 
 	filesRemaining := 3
@@ -206,7 +213,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 				return
 			}
 
-			producer.Publish([]byte("FINISHED"))
+			producer.Publish([]byte("FINISHED"), clientId)
 
 			filesRemaining--
 
@@ -238,7 +245,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 				continue
 			}
 			writer.Flush()
-			err = producer.Publish(buffer.Bytes())
+			err = producer.Publish(buffer.Bytes(), clientId)
 			if err != nil {
 				log.Printf("Error publishing line to %s: %v", fileType, err)
 			}
@@ -246,13 +253,20 @@ func (s *Server) handleDataStream(conn net.Conn) {
 	}
 }
 
-func (s *Server) handleResultRequest(conn net.Conn) bool {
-	log.Printf("Client requested results")
+func (s *Server) handleResultRequest(conn net.Conn, clientId string) bool {
+	log.Printf("Client requested results, clientId: %s", clientId)
 
 	s.resultsLock.Lock()
 	defer s.resultsLock.Unlock()
 
-	if !s.results.IsComplete() {
+	results, exists := s.results[clientId]
+	if !exists {
+		log.Printf("No results found for clientId: %s", clientId)
+		utils.SendMessage(conn, []byte("NO_RESULTS"))
+		return false
+	}
+
+	if !results.IsComplete() {
 		utils.SendMessage(conn, []byte("NO_RESULTS"))
 		return false
 	}
@@ -270,24 +284,27 @@ func (s *Server) handleResultRequest(conn net.Conn) bool {
 func (s *Server) listenForResults() {
 	defer s.wg.Done()
 
-	var results messages.Results
 	resultsConsumer, err := utils.NewConsumerQueue(s.conn, "results", "results", "")
 	if err != nil {
 		log.Fatalf("Error creating consumer for results: %v", err)
 	}
 
 	for d := range resultsConsumer.Consume() {
-		err = json.Unmarshal(d.Body, &results)
+		clientId := d.Headers["clientId"].(string)
+		log.Println("Received results from client:", clientId)
+		clientResults := s.results[clientId]
+
+		err = json.Unmarshal(d.Body, &clientResults)
 		if err != nil {
 			log.Printf("Error unmarshalling results: %v", err)
 			d.Nack(false, false)
 			continue
 		}
 
-		s.logResults(&results)
+		s.logResults(clientResults)
 
 		s.resultsLock.Lock()
-		s.results = &results
+		s.results[clientId] = clientResults
 		s.resultsLock.Unlock()
 
 		d.Ack(false)

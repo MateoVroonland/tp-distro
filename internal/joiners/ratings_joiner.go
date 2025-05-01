@@ -2,14 +2,12 @@ package joiners
 
 import (
 	"encoding/csv"
-	"fmt"
 	"log"
 	"strings"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
-
 
 type RatingsJoiner struct {
 	ratingsJoinerConsumer *utils.ConsumerQueue
@@ -56,11 +54,7 @@ func (r *RatingsJoiner) JoinRatings() error {
 		moviesIds[movie.ID] = movie.Title
 		msg.Ack(false)
 
-
-
 	}
-
-
 
 	ratings := make(map[int]float64)
 	ratingsCount := make(map[int]int)
@@ -110,12 +104,10 @@ func (r *RatingsJoiner) JoinRatings() error {
 	log.Printf("RatingsCount: %v", ratingsCount)
 	log.Printf("MoviesIds: %v", moviesIds)
 
-
-
-	for movieId, rating := range ratings {
-		count := ratingsCount[movieId]
-		res := fmt.Sprintf("%d,%s,%f", movieId, moviesIds[movieId], rating/float64(count))
-		r.sinkProducer.Publish([]byte(res))
-	}
+	// for movieId, rating := range ratings {
+	// 	count := ratingsCount[movieId]
+	// 	res := fmt.Sprintf("%d,%s,%f", movieId, moviesIds[movieId], rating/float64(count))
+	// 	r.sinkProducer.Publish([]byte(res))
+	// }
 	return nil
 }
