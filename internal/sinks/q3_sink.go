@@ -29,7 +29,7 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 
 	log.Printf("Consuming messages")
 
-	for msg := range s.SinkConsumer.Consume() {
+	for msg := range s.SinkConsumer.ConsumeInfinite() {
 		var movie messages.MovieRating
 		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))

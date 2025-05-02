@@ -28,7 +28,7 @@ func (r *BudgetReducer) Reduce() map[string]int {
 
 	r.queue.AddFinishSubscriber(r.publishQueue)
 
-	for msg := range r.queue.Consume() {
+	for msg := range r.queue.ConsumeInfinite() {
 		stringLine := string(msg.Body)
 		i++
 

@@ -44,7 +44,6 @@ class Client:
         try:
             sock.connect((host, port))
             self.current_connection = CompleteSocket(sock)
-            self.current_connection.set_keep_alive(True)
             return self.current_connection
         except (ConnectionError, OSError) as e:
             logger.error(f"Failed to connect to {host}:{port} - {str(e)}")

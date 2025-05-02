@@ -27,7 +27,7 @@ func (r *RatingsJoiner) JoinRatings() error {
 	moviesIds := make(map[int]string)
 
 	i := 0
-	for msg := range r.moviesJoinerConsumer.Consume() {
+	for msg := range r.moviesJoinerConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
@@ -60,7 +60,7 @@ func (r *RatingsJoiner) JoinRatings() error {
 	ratingsCount := make(map[int]int)
 	j := 0
 	r.ratingsJoinerConsumer.AddFinishSubscriber(r.sinkProducer)
-	for msg := range r.ratingsJoinerConsumer.Consume() {
+	for msg := range r.ratingsJoinerConsumer.ConsumeInfinite() {
 		stringLine := string(msg.Body)
 		j++
 

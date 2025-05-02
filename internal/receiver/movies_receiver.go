@@ -35,7 +35,7 @@ func (r *MoviesReceiver) ReceiveMovies() {
 	var clientId string
 	var ok bool
 
-	for d := range r.MoviesConsumer.Consume() {
+	for d := range r.MoviesConsumer.ConsumeInfinite() {
 		if clientId, ok = d.Headers["clientId"].(string); !ok {
 			log.Printf("Failed to get clientId from message headers")
 			d.Nack(false, false)

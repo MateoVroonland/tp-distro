@@ -22,23 +22,13 @@ func main() {
 		log.Fatalf("ID is not set")
 	}
 
-	creditsJoinerConsumer, err := utils.NewConsumerQueueWithRoutingKey(conn, "credits_joiner", "credits_joiner", id, "credits_joiner_credits_internal")
+	newClientQueue, err := utils.NewConsumerFanout(conn, "new_client_fanout")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	moviesJoinerConsumer, err := utils.NewConsumerQueueWithRoutingKey(conn, "movies_filtered_by_year_q4", "movies_filtered_by_year_q4", id, "credits_joiner_movies_internal")
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
-	sinkProducer, err := utils.NewProducerQueue(conn, "sink_q4", "sink_q4")
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
-	creditsJoiner := joiners.NewCreditsJoiner(creditsJoinerConsumer, moviesJoinerConsumer, sinkProducer)
+	creditsJoiner := joiners.NewCreditsJoiner(conn, newClientQueue)
 	log.Printf("Credits joiner initialized with id '%s'", id)
-	creditsJoiner.JoinCredits()
+	creditsJoiner.JoinCredits(id)
 
 }

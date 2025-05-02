@@ -2,6 +2,7 @@ package receiver
 
 import (
 	"encoding/csv"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -16,22 +17,35 @@ import (
 type CreditsReceiver struct {
 	conn            *amqp.Connection
 	creditsConsumer *utils.ConsumerQueue
-	joinerProducer  *utils.ProducerQueue
+	clientProducers map[string]*utils.ProducerQueue
 }
 
-func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.ConsumerQueue, joinerProducer *utils.ProducerQueue) *CreditsReceiver {
-	return &CreditsReceiver{conn: conn, creditsConsumer: creditsConsumer, joinerProducer: joinerProducer}
+func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.ConsumerQueue) *CreditsReceiver {
+	return &CreditsReceiver{conn: conn, creditsConsumer: creditsConsumer, clientProducers: make(map[string]*utils.ProducerQueue)}
 }
 
 func (r *CreditsReceiver) ReceiveCredits() {
 
 	i := 0
 
-	r.creditsConsumer.AddFinishSubscriberWithRoutingKey(r.joinerProducer, "1")
-	for msg := range r.creditsConsumer.Consume() {
+	// r.creditsConsumer.AddFinishSubscriberWithRoutingKey(r.joinerProducer, "1")
+	for msg := range r.creditsConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 		clientId := msg.Headers["clientId"].(string)
+
+		if _, ok := r.clientProducers[clientId]; !ok {
+			producerName := fmt.Sprintf("credits_joiner_client_%s", clientId)
+			producer, err := utils.NewProducerQueue(r.conn, producerName, producerName)
+			if err != nil {
+				log.Printf("Failed to create producer for client %s: %v", clientId, err)
+				msg.Nack(false, false)
+				continue
+			}
+			r.creditsConsumer.AddFinishSubscriberWithRoutingKey(producer, "1") // send to the first queue in the hashed queues
+			r.clientProducers[clientId] = producer
+			log.Printf("Created producer for client %s: %s", clientId, producerName)
+		}
 
 		i++
 
@@ -57,8 +71,9 @@ func (r *CreditsReceiver) ReceiveCredits() {
 		}
 
 		routingKey := utils.HashString(strconv.Itoa(credits.MovieID), constants.CREDITS_JOINER_AMOUNT)
-		err = r.joinerProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey), clientId)
-		// err = r.joinerProducer.Publish(serializedCredits)
+
+		clientProducer := r.clientProducers[clientId]
+		err = clientProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey), clientId)
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)
 			continue

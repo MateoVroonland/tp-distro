@@ -19,21 +19,15 @@ func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearPro
 	return &Filter{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer, outputMessage: outputMessage}
 }
 
-func (f *Filter) FilterAndPublish(query string) error {
-	log.Printf("Filtering and publishing for query: %s", query)
+func (f *Filter) FilterAndPublish() error {
+	log.Printf("Filtering and publishing")
 
-	query = strings.ToLower(query)
-	if query == "1" {
-		f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
-	} else if query == "3" || query == "4" {
-		log.Printf("Adding finish subscriber with routing key: 1")
-		f.filteredByCountryConsumer.AddFinishSubscriberWithRoutingKey(f.filteredByYearProducer, "1") // send to the first queue in the hashed queues
-	}
+	f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
 
 	var clientId string
 	var ok bool
 
-	for msg := range f.filteredByCountryConsumer.Consume() {
+	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
 		if clientId, ok = msg.Headers["clientId"].(string); !ok {
 			log.Printf("Failed to get clientId from message headers")
 			msg.Nack(false, false)
@@ -63,15 +57,8 @@ func (f *Filter) FilterAndPublish(query string) error {
 				continue
 			}
 
-			routingKey := f.outputMessage.GetRoutingKey()
-
-			if routingKey == "" {
-				err = f.filteredByYearProducer.Publish(serializedMovie, clientId)
-				log.Printf("Published movie with routing key: empty")
-			} else {
-				err = f.filteredByYearProducer.PublishWithRoutingKey(serializedMovie, routingKey, clientId)
-				log.Printf("Published movie with routing key: %s", routingKey)
-			}
+			err = f.filteredByYearProducer.Publish(serializedMovie, clientId)
+			log.Printf("Published movie with routing key: empty")
 
 			if err != nil {
 				log.Printf("Error publishing movie: %s", err)

@@ -37,6 +37,13 @@ func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 	return NewConsumerQueueWithRoutingKey(conn, queueName, exchangeName, queueName, fanoutName)
 }
 
+func getQueueName(queueName string, routingKey string) string {
+	if routingKey == queueName {
+		return queueName
+	}
+	return fmt.Sprintf("%s_%s", queueName, routingKey)
+}
+
 func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exchangeName string, routingKey string, fanoutName string) (*ConsumerQueue, error) {
 	ch, err := conn.Channel()
 	if err != nil {
@@ -69,12 +76,7 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return nil, err
 	}
 
-	var uniqueQueueName string
-	if routingKey == queueName {
-		uniqueQueueName = queueName
-	} else {
-		uniqueQueueName = fmt.Sprintf("%s_%s", queueName, routingKey)
-	}
+	uniqueQueueName := getQueueName(queueName, routingKey)
 	_, err = ch.QueueDeclare(uniqueQueueName, false, false, false, false, nil)
 	if err != nil {
 		return nil, err
@@ -140,7 +142,7 @@ func (q *ConsumerQueue) ConsumeSink() iter.Seq[*amqp.Delivery] {
 	}
 }
 
-func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
+func (q *ConsumerQueue) consume(infinite bool) iter.Seq[*amqp.Delivery] {
 	return func(yield func(*amqp.Delivery) bool) {
 
 		var closeQueueDelivery <-chan amqp.Delivery
@@ -163,6 +165,9 @@ func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
 					log.Printf("Received FINISHED-RECEIVED")
 					q.closeQueueProducer.Publish([]byte("FINISHED-DONE"), clientId)
 					log.Printf("Sent FINISHED-DONE to %s", q.closeQueueProducer.queueName)
+					if !infinite && !q.isLeader[clientId] {
+						return
+					}
 				}
 
 				// if message == "FINISHED-ACK" && q.isLeader {
@@ -178,6 +183,9 @@ func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
 					if q.replicasMap[clientId] == 0 {
 						log.Println("All replicas finished for clientId ", clientId)
 						q.sendFinished(clientId)
+						if !infinite {
+							return
+						}
 					}
 				}
 			case delivery := <-q.deliveryChannel:
@@ -218,6 +226,14 @@ func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
 	}
 }
 
+func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[*amqp.Delivery] {
+	return q.consume(true)
+}
+
+func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
+	return q.consume(false)
+}
+
 func (q *ConsumerQueue) AddFinishSubscriber(pq *ProducerQueue) {
 	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: ""})
 }
@@ -245,8 +261,10 @@ func (q *ConsumerQueue) CloseChannel() error {
 
 type ProducerQueue struct {
 	ch           *amqp.Channel
+	boundQueues  map[string]bool
 	queueName    string
 	exchangeName string
+	isFanout     bool
 }
 
 func NewProducerQueue(conn *amqp.Connection, queueName string, exchangeName string) (*ProducerQueue, error) {
@@ -268,7 +286,7 @@ func NewProducerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 		return nil, err
 	}
 
-	return &ProducerQueue{ch: ch, queueName: queueName, exchangeName: exchangeName}, nil
+	return &ProducerQueue{ch: ch, queueName: queueName, exchangeName: exchangeName, boundQueues: make(map[string]bool), isFanout: false}, nil
 }
 
 func (q *ProducerQueue) Publish(body []byte, clientId string) error {
@@ -276,6 +294,25 @@ func (q *ProducerQueue) Publish(body []byte, clientId string) error {
 }
 
 func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string, clientId string) error {
+	if !q.boundQueues[routingKey] && !q.isFanout {
+		name := getQueueName(q.queueName, routingKey)
+		_, err := q.ch.QueueDeclare(name, false, false, false, false, nil)
+		if err != nil {
+			return err
+		}
+		err = q.ch.QueueBind(
+			name,
+			routingKey,
+			q.exchangeName,
+			false,
+			nil,
+		)
+		if err != nil {
+			return err
+		}
+		q.boundQueues[routingKey] = true
+	}
+
 	headers := amqp.Table{
 		"clientId": clientId,
 	}
@@ -348,7 +385,10 @@ func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQue
 		return nil, err
 	}
 
-	return &ConsumerQueue{ch: ch, queueName: q.Name, deliveryChannel: deliveryChannel}, nil
+	replicasMap := make(map[string]int)
+	isLeader := make(map[string]bool)
+
+	return &ConsumerQueue{ch: ch, queueName: q.Name, deliveryChannel: deliveryChannel, replicasMap: replicasMap, isLeader: isLeader}, nil
 }
 
 func NewProducerFanout(conn *amqp.Connection, exchangeName string) (*ProducerQueue, error) {
@@ -370,5 +410,5 @@ func NewProducerFanout(conn *amqp.Connection, exchangeName string) (*ProducerQue
 		return nil, err
 	}
 
-	return &ProducerQueue{ch: ch, exchangeName: exchangeName}, nil
+	return &ProducerQueue{ch: ch, exchangeName: exchangeName, isFanout: true}, nil
 }

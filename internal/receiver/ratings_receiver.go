@@ -31,7 +31,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 	var clientId string
 	var ok bool
 
-	for msg := range r.ratingsConsumer.Consume() {
+	for msg := range r.ratingsConsumer.ConsumeInfinite() {
 		if clientId, ok = msg.Headers["clientId"].(string); !ok {
 			log.Printf("Failed to get clientId from message headers")
 			msg.Nack(false, false)

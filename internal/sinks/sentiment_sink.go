@@ -27,7 +27,7 @@ func (s *SentimentSink) Sink() {
 
 	log.Printf("Sentiment sink started, consuming messages...")
 
-	for msg := range s.sinkConsumer.Consume() {
+	for msg := range s.sinkConsumer.ConsumeInfinite() {
 		bodyStr := string(msg.Body)
 
 		stats, err := messages.ParseSentimentStats(bodyStr)

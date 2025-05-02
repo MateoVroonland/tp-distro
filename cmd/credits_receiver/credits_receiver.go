@@ -15,17 +15,16 @@ func main() {
 	}
 	defer conn.Close()
 
-	rawRatingsConsumer, err := utils.NewConsumerQueue(conn, "credits", "credits", "credits_receiver_internal")
+	rawCredtisConsumer, err := utils.NewConsumerQueue(conn, "credits", "credits", "credits_receiver_internal")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	joinerProducer, err := utils.NewProducerQueue(conn, "credits_joiner", "credits_joiner")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	receiver := receiver.NewCreditsReceiver(conn, rawRatingsConsumer, joinerProducer)
+	receiver := receiver.NewCreditsReceiver(conn, rawCredtisConsumer)
 	receiver.ReceiveCredits()
 
 }

@@ -47,7 +47,7 @@ func (r *SentimentReducer) Reduce() {
 
 	log.Printf("Sentiment reducer started processing")
 
-	for d := range r.queue.Consume() {
+	for d := range r.queue.ConsumeInfinite() {
 		stringLine := string(d.Body)
 
 		processedCount++

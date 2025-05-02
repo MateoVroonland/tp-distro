@@ -31,7 +31,7 @@ type Server struct {
 	wg              sync.WaitGroup
 	producers       map[string]*utils.ProducerQueue
 	isListening     bool
-	listener        *net.TCPListener
+	listener        net.Listener
 	shuttingDown    bool
 	shutdownChannel chan struct{}
 	clientsLock     sync.Mutex
@@ -92,11 +92,7 @@ func (s *Server) initializeProducers() error {
 
 func (s *Server) startTCPServer() error {
 	var err error
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%s", PORT))
-	if err != nil {
-		return fmt.Errorf("failed to resolve TCP address: %v", err)
-	}
-	s.listener, err = net.ListenTCP("tcp", addr)
+	s.listener, err = net.Listen("tcp", fmt.Sprintf(":%s", PORT))
 	if err != nil {
 		return fmt.Errorf("failed to start TCP server: %v", err)
 	}
@@ -109,7 +105,7 @@ func (s *Server) startTCPServer() error {
 		defer s.listener.Close()
 
 		for !s.shuttingDown {
-			conn, err := s.listener.AcceptTCP()
+			conn, err := s.listener.Accept()
 
 			if err != nil {
 				if s.shuttingDown {
@@ -119,13 +115,6 @@ func (s *Server) startTCPServer() error {
 				continue
 			}
 
-			err = conn.SetKeepAlive(true)
-
-			if err != nil {
-				log.Printf("Error setting keep alive: %v", err)
-				conn.Close()
-				continue
-			}
 			s.wg.Add(1)
 			go s.handleClientConnection(conn)
 		}
@@ -144,7 +133,6 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 	for !resultsSent && !s.shuttingDown {
 
-		log.Printf("Waiting for message from client: %s", clientId)
 		message, err := utils.MessageFromSocket(&conn)
 		if err != nil {
 			log.Printf("Error reading message: %v, reading message: %v", err, string(message))
@@ -184,6 +172,7 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 
 	filesRemaining := 3
 	fileType := ""
+	fileType2 := ""
 
 	for filesRemaining > 0 {
 		switch filesRemaining {
@@ -194,8 +183,15 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 		case 1:
 			fileType = "ratings"
 		}
+		if fileType != fileType2 {
+			log.Printf("Switching to %s clientId: %s", fileType, clientId)
+		}
 
+		fileType2 = fileType
+
+		log.Printf("Waiting for message from client: %s", clientId)
 		message, err := utils.MessageFromSocket(&conn)
+		log.Printf("Received message from client: %s", clientId)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("End of stream reached for %s", fileType)
@@ -209,11 +205,11 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 		msgContent := string(message)
 
 		if msgContent == "FINISHED_FILE" {
-			log.Printf("Received FINISHED_FILE signal for %s", fileType)
+			log.Printf("Received FINISHED_FILE signal %s, clientId: %s", fileType, clientId)
 
 			producer, exists := s.producers[fileType]
 			if !exists {
-				log.Printf("No producer found for %s", fileType)
+				log.Printf("No producer found for %s clientId: %s", fileType, clientId)
 				return
 			}
 
@@ -226,7 +222,7 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 
 		producer, exists := s.producers[fileType]
 		if !exists {
-			log.Printf("No producer found for %s", fileType)
+			log.Printf("No producer found for %s clientId: %s", fileType, clientId)
 			return
 		}
 		reader := csv.NewReader(strings.NewReader(msgContent))
@@ -293,7 +289,7 @@ func (s *Server) listenForResults() {
 		log.Fatalf("Error creating consumer for results: %v", err)
 	}
 
-	for d := range resultsConsumer.Consume() {
+	for d := range resultsConsumer.ConsumeInfinite() {
 		clientId := d.Headers["clientId"].(string)
 		log.Println("Received results from client:", clientId)
 		clientResults := s.results[clientId]

@@ -2,6 +2,7 @@ package sinks
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"log"
 	"sort"
 	"strings"
@@ -29,11 +30,24 @@ func (s *CreditsSink) Sink() {
 	actors := make(map[string]int)
 
 	i := 0
-	for msg := range s.sinkConsumer.Consume() {
+	for msg := range s.sinkConsumer.ConsumeSink() {
 
 		stringLine := string(msg.Body)
 
-		i++
+		var clientId string
+		var ok bool
+		if clientId, ok = msg.Headers["clientId"].(string); !ok {
+			log.Printf("Failed to get clientId from message headers")
+			msg.Nack(false, false)
+			continue
+		}
+
+		if stringLine == "FINISHED" {
+			log.Printf("Received FINISHED message")
+			s.SendClientIdResults(clientId, actors)
+			msg.Ack(false)
+			continue
+		}
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 2
@@ -61,6 +75,10 @@ func (s *CreditsSink) Sink() {
 
 	log.Printf("Processed credits: %d", i)
 
+}
+
+func (s *CreditsSink) SendClientIdResults(clientId string, actors map[string]int) {
+
 	topTen := []messages.Q4Row{}
 
 	for actor, credits := range actors {
@@ -76,26 +94,26 @@ func (s *CreditsSink) Sink() {
 
 	log.Printf("Top 10 actors by credits: %v", topTen)
 
-	// rowsBytes, err := json.Marshal(topTen)
-	// if err != nil {
-	// 	log.Printf("Failed to marshal results: %v", err)
-	// 	return
-	// }
+	rowsBytes, err := json.Marshal(topTen)
+	if err != nil {
+		log.Printf("Failed to marshal results: %v", err)
+		return
+	}
 
-	// results := messages.RawResult{
-	// 	QueryID: "query4",
-	// 	Results: rowsBytes,
-	// }
+	results := messages.RawResult{
+		QueryID: "query4",
+		Results: rowsBytes,
+	}
 
-	// bytes, err := json.Marshal(results)
-	// if err != nil {
-	// 	log.Printf("Failed to marshal results: %v", err)
-	// 	return
-	// }
+	bytes, err := json.Marshal(results)
+	if err != nil {
+		log.Printf("Failed to marshal results: %v", err)
+		return
+	}
 
-	// err = s.resultsProducer.Publish(bytes)
-	// if err != nil {
-	// 	log.Printf("Failed to publish results: %v", err)
-	// 	return
-	// }
+	err = s.resultsProducer.Publish(bytes, clientId)
+	if err != nil {
+		log.Printf("Failed to publish results: %v", err)
+		return
+	}
 }

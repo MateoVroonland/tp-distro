@@ -24,7 +24,7 @@ func (s *BudgetSink) Sink() {
 	budgetPerCountry := make(map[string]int)
 
 	s.queue.AddFinishSubscriber(s.resultsProducer)
-	for msg := range s.queue.Consume() {
+	for msg := range s.queue.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
