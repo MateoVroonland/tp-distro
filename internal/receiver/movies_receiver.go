@@ -32,15 +32,7 @@ func (r *MoviesReceiver) ReceiveMovies() {
 	r.MoviesConsumer.AddFinishSubscriber(r.Q4Producer)
 	r.MoviesConsumer.AddFinishSubscriber(r.Q5Producer)
 
-	var clientId string
-	var ok bool
-
 	for d := range r.MoviesConsumer.ConsumeInfinite() {
-		if clientId, ok = d.Headers["clientId"].(string); !ok {
-			log.Printf("Failed to get clientId from message headers")
-			d.Nack(false, false)
-			continue
-		}
 
 		stringLine := string(d.Body)
 
@@ -49,25 +41,25 @@ func (r *MoviesReceiver) ReceiveMovies() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			d.Nack(false, false)
+			d.Nack(false)
 			continue
 		}
 
 		movie := &messages.Movie{}
 		if err := movie.Deserialize(record); err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			d.Nack(false, false)
+			d.Nack(false)
 			continue
 		}
 		serializedMovie, err := protocol.Serialize(movie)
 		if err != nil {
 			log.Printf("Failed to serialize movie: %v", err)
-			d.Nack(false, false)
+			d.Nack(false)
 			continue
 		}
 
 		if movie.IncludesAllCountries([]string{"Argentina", "Spain"}) {
-			err = r.Q1Producer.Publish(serializedMovie, clientId)
+			err = r.Q1Producer.Publish(serializedMovie, d.ClientId)
 			if err != nil {
 				log.Printf("Failed to publish to queue 1: %v", err)
 
@@ -75,29 +67,29 @@ func (r *MoviesReceiver) ReceiveMovies() {
 		}
 
 		if len(movie.Countries) == 1 {
-			err = r.Q2Producer.Publish(serializedMovie, clientId)
+			err = r.Q2Producer.Publish(serializedMovie, d.ClientId)
 			if err != nil {
 				log.Printf("Failed to publish to queue 2: %v", err)
 			}
 		}
 		if movie.IncludesAllCountries([]string{"Argentina"}) {
-			err = r.Q3Producer.Publish(serializedMovie, clientId)
+			err = r.Q3Producer.Publish(serializedMovie, d.ClientId)
 			if err != nil {
 				log.Printf("Failed to publish to queue 3: %v", err)
 			}
-			err = r.Q4Producer.Publish(serializedMovie, clientId)
+			err = r.Q4Producer.Publish(serializedMovie, d.ClientId)
 			if err != nil {
 				log.Printf("Failed to publish to queue 4: %v", err)
 			}
 		}
 
 		if movie.HasValidBudgetAndRevenue() {
-			err = r.Q5Producer.Publish(serializedMovie, clientId)
+			err = r.Q5Producer.Publish(serializedMovie, d.ClientId)
 			if err != nil {
 				log.Printf("Failed to publish to queue 5: %v", err)
 			}
 		}
 
-		d.Ack(false)
+		d.Ack()
 	}
 }

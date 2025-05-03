@@ -33,7 +33,7 @@ func (s *SentimentSink) Sink() {
 		stats, err := messages.ParseSentimentStats(bodyStr)
 		if err != nil {
 			log.Printf("Failed to parse sentiment stats: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -51,7 +51,7 @@ func (s *SentimentSink) Sink() {
 			log.Printf("Unknown sentiment: %s", stats.Sentiment)
 		}
 
-		msg.Ack(false)
+		msg.Ack()
 	}
 
 	// var finalPositiveRatio float64

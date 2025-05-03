@@ -36,7 +36,7 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -44,12 +44,12 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		err = movieBudget.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
 		budgetPerCountry[movieBudget.Country] += movieBudget.Amount
-		msg.Ack(false)
+		msg.Ack()
 	}
 
 	log.Printf("Total movies processed: %d", i)

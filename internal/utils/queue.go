@@ -125,15 +125,20 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 	return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, deliveryChannel: deliveryChannel, fanoutName: fanoutName, signalChan: signalChan, replicas: replicasInt, replicasMap: replicasMap, isLeader: isLeader}, nil
 }
 
-func (q *ConsumerQueue) ConsumeSink() iter.Seq[*amqp.Delivery] {
-	return func(yield func(*amqp.Delivery) bool) {
+func (q *ConsumerQueue) ConsumeSink() iter.Seq[Message] {
+	return func(yield func(Message) bool) {
 		for {
 			select {
 			case <-q.signalChan:
 				log.Printf("Received SIGTERM signal, closing connection")
 				return
 			case delivery := <-q.deliveryChannel:
-				if !yield(&delivery) {
+				message, err := MessageFromDelivery(delivery)
+				if err != nil {
+					log.Printf("Failed to parse message: %v", err)
+					continue
+				}
+				if !yield(*message) {
 					log.Printf("Exiting early consumer loop")
 					return
 				}
@@ -142,8 +147,35 @@ func (q *ConsumerQueue) ConsumeSink() iter.Seq[*amqp.Delivery] {
 	}
 }
 
-func (q *ConsumerQueue) consume(infinite bool) iter.Seq[*amqp.Delivery] {
-	return func(yield func(*amqp.Delivery) bool) {
+type Message struct {
+	Body     []byte
+	ClientId string
+	delivery amqp.Delivery
+}
+
+func (m *Message) Ack() {
+	m.delivery.Ack(false)
+}
+
+func (m *Message) Nack(requeue bool) {
+	m.delivery.Nack(false, requeue)
+}
+
+func MessageFromDelivery(delivery amqp.Delivery) (*Message, error) {
+	clientId, ok := delivery.Headers["clientId"].(string)
+	if !ok {
+		return nil, fmt.Errorf("clientId not found in headers")
+	}
+
+	return &Message{
+		Body:     delivery.Body,
+		ClientId: clientId,
+		delivery: delivery,
+	}, nil
+}
+
+func (q *ConsumerQueue) consume(infinite bool, passDownFinsh bool) iter.Seq[Message] {
+	return func(yield func(Message) bool) {
 
 		var closeQueueDelivery <-chan amqp.Delivery
 		if q.fanoutName != "" {
@@ -156,18 +188,39 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[*amqp.Delivery] {
 				log.Printf("Received SIGTERM signal, closing connection")
 				return
 			case delivery := <-closeQueueDelivery: // FINISHED-RECEIVED | FINISHED-DONE
-				delivery.Ack(false)
+				message, err := MessageFromDelivery(delivery)
+				if err != nil {
+					log.Printf("Failed to parse message: %v", err)
+					continue
+				}
 
-				message := string(delivery.Body)
-				clientId := delivery.Headers["clientId"].(string)
-
-				if message == "FINISHED-RECEIVED" {
+				if string(message.Body) == "FINISHED-RECEIVED" {
 					log.Printf("Received FINISHED-RECEIVED")
-					q.closeQueueProducer.Publish([]byte("FINISHED-DONE"), clientId)
+					q.closeQueueProducer.Publish([]byte("FINISHED-DONE"), message.ClientId)
 					log.Printf("Sent FINISHED-DONE to %s", q.closeQueueProducer.queueName)
-					if !infinite && !q.isLeader[clientId] {
+					if !infinite && !q.isLeader[message.ClientId] {
+						message.Ack()
 						return
 					}
+
+					if infinite && q.isLeader[message.ClientId] {
+						message.Ack()
+						continue
+					}
+
+					if infinite && !q.isLeader[message.ClientId] {
+						if passDownFinsh {
+							message.Body = []byte("FINISHED")
+							if !yield(*message) {
+								return
+							}
+						} else {
+							message.Ack()
+							continue
+						}
+					}
+
+					message.Ack()
 				}
 
 				// if message == "FINISHED-ACK" && q.isLeader {
@@ -176,13 +229,13 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[*amqp.Delivery] {
 				// 	log.Printf("Replicas counted: %d", q.replicas)
 				// }
 
-				if message == "FINISHED-DONE" && q.isLeader[clientId] {
+				if string(message.Body) == "FINISHED-DONE" && q.isLeader[message.ClientId] {
 					log.Printf("Received FINISHED-DONE")
-					q.replicasMap[clientId]--
+					q.replicasMap[message.ClientId]--
 					log.Printf("Replicas remaining: %d", q.replicas)
-					if q.replicasMap[clientId] == 0 {
-						log.Println("All replicas finished for clientId ", clientId)
-						q.sendFinished(clientId)
+					if q.replicasMap[message.ClientId] == 0 {
+						log.Println("All replicas finished for clientId ", message.ClientId)
+						q.sendFinished(message.ClientId)
 						if !infinite {
 							return
 						}
@@ -211,7 +264,14 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[*amqp.Delivery] {
 					}
 					continue
 				}
-				if !yield(&delivery) {
+
+				message, err := MessageFromDelivery(delivery)
+				if err != nil {
+					log.Printf("Failed to parse message: %v", err)
+					continue
+				}
+
+				if !yield(*message) {
 					log.Printf("Exiting early consumer loop")
 					return
 				}
@@ -226,12 +286,12 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[*amqp.Delivery] {
 	}
 }
 
-func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[*amqp.Delivery] {
-	return q.consume(true)
+func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
+	return q.consume(true, true)
 }
 
-func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
-	return q.consume(false)
+func (q *ConsumerQueue) Consume() iter.Seq[Message] {
+	return q.consume(false, false)
 }
 
 func (q *ConsumerQueue) AddFinishSubscriber(pq *ProducerQueue) {

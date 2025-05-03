@@ -55,21 +55,13 @@ func (s *Q1Sink) Reduce() {
 	log.Printf("Q1 sink consuming messages")
 
 	for msg := range s.filteredByYearConsumer.ConsumeSink() {
-		var clientId string
-		var ok bool
-
-		if clientId, ok = msg.Headers["clientId"].(string); !ok {
-			log.Printf("Failed to get clientId from message headers")
-			msg.Nack(false, false)
-			continue
-		}
 
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
 			log.Printf("Received FINISHED message")
-			s.SendClientIdResults(clientId)
-			msg.Ack(false)
+			s.SendClientIdResults(msg.ClientId)
+			msg.Ack()
 			continue
 		}
 
@@ -77,24 +69,24 @@ func (s *Q1Sink) Reduce() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 		var movie messages.Q1SinkMovie
 		err = movie.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
-		row, ok := s.clientResults[clientId]
+		row, ok := s.clientResults[msg.ClientId]
 		if !ok {
 			row = make([]messages.Q1Row, 0)
 		}
 		row = append(row, *messages.NewQ1Row(movie.ID, movie.Title, movie.Genres))
-		s.clientResults[clientId] = row
+		s.clientResults[msg.ClientId] = row
 
-		msg.Ack(false)
+		msg.Ack()
 	}
 }
