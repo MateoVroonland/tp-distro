@@ -44,7 +44,6 @@ class Client:
         try:
             sock.connect((host, port))
             self.current_connection = CompleteSocket(sock)
-            self.current_connection.set_keep_alive(True)
             return self.current_connection
         except (ConnectionError, OSError) as e:
             logger.error(f"Failed to connect to {host}:{port} - {str(e)}")
@@ -142,7 +141,8 @@ class Client:
             
             while self.is_running:
                 try:
-                    self.current_connection.send_all("WAITING_FOR_RESULTS")
+                    self.current_connection.send_all(f"WAITING_FOR_RESULTS:{self.client_id}")
+                    logger.info(f"Sent WAITING_FOR_RESULTS:{self.client_id}")
                     data = self.current_connection.recv_all().decode('utf-8')
                     if not data:
                         logger.info("Server closed the connection, all results received")
@@ -153,7 +153,7 @@ class Client:
                         for _ in range(20):
                             if not self.is_running:
                                 break
-                            time.sleep(1)
+                            time.sleep(9)
                         continue
                     
                     logger.info(f"Received result: {data}")
@@ -176,12 +176,6 @@ class Client:
             {"path": "/docs/ratings.csv"}
         ]
         
-        logger.info("Waiting 15 seconds before starting...")
-        for i in range(15):
-            if not self.is_running:
-                logger.info("Shutdown requested during initial wait")
-                return
-            time.sleep(1)
 
         self.create_tcp_connection(self.SERVER_HOST, self.SERVER_PORT)
         if not self.current_connection:

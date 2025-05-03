@@ -27,21 +27,26 @@ type NameAmountTuple struct {
 }
 
 func (s *CreditsSink) Sink() {
-	actors := make(map[string]int)
+	actors := make(map[string]map[string]int)
 
 	i := 0
-	for msg := range s.sinkConsumer.Consume() {
+	for msg := range s.sinkConsumer.ConsumeSink() {
 
 		stringLine := string(msg.Body)
 
-		i++
+		if stringLine == "FINISHED" {
+			log.Printf("Received FINISHED message")
+			s.SendClientIdResults(msg.ClientId, actors[msg.ClientId])
+			msg.Ack()
+			continue
+		}
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 2
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -49,18 +54,27 @@ func (s *CreditsSink) Sink() {
 		err = credits.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to unmarshal credits: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
-		for _, actor := range credits.Cast {
-			actors[actor]++
+		if _, ok := actors[msg.ClientId]; !ok {
+			log.Printf("Creating new map for clientId: %s", msg.ClientId)
+			actors[msg.ClientId] = make(map[string]int)
 		}
 
-		msg.Ack(false)
+		for _, actor := range credits.Cast {
+			actors[msg.ClientId][actor]++
+		}
+
+		msg.Ack()
 	}
 
 	log.Printf("Processed credits: %d", i)
+
+}
+
+func (s *CreditsSink) SendClientIdResults(clientId string, actors map[string]int) {
 
 	topTen := []messages.Q4Row{}
 
@@ -94,7 +108,7 @@ func (s *CreditsSink) Sink() {
 		return
 	}
 
-	err = s.resultsProducer.Publish(bytes)
+	err = s.resultsProducer.Publish(bytes, clientId)
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)
 		return

@@ -29,7 +29,7 @@ func main() {
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
-	
+
 	consumeQueueName := fmt.Sprintf("movies_metadata_q%s", query)
 	publishQueueName := fmt.Sprintf("movies_filtered_by_year_q%s", query)
 	consumeQueueNameInternal := fmt.Sprintf("filter_q%s_internal", query)
@@ -55,9 +55,18 @@ func main() {
 	case "4":
 		outputMessage = &messages.Q4Movie{}
 	}
-	filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
 
-	go filter.FilterAndPublish(query)
+	if query == "1" {
+		filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
+		go filter.FilterAndPublish()
+	} else {
+		newClientFanout, err := utils.NewProducerFanout(conn, "new_client_fanout")
+		if err != nil {
+			log.Fatalf("Failed to declare a queue: %v", err)
+		}
+		filter := filters.NewFilterJoiner(filteredByCountryConsumer, outputMessage, newClientFanout, query, conn)
+		go filter.FilterAndPublish()
+	}
 
 	<-sigs
 	log.Printf("Received SIGTERM signal, closing connection")

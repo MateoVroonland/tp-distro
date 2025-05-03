@@ -2,7 +2,6 @@ package reducers
 
 import (
 	"encoding/csv"
-	"fmt"
 	"log"
 	"strings"
 
@@ -48,7 +47,7 @@ func (r *SentimentReducer) Reduce() {
 
 	log.Printf("Sentiment reducer started processing")
 
-	for d := range r.queue.Consume() {
+	for d := range r.queue.ConsumeInfinite() {
 		stringLine := string(d.Body)
 
 		processedCount++
@@ -58,7 +57,7 @@ func (r *SentimentReducer) Reduce() {
 		// log.Printf("Received message in Sentiment reducer: %s", stringLine)
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			d.Nack(false, false)
+			d.Nack(false)
 			continue
 		}
 
@@ -71,7 +70,7 @@ func (r *SentimentReducer) Reduce() {
 
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			d.Nack(false, false)
+			d.Nack(false)
 			continue
 		}
 
@@ -83,7 +82,7 @@ func (r *SentimentReducer) Reduce() {
 			negativeStats.TotalRatio += movieSentiment.Ratio
 		}
 
-		d.Ack(false)
+		d.Ack()
 	}
 
 	log.Printf("Sentiment reducer finished processing %d movies", processedCount)
@@ -98,13 +97,13 @@ func (r *SentimentReducer) Reduce() {
 		positiveStats.AverageRatio, positiveStats.TotalMovies,
 		negativeStats.AverageRatio, negativeStats.TotalMovies)
 
-	positiveCSV := fmt.Sprintf("POSITIVE,%.6f,%d,%d",
-		positiveStats.AverageRatio, positiveStats.TotalMovies, processedCount)
-	r.publishQueue.Publish([]byte(positiveCSV))
+	// positiveCSV := fmt.Sprintf("POSITIVE,%.6f,%d,%d",
+	// 	positiveStats.AverageRatio, positiveStats.TotalMovies, processedCount)
+	// r.publishQueue.Publish([]byte(positiveCSV))
 
-	negativeCSV := fmt.Sprintf("NEGATIVE,%.6f,%d,%d",
-		negativeStats.AverageRatio, negativeStats.TotalMovies, processedCount)
-	r.publishQueue.Publish([]byte(negativeCSV))
+	// negativeCSV := fmt.Sprintf("NEGATIVE,%.6f,%d,%d",
+	// 	negativeStats.AverageRatio, negativeStats.TotalMovies, processedCount)
+	// r.publishQueue.Publish([]byte(negativeCSV))
 
 	log.Printf("Sentiment reducer finished processing %d movies", processedCount)
 }

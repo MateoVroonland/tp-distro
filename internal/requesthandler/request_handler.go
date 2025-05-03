@@ -1,6 +1,7 @@
 package requesthandler
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
@@ -13,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -26,28 +26,30 @@ const (
 
 type Server struct {
 	conn            *amqp.Connection
-	results         *messages.Results
+	results         map[string]messages.Results
 	resultsLock     sync.Mutex
 	wg              sync.WaitGroup
 	producers       map[string]*utils.ProducerQueue
 	isListening     bool
-	listener        *net.TCPListener
+	listener        net.Listener
 	shuttingDown    bool
 	shutdownChannel chan struct{}
-	clients         map[string]net.Conn
+	clientsLock     sync.Mutex
+	clients         map[string]bool
 }
 
 func NewServer(conn *amqp.Connection) *Server {
 	return &Server{
 		conn:            conn,
-		results:         nil,
+		results:         make(map[string]messages.Results),
 		resultsLock:     sync.Mutex{},
 		wg:              sync.WaitGroup{},
 		producers:       make(map[string]*utils.ProducerQueue),
 		isListening:     false,
 		shuttingDown:    false,
 		shutdownChannel: make(chan struct{}),
-		clients:         make(map[string]net.Conn),
+		clientsLock:     sync.Mutex{},
+		clients:         make(map[string]bool),
 	}
 }
 
@@ -63,7 +65,6 @@ func (s *Server) Start() {
 	}()
 
 	s.initializeProducers()
-	time.Sleep(15 * time.Second)
 	s.wg.Add(1)
 	go s.listenForResults()
 
@@ -90,11 +91,7 @@ func (s *Server) initializeProducers() error {
 
 func (s *Server) startTCPServer() error {
 	var err error
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%s", PORT))
-	if err != nil {
-		return fmt.Errorf("failed to resolve TCP address: %v", err)
-	}
-	s.listener, err = net.ListenTCP("tcp", addr)
+	s.listener, err = net.Listen("tcp", fmt.Sprintf(":%s", PORT))
 	if err != nil {
 		return fmt.Errorf("failed to start TCP server: %v", err)
 	}
@@ -107,7 +104,7 @@ func (s *Server) startTCPServer() error {
 		defer s.listener.Close()
 
 		for !s.shuttingDown {
-			conn, err := s.listener.AcceptTCP()
+			conn, err := s.listener.Accept()
 
 			if err != nil {
 				if s.shuttingDown {
@@ -117,13 +114,6 @@ func (s *Server) startTCPServer() error {
 				continue
 			}
 
-			err = conn.SetKeepAlive(true)
-
-			if err != nil {
-				log.Printf("Error setting keep alive: %v", err)
-				conn.Close()
-				continue
-			}
 			s.wg.Add(1)
 			go s.handleClientConnection(conn)
 		}
@@ -138,11 +128,12 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 	resultsSent := false
 
-	log.Printf("New client connected: %s", conn.RemoteAddr())
+	var clientId string
+	reader := bufio.NewReader(conn)
 
 	for !resultsSent && !s.shuttingDown {
 
-		message, err := utils.MessageFromSocket(&conn)
+		message, err := utils.MessageFromSocket(reader)
 		if err != nil {
 			log.Printf("Error reading message: %v, reading message: %v", err, string(message))
 
@@ -153,27 +144,36 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 		switch {
 		case msgContent == "CLIENT_ID_REQUEST":
-			s.handleClientIDRequest(conn)
-		case msgContent == "WAITING_FOR_RESULTS":
-			resultsSent = s.handleResultRequest(conn)
+			clientId = s.handleClientIDRequest(conn)
+			log.Printf("New client connected: %s", clientId)
+		case strings.Contains(msgContent, "WAITING_FOR_RESULTS:"):
+			clientId = strings.Split(msgContent, ":")[1]
+			resultsSent = s.handleResultRequest(conn, clientId)
+			if resultsSent {
+				log.Printf("Results sent to client: %s", clientId)
+			}
 		case msgContent == "STARTING_FILE":
-			s.handleDataStream(conn)
+			s.handleDataStream(conn, clientId)
 		}
 	}
 }
 
-func (s *Server) handleClientIDRequest(conn net.Conn) {
+func (s *Server) handleClientIDRequest(conn net.Conn) string {
 	clientID := utils.GenerateRandomID()
-	s.clients[clientID] = conn
+	s.clientsLock.Lock()
+	s.clients[clientID] = true
+	s.clientsLock.Unlock()
 	utils.SendMessage(conn, []byte(clientID))
+	return clientID
 }
 
-func (s *Server) handleDataStream(conn net.Conn) {
+func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 	log.Println("Processing data stream...")
 
 	filesRemaining := 3
 	fileType := ""
 
+	reader := bufio.NewReader(conn)
 	for filesRemaining > 0 {
 		switch filesRemaining {
 		case 3:
@@ -184,7 +184,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 			fileType = "ratings"
 		}
 
-		message, err := utils.MessageFromSocket(&conn)
+		message, err := utils.MessageFromSocket(reader)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("End of stream reached for %s", fileType)
@@ -198,15 +198,15 @@ func (s *Server) handleDataStream(conn net.Conn) {
 		msgContent := string(message)
 
 		if msgContent == "FINISHED_FILE" {
-			log.Printf("Received FINISHED_FILE signal for %s", fileType)
+			log.Printf("Received FINISHED_FILE signal %s, clientId: %s", fileType, clientId)
 
 			producer, exists := s.producers[fileType]
 			if !exists {
-				log.Printf("No producer found for %s", fileType)
+				log.Printf("No producer found for %s clientId: %s", fileType, clientId)
 				return
 			}
 
-			producer.Publish([]byte("FINISHED"))
+			producer.Publish([]byte("FINISHED"), clientId)
 
 			filesRemaining--
 
@@ -215,7 +215,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 
 		producer, exists := s.producers[fileType]
 		if !exists {
-			log.Printf("No producer found for %s", fileType)
+			log.Printf("No producer found for %s clientId: %s", fileType, clientId)
 			return
 		}
 		reader := csv.NewReader(strings.NewReader(msgContent))
@@ -238,7 +238,7 @@ func (s *Server) handleDataStream(conn net.Conn) {
 				continue
 			}
 			writer.Flush()
-			err = producer.Publish(buffer.Bytes())
+			err = producer.Publish(buffer.Bytes(), clientId)
 			if err != nil {
 				log.Printf("Error publishing line to %s: %v", fileType, err)
 			}
@@ -246,18 +246,25 @@ func (s *Server) handleDataStream(conn net.Conn) {
 	}
 }
 
-func (s *Server) handleResultRequest(conn net.Conn) bool {
-	log.Printf("Client requested results")
+func (s *Server) handleResultRequest(conn net.Conn, clientId string) bool {
+	log.Printf("Client requested results, clientId: %s", clientId)
 
 	s.resultsLock.Lock()
-	defer s.resultsLock.Unlock()
+	clientResults, exists := s.results[clientId]
+	s.resultsLock.Unlock()
 
-	if !s.results.IsComplete() {
+	if !exists {
+		log.Printf("No results found for clientId: %s", clientId)
 		utils.SendMessage(conn, []byte("NO_RESULTS"))
 		return false
 	}
 
-	resultsBytes, err := json.Marshal(s.results)
+	if !clientResults.IsComplete() {
+		utils.SendMessage(conn, []byte("NO_RESULTS"))
+		return false
+	}
+
+	resultsBytes, err := json.Marshal(clientResults)
 	if err != nil {
 		log.Printf("Error marshalling results: %v", err)
 		return true
@@ -270,34 +277,33 @@ func (s *Server) handleResultRequest(conn net.Conn) bool {
 func (s *Server) listenForResults() {
 	defer s.wg.Done()
 
-	var results messages.Results
 	resultsConsumer, err := utils.NewConsumerQueue(s.conn, "results", "results", "")
 	if err != nil {
 		log.Fatalf("Error creating consumer for results: %v", err)
 	}
 
-	for d := range resultsConsumer.Consume() {
-		err = json.Unmarshal(d.Body, &results)
+	for d := range resultsConsumer.ConsumeInfinite() {
+		log.Println("Received results from client:", d.ClientId)
+		clientResults := s.results[d.ClientId]
+
+		err = json.Unmarshal(d.Body, &clientResults)
 		if err != nil {
 			log.Printf("Error unmarshalling results: %v", err)
-			d.Nack(false, false)
+			d.Nack(false)
 			continue
 		}
 
-		s.logResults(&results)
+		s.logResults(clientResults)
 
 		s.resultsLock.Lock()
-		s.results = &results
+		s.results[d.ClientId] = clientResults
 		s.resultsLock.Unlock()
 
-		d.Ack(false)
+		d.Ack()
 	}
 }
 
-func (s *Server) logResults(results *messages.Results) {
-	if results == nil {
-		return
-	}
+func (s *Server) logResults(results messages.Results) {
 
 	if jsonBytes, err := json.Marshal(results.Query1); err == nil {
 		log.Printf("Query 1: %s", string(jsonBytes))
@@ -327,6 +333,5 @@ func (s *Server) Shutdown() {
 	if s.listener != nil {
 		s.listener.Close()
 	}
-
 	s.wg.Wait()
 }

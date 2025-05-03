@@ -19,59 +19,46 @@ func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearPro
 	return &Filter{filteredByCountryConsumer: filteredByCountryConsumer, filteredByYearProducer: filteredByYearProducer, outputMessage: outputMessage}
 }
 
-func (f *Filter) FilterAndPublish(query string) error {
-	log.Printf("Filtering and publishing for query: %s", query)
+func (f *Filter) FilterAndPublish() error {
+	log.Printf("Filtering and publishing")
 
-	query = strings.ToLower(query)
-	if query == "1" {
-		f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
-	} else if query == "3" || query == "4" {
-		log.Printf("Adding finish subscriber with routing key: 1")
-		f.filteredByCountryConsumer.AddFinishSubscriberWithRoutingKey(f.filteredByYearProducer, "1") // send to the first queue in the hashed queues
-	}
+	f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
 
-	for msg := range f.filteredByCountryConsumer.Consume() {
-		log.Printf("Received message: %s", string(msg.Body))
+	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
+
 		stringLine := string(msg.Body)
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 		if err := f.outputMessage.Deserialize(record); err != nil {
 			log.Printf("Failed to deserialize movie: %s", string(msg.Body))
 			log.Printf("Error deserializing movie: %s", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 		if f.outputMessage.PassesFilter() {
 			serializedMovie, err := protocol.Serialize(f.outputMessage)
 			if err != nil {
 				log.Printf("Error serializing movie: %s", err)
-				msg.Nack(false, false)
+				msg.Nack(false)
 				continue
 			}
 
-			routingKey := f.outputMessage.GetRoutingKey()
-
-			if routingKey == "" {
-				err = f.filteredByYearProducer.Publish(serializedMovie)
-				log.Printf("Published movie with routing key: empty")
-			} else {
-				err = f.filteredByYearProducer.PublishWithRoutingKey(serializedMovie, routingKey)
-				log.Printf("Published movie with routing key: %s", routingKey)
-			}
+			err = f.filteredByYearProducer.Publish(serializedMovie, msg.ClientId)
+			log.Printf("Published movie with routing key: empty")
 
 			if err != nil {
 				log.Printf("Error publishing movie: %s", err)
-				msg.Nack(false, false)
+				msg.Nack(false)
 				continue
 			}
 		}
-		msg.Ack(false)
+		msg.Ack()
 	}
 	return nil
 }
