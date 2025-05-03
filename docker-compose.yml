@@ -150,25 +150,25 @@ services:
   #   depends_on:
   #     rabbitmq:
   #       condition: service_healthy
-  budget_reducer:
-    build:
-      context: .
-      dockerfile: cmd/reducers/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /budget_reducer.go
-    deploy:
-      replicas: 2
+  # budget_reducer:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/reducers/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_reducer.go
+  #   deploy:
+  #     replicas: 2
 
-  budget_sink:
-    build:
-      context: .
-      dockerfile: cmd/sinks_q2/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /budget_sink/budget_sink.go
+  # budget_sink:
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sinks_q2/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_sink/budget_sink.go
 
   # sentiment_reducer:
   #   build:

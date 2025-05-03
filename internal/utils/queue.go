@@ -190,7 +190,9 @@ func (q *ConsumerQueue) consume(infinite bool, passDownFinsh bool) iter.Seq[Mess
 			case delivery := <-closeQueueDelivery: // FINISHED-RECEIVED | FINISHED-DONE
 				message, err := MessageFromDelivery(delivery)
 				if err != nil {
-					log.Printf("Failed to parse message: %v", err)
+					log.Printf("Failed to parse message in consume: %v", err)
+					log.Printf("delivery: %v", delivery)
+					delivery.Nack(false, false)
 					continue
 				}
 
@@ -216,8 +218,8 @@ func (q *ConsumerQueue) consume(infinite bool, passDownFinsh bool) iter.Seq[Mess
 							}
 						} else {
 							message.Ack()
-							continue
 						}
+						continue
 					}
 
 					message.Ack()
@@ -246,28 +248,28 @@ func (q *ConsumerQueue) consume(infinite bool, passDownFinsh bool) iter.Seq[Mess
 				// 	q.timer = time.After(time.Millisecond * 1500)
 				// }
 
-				clientId := delivery.Headers["clientId"].(string)
+				message, err := MessageFromDelivery(delivery)
+				if err != nil {
+					log.Printf("Failed to parse message in delivery channel: %v", err)
+					log.Printf("delivery: %v", delivery)
+					delivery.Nack(false, false)
+					continue
+				}
 
-				if _, ok := q.replicasMap[clientId]; !ok {
-					q.replicasMap[clientId] = q.replicas
+				if _, ok := q.replicasMap[message.ClientId]; !ok {
+					q.replicasMap[message.ClientId] = q.replicas
 				}
 
 				if string(delivery.Body) == "FINISHED" && q.fanoutName != "" {
 					log.Printf("Received FINISHED from %s", q.queueName)
-					q.isLeader[clientId] = true
-					log.Printf("Is leader: %t", q.isLeader[clientId])
-					q.closeQueueProducer.Publish([]byte("FINISHED-RECEIVED"), clientId)
+					q.isLeader[message.ClientId] = true
+					log.Printf("Is leader: %t", q.isLeader[message.ClientId])
+					q.closeQueueProducer.Publish([]byte("FINISHED-RECEIVED"), message.ClientId)
 					log.Printf("Sent FINISHED-RECEIVED to")
 					err := delivery.Ack(false)
 					if err != nil {
 						log.Printf("Failed to ack delivery: %v", err)
 					}
-					continue
-				}
-
-				message, err := MessageFromDelivery(delivery)
-				if err != nil {
-					log.Printf("Failed to parse message: %v", err)
 					continue
 				}
 
