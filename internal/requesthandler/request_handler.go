@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -66,7 +65,6 @@ func (s *Server) Start() {
 	}()
 
 	s.initializeProducers()
-	time.Sleep(15 * time.Second)
 	s.wg.Add(1)
 	go s.listenForResults()
 
@@ -174,7 +172,6 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 
 	filesRemaining := 3
 	fileType := ""
-	fileType2 := ""
 
 	reader := bufio.NewReader(conn)
 	for filesRemaining > 0 {
@@ -186,11 +183,6 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 		case 1:
 			fileType = "ratings"
 		}
-		if fileType != fileType2 {
-			log.Printf("Switching to %s clientId: %s", fileType, clientId)
-		}
-
-		fileType2 = fileType
 
 		message, err := utils.MessageFromSocket(reader)
 		if err != nil {
@@ -342,6 +334,5 @@ func (s *Server) Shutdown() {
 	if s.listener != nil {
 		s.listener.Close()
 	}
-
 	s.wg.Wait()
 }

@@ -125,24 +125,7 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 	return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, deliveryChannel: deliveryChannel, fanoutName: fanoutName, signalChan: signalChan, replicas: replicasInt, replicasMap: replicasMap, isLeader: isLeader}, nil
 }
 
-func (q *ConsumerQueue) ConsumeSink() iter.Seq[*amqp.Delivery] {
-	return func(yield func(*amqp.Delivery) bool) {
-		for {
-			select {
-			case <-q.signalChan:
-				log.Printf("Received SIGTERM signal, closing connection")
-				return
-			case delivery := <-q.deliveryChannel:
-				if !yield(&delivery) {
-					log.Printf("Exiting early consumer loop")
-					return
-				}
-			}
-		}
-	}
-}
-
-func (q *ConsumerQueue) consume(infinite bool) iter.Seq[*amqp.Delivery] {
+func (q *ConsumerQueue) consume(infinite bool, passDownFinsh bool) iter.Seq[*amqp.Delivery] {
 	return func(yield func(*amqp.Delivery) bool) {
 
 		var closeQueueDelivery <-chan amqp.Delivery
@@ -205,11 +188,13 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[*amqp.Delivery] {
 					log.Printf("Is leader: %t", q.isLeader[clientId])
 					q.closeQueueProducer.Publish([]byte("FINISHED-RECEIVED"), clientId)
 					log.Printf("Sent FINISHED-RECEIVED to")
-					err := delivery.Ack(false)
-					if err != nil {
-						log.Printf("Failed to ack delivery: %v", err)
+					if !passDownFinsh {
+						err := delivery.Ack(false)
+						if err != nil {
+							log.Printf("Failed to ack delivery: %v", err)
+						}
+						continue
 					}
-					continue
 				}
 				if !yield(&delivery) {
 					log.Printf("Exiting early consumer loop")
@@ -226,12 +211,16 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[*amqp.Delivery] {
 	}
 }
 
+func (q *ConsumerQueue) ConsumeSink() iter.Seq[*amqp.Delivery] {
+	return q.consume(true, true)
+}
+
 func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[*amqp.Delivery] {
-	return q.consume(true)
+	return q.consume(true, false)
 }
 
 func (q *ConsumerQueue) Consume() iter.Seq[*amqp.Delivery] {
-	return q.consume(false)
+	return q.consume(false, false)
 }
 
 func (q *ConsumerQueue) AddFinishSubscriber(pq *ProducerQueue) {

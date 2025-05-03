@@ -16,22 +16,9 @@ services:
       context: .
       dockerfile: cmd/client/Dockerfile
     depends_on:
-      rabbitmq:
-        condition: service_healthy
-      requesthandler:
-        condition: service_started
-    volumes:
-      - ./docs:/docs
-
-  client2:
-    build:
-      context: .
-      dockerfile: cmd/client/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      requesthandler:
-        condition: service_started
+      - requesthandler
+    deploy:
+      replicas: 2
     volumes:
       - ./docs:/docs
 

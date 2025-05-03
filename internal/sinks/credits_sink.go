@@ -27,7 +27,7 @@ type NameAmountTuple struct {
 }
 
 func (s *CreditsSink) Sink() {
-	actors := make(map[string]int)
+	actors := make(map[string]map[string]int)
 
 	i := 0
 	for msg := range s.sinkConsumer.ConsumeSink() {
@@ -44,7 +44,7 @@ func (s *CreditsSink) Sink() {
 
 		if stringLine == "FINISHED" {
 			log.Printf("Received FINISHED message")
-			s.SendClientIdResults(clientId, actors)
+			s.SendClientIdResults(clientId, actors[clientId])
 			msg.Ack(false)
 			continue
 		}
@@ -66,8 +66,13 @@ func (s *CreditsSink) Sink() {
 			continue
 		}
 
+		if _, ok := actors[clientId]; !ok {
+			log.Printf("Creating new map for clientId: %s", clientId)
+			actors[clientId] = make(map[string]int)
+		}
+
 		for _, actor := range credits.Cast {
-			actors[actor]++
+			actors[clientId][actor]++
 		}
 
 		msg.Ack(false)

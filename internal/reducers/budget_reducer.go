@@ -6,31 +6,46 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
 type BudgetReducer struct {
-	queue        *utils.ConsumerQueue
-	publishQueue *utils.ProducerQueue
+	queue            *utils.ConsumerQueue
+	publishQueue     *utils.ProducerQueue
+	budgetPerCountry map[string]map[string]int
 }
 
 func NewBudgetReducer(queue *utils.ConsumerQueue, publishQueue *utils.ProducerQueue) *BudgetReducer {
 
-	return &BudgetReducer{queue: queue, publishQueue: publishQueue}
+	return &BudgetReducer{queue: queue, publishQueue: publishQueue, budgetPerCountry: make(map[string]map[string]int)}
 }
 
-func (r *BudgetReducer) Reduce() map[string]int {
-	budgetPerCountry := make(map[string]int)
+func (r *BudgetReducer) Reduce() {
 	i := 0
 	defer r.queue.CloseChannel()
 	defer r.publishQueue.CloseChannel()
 
 	r.queue.AddFinishSubscriber(r.publishQueue)
 
-	for msg := range r.queue.ConsumeInfinite() {
+	for msg := range r.queue.ConsumeSink() {
 		stringLine := string(msg.Body)
 		i++
+
+		var clientId string
+		var ok bool
+		if clientId, ok = msg.Headers["clientId"].(string); !ok {
+			log.Printf("Failed to get clientId from message headers")
+			msg.Nack(false, false)
+			continue
+		}
+
+		if stringLine == "FINISHED" {
+			r.SendResults(clientId)
+			msg.Ack(false)
+			continue
+		}
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
@@ -48,13 +63,16 @@ func (r *BudgetReducer) Reduce() map[string]int {
 			continue
 		}
 
-		budgetPerCountry[movieBudget.Country] += movieBudget.Amount
+		r.budgetPerCountry[clientId][movieBudget.Country] += movieBudget.Amount
 		msg.Ack(false)
 	}
 
 	log.Printf("Total movies processed: %d", i)
 
-	budgets := messages.ParseBudgetMap(budgetPerCountry)
+}
+
+func (r *BudgetReducer) SendResults(clientId string) {
+	budgets := messages.ParseBudgetMap(r.budgetPerCountry[clientId])
 	sort.Slice(budgets, func(i, j int) bool {
 		return budgets[i].Amount > budgets[j].Amount
 	})
@@ -63,13 +81,11 @@ func (r *BudgetReducer) Reduce() map[string]int {
 		if budget.Amount < 1 {
 			continue
 		}
-		// serializedBudget, err := protocol.Serialize(&budget)
-		// if err != nil {
-		// 	log.Printf("Failed to serialize budget: %v", err)
-		// 	continue
-		// }
-		// r.publishQueue.Publish(serializedBudget)
+		serializedBudget, err := protocol.Serialize(&budget)
+		if err != nil {
+			log.Printf("Failed to serialize budget: %v", err)
+			continue
+		}
+		r.publishQueue.Publish(serializedBudget, clientId)
 	}
-
-	return budgetPerCountry
 }
