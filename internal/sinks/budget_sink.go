@@ -52,6 +52,10 @@ func (s *BudgetSink) Sink() {
 			continue
 		}
 
+		if _, ok := budgetPerCountry[msg.ClientId]; !ok {
+			budgetPerCountry[msg.ClientId] = make(map[string]int)
+		}
+
 		budgetPerCountry[msg.ClientId][movieBudget.Country] += movieBudget.Amount
 		msg.Ack()
 	}

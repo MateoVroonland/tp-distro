@@ -55,6 +55,10 @@ func (r *BudgetReducer) Reduce() {
 			continue
 		}
 
+		if _, ok := r.budgetPerCountry[msg.ClientId]; !ok {
+			r.budgetPerCountry[msg.ClientId] = make(map[string]int)
+		}
+
 		r.budgetPerCountry[msg.ClientId][movieBudget.Country] += movieBudget.Amount
 		msg.Ack()
 	}
