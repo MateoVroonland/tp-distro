@@ -2,6 +2,7 @@ package receiver
 
 import (
 	"encoding/csv"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -16,29 +17,32 @@ import (
 type RatingsReceiver struct {
 	conn            *amqp.Connection
 	ratingsConsumer *utils.ConsumerQueue
-	joinerProducer  *utils.ProducerQueue
+	joinerProducers map[string]*utils.ProducerQueue
 }
 
-func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQueue, joinerProducer *utils.ProducerQueue) *RatingsReceiver {
-	return &RatingsReceiver{conn: conn, ratingsConsumer: ratingsConsumer, joinerProducer: joinerProducer}
+func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQueue) *RatingsReceiver {
+	return &RatingsReceiver{conn: conn, ratingsConsumer: ratingsConsumer, joinerProducers: make(map[string]*utils.ProducerQueue)}
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
 
-	r.ratingsConsumer.AddFinishSubscriberWithRoutingKey(r.joinerProducer, "1")
 	ratingsConsumed := 0
 
-	var clientId string
-	var ok bool
-
 	for msg := range r.ratingsConsumer.ConsumeInfinite() {
-		if clientId, ok = msg.Headers["clientId"].(string); !ok {
-			log.Printf("Failed to get clientId from message headers")
-			msg.Nack(false, false)
-			continue
+		stringLine := string(msg.Body)
+		clientId := msg.Headers["clientId"].(string)
+		if _, ok := r.joinerProducers[clientId]; !ok {
+			producerName := fmt.Sprintf("ratings_joiner_client_%s", clientId)
+			producer, err := utils.NewProducerQueue(r.conn, producerName, producerName)
+			if err != nil {
+				log.Printf("Failed to create producer for client %s: %v", clientId, err)
+				msg.Nack(false, false)
+				continue
+			}
+			r.ratingsConsumer.AddFinishSubscriberWithRoutingKey(producer, "1")
+			r.joinerProducers[clientId] = producer
 		}
 		ratingsConsumed++
-		stringLine := string(msg.Body)
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 4
 		record, err := reader.Read()
@@ -62,7 +66,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 		}
 
 		routingKey := utils.HashString(strconv.Itoa(rating.MovieID), constants.RATINGS_JOINER_AMOUNT)
-		err = r.joinerProducer.PublishWithRoutingKey(serializedRating, strconv.Itoa(routingKey), clientId)
+		err = r.joinerProducers[clientId].PublishWithRoutingKey(serializedRating, strconv.Itoa(routingKey), clientId)
 		if err != nil {
 			log.Printf("Error publishing rating: %s", err)
 			msg.Nack(false, true)

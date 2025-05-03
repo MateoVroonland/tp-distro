@@ -22,7 +22,7 @@ func main() {
 		log.Fatalf("ID is not set")
 	}
 
-	newClientQueue, err := utils.NewConsumerFanout(conn, "new_client_fanout")
+	newClientQueue, err := utils.NewConsumerFanout(conn, "new_client_fanout_q4")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}

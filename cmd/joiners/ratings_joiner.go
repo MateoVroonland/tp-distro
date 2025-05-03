@@ -22,23 +22,14 @@ func main() {
 		log.Fatalf("ID is not set")
 	}
 
-	ratingsJoinerConsumer, err := utils.NewConsumerQueueWithRoutingKey(conn, "ratings_joiner", "ratings_joiner", id, "ratings_joiner_ratings_internal")
+	newClientQueue, err := utils.NewConsumerFanout(conn, "new_client_fanout_q3")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	moviesJoinerConsumer, err := utils.NewConsumerQueueWithRoutingKey(conn, "movies_filtered_by_year_q3", "movies_filtered_by_year_q3", id, "ratings_joiner_movies_internal")
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
 
-	sinkProducer, err := utils.NewProducerQueue(conn, "q3_sink", "q3_sink")
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
-	ratingsJoiner := joiners.NewRatingsJoiner(ratingsJoinerConsumer, moviesJoinerConsumer, sinkProducer)
+	ratingsJoiner := joiners.NewRatingsJoiner(conn, newClientQueue)
 	log.Printf("Ratings joiner initialized with id '%s'", id)
-	ratingsJoiner.JoinRatings()
+	ratingsJoiner.JoinRatings(id)
 
 }
