@@ -33,17 +33,9 @@ func (r *BudgetReducer) Reduce() {
 		stringLine := string(msg.Body)
 		i++
 
-		var clientId string
-		var ok bool
-		if clientId, ok = msg.Headers["clientId"].(string); !ok {
-			log.Printf("Failed to get clientId from message headers")
-			msg.Nack(false, false)
-			continue
-		}
-
 		if stringLine == "FINISHED" {
-			r.SendResults(clientId)
-			msg.Ack(false)
+			r.SendResults(msg.ClientId)
+			msg.Ack()
 			continue
 		}
 
@@ -51,7 +43,7 @@ func (r *BudgetReducer) Reduce() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -59,12 +51,12 @@ func (r *BudgetReducer) Reduce() {
 		err = movieBudget.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
-		r.budgetPerCountry[clientId][movieBudget.Country] += movieBudget.Amount
-		msg.Ack(false)
+		r.budgetPerCountry[msg.ClientId][movieBudget.Country] += movieBudget.Amount
+		msg.Ack()
 	}
 
 	log.Printf("Total movies processed: %d", i)

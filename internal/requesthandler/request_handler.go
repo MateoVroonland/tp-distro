@@ -283,24 +283,23 @@ func (s *Server) listenForResults() {
 	}
 
 	for d := range resultsConsumer.ConsumeInfinite() {
-		clientId := d.Headers["clientId"].(string)
-		log.Println("Received results from client:", clientId)
-		clientResults := s.results[clientId]
+		log.Println("Received results from client:", d.ClientId)
+		clientResults := s.results[d.ClientId]
 
 		err = json.Unmarshal(d.Body, &clientResults)
 		if err != nil {
 			log.Printf("Error unmarshalling results: %v", err)
-			d.Nack(false, false)
+			d.Nack(false)
 			continue
 		}
 
 		s.logResults(clientResults)
 
 		s.resultsLock.Lock()
-		s.results[clientId] = clientResults
+		s.results[d.ClientId] = clientResults
 		s.resultsLock.Unlock()
 
-		d.Ack(false)
+		d.Ack()
 	}
 }
 

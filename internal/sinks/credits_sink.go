@@ -34,18 +34,10 @@ func (s *CreditsSink) Sink() {
 
 		stringLine := string(msg.Body)
 
-		var clientId string
-		var ok bool
-		if clientId, ok = msg.Headers["clientId"].(string); !ok {
-			log.Printf("Failed to get clientId from message headers")
-			msg.Nack(false, false)
-			continue
-		}
-
 		if stringLine == "FINISHED" {
 			log.Printf("Received FINISHED message")
-			s.SendClientIdResults(clientId, actors[clientId])
-			msg.Ack(false)
+			s.SendClientIdResults(msg.ClientId, actors[msg.ClientId])
+			msg.Ack()
 			continue
 		}
 
@@ -54,7 +46,7 @@ func (s *CreditsSink) Sink() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -62,20 +54,20 @@ func (s *CreditsSink) Sink() {
 		err = credits.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to unmarshal credits: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
-		if _, ok := actors[clientId]; !ok {
-			log.Printf("Creating new map for clientId: %s", clientId)
-			actors[clientId] = make(map[string]int)
+		if _, ok := actors[msg.ClientId]; !ok {
+			log.Printf("Creating new map for clientId: %s", msg.ClientId)
+			actors[msg.ClientId] = make(map[string]int)
 		}
 
 		for _, actor := range credits.Cast {
-			actors[clientId][actor]++
+			actors[msg.ClientId][actor]++
 		}
 
-		msg.Ack(false)
+		msg.Ack()
 	}
 
 	log.Printf("Processed credits: %d", i)
