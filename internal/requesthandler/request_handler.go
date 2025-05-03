@@ -1,6 +1,7 @@
 package requesthandler
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
@@ -130,10 +131,11 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 	resultsSent := false
 
 	var clientId string
+	reader := bufio.NewReader(conn)
 
 	for !resultsSent && !s.shuttingDown {
 
-		message, err := utils.MessageFromSocket(&conn)
+		message, err := utils.MessageFromSocket(reader)
 		if err != nil {
 			log.Printf("Error reading message: %v, reading message: %v", err, string(message))
 
@@ -174,6 +176,7 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 	fileType := ""
 	fileType2 := ""
 
+	reader := bufio.NewReader(conn)
 	for filesRemaining > 0 {
 		switch filesRemaining {
 		case 3:
@@ -189,9 +192,7 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 
 		fileType2 = fileType
 
-		log.Printf("Waiting for message from client: %s", clientId)
-		message, err := utils.MessageFromSocket(&conn)
-		log.Printf("Received message from client: %s", clientId)
+		message, err := utils.MessageFromSocket(reader)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("End of stream reached for %s", fileType)

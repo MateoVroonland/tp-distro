@@ -8,8 +8,7 @@ import (
 	"net"
 )
 
-func MessageFromSocket(socket *net.Conn) ([]byte, error) {
-	reader := bufio.NewReader(*socket)
+func MessageFromSocket(reader *bufio.Reader) ([]byte, error) {
 	u8Buffer := make([]byte, 4)
 	_, err := io.ReadFull(reader, u8Buffer)
 	if err != nil {
