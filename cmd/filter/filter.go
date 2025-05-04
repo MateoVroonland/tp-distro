@@ -44,13 +44,9 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	filteredByYearProducer, err := utils.NewProducerQueue(conn, publishQueueName, env.AppEnv.Q1_SINK_AMOUNT)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
+	
 	log.Printf("Filter 2000s initialized")
-
+	
 	var outputMessage protocol.MovieToFilter
 	switch query {
 	case "1":
@@ -60,9 +56,23 @@ func main() {
 	case "4":
 		outputMessage = &messages.Q4Movie{}
 	}
-
-	filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
-	go filter.FilterAndPublish()
+	
+	if query == "1" {
+		filteredByYearProducer, err := utils.NewProducerQueue(conn, publishQueueName, env.AppEnv.Q1_SINK_AMOUNT)
+		if err != nil {
+			log.Fatalf("Failed to declare a queue: %v", err)
+		}
+		filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
+		go filter.FilterAndPublish()
+	} else {
+		producerName := fmt.Sprintf("new_client_fanout_q%s", query)
+		newClientFanout, err := utils.NewProducerFanout(conn, producerName)
+		if err != nil {
+			log.Fatalf("Failed to declare a queue: %v", err)
+		}
+		filter := filters.NewFilterJoiner(filteredByCountryConsumer, outputMessage, newClientFanout, query, conn)
+		go filter.FilterAndPublish()
+	}
 
 	<-sigs
 	log.Printf("Received SIGTERM signal, closing connection")

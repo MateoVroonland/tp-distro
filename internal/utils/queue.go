@@ -300,80 +300,80 @@ func (q *ProducerQueue) CloseChannel() error {
 	return q.ch.Close()
 }
 
-// func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQueue, error) {
-// 	ch, err := conn.Channel()
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQueue, error) {
+	ch, err := conn.Channel()
+	if err != nil {
+		return nil, err
+	}
 
-// 	err = ch.ExchangeDeclare(
-// 		exchangeName, // name
-// 		"fanout",     // type.
-// 		false,        // durable
-// 		false,        // auto-deleted
-// 		false,        // internal
-// 		false,        // no-wait
-// 		nil,          // arguments
-// 	)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	err = ch.ExchangeDeclare(
+		exchangeName, // name
+		"fanout",     // type.
+		false,        // durable
+		false,        // auto-deleted
+		false,        // internal
+		false,        // no-wait
+		nil,          // arguments
+	)
+	if err != nil {
+		return nil, err
+	}
 
-// 	q, err := ch.QueueDeclare("", false, false, false, false, nil)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	q, err := ch.QueueDeclare("", false, false, false, false, nil)
+	if err != nil {
+		return nil, err
+	}
 
-// 	err = ch.QueueBind(
-// 		q.Name,
-// 		"",
-// 		exchangeName,
-// 		false,
-// 		nil,
-// 	)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	err = ch.QueueBind(
+		q.Name,
+		"",
+		exchangeName,
+		false,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
 
-// 	deliveryChannel, err := ch.Consume(
-// 		q.Name, // queue name
-// 		"",     // id
-// 		false,  // auto-ack
-// 		false,  // exclusive
-// 		false,  // no-local
-// 		false,  // no-wait
-// 		nil,    // args
-// 	)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	deliveryChannel, err := ch.Consume(
+		q.Name, // queue name
+		"",     // id
+		false,  // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+	if err != nil {
+		return nil, err
+	}
 
-// 	return &ConsumerQueue{
-// 		ch:              ch,
-// 		queueName:       q.Name,
-// 		deliveryChannel: deliveryChannel,
-// 		replicasMap:     make(map[string]map[string]bool),
-// 	}, nil
-// }
+	return &ConsumerQueue{
+		ch:              ch,
+		queueName:       q.Name,
+		deliveryChannel: deliveryChannel,
+		finishedReceived: make(map[string]map[string]bool),
+	}, nil
+}
 
-// func NewProducerFanout(conn *amqp.Connection, exchangeName string) (*ProducerQueue, error) {
-// 	ch, err := conn.Channel()
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func NewProducerFanout(conn *amqp.Connection, exchangeName string) (*ProducerQueue, error) {
+	ch, err := conn.Channel()
+	if err != nil {
+		return nil, err
+	}
 
-// 	err = ch.ExchangeDeclare(
-// 		exchangeName, // name
-// 		"fanout",     // type.
-// 		false,        // durable
-// 		false,        // auto-deleted
-// 		false,        // internal
-// 		false,        // no-wait
-// 		nil,          // arguments
-// 	)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	err = ch.ExchangeDeclare(
+		exchangeName, // name
+		"fanout",     // type.
+		false,        // durable
+		false,        // auto-deleted
+		false,        // internal
+		false,        // no-wait
+		nil,          // arguments
+	)
+	if err != nil {
+		return nil, err
+	}
 
-// 	return &ProducerQueue{ch: ch, exchangeName: exchangeName, isFanout: true}, nil
-// }
+	return &ProducerQueue{ch: ch, exchangeName: exchangeName, isFanout: true, nextReplicas: 1}, nil
+}
