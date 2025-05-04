@@ -1,9 +1,6 @@
 package sinks
 
 import (
-	"log"
-
-	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -20,39 +17,39 @@ func NewSentimentSink(queue *utils.ConsumerQueue, resultsProducer *utils.Produce
 }
 
 func (s *SentimentSink) Sink() {
-	var totalPositiveRatio float64
-	var totalNegativeRatio float64
-	var totalPositiveMovies int
-	var totalNegativeMovies int
+	// var totalPositiveRatio float64
+	// var totalNegativeRatio float64
+	// var totalPositiveMovies int
+	// var totalNegativeMovies int
 
-	log.Printf("Sentiment sink started, consuming messages...")
+	// log.Printf("Sentiment sink started, consuming messages...")
 
-	for msg := range s.sinkConsumer.ConsumeInfinite() {
-		bodyStr := string(msg.Body)
+	// for msg := range s.sinkConsumer.ConsumeInfinite() {
+	// 	bodyStr := string(msg.Body)
 
-		stats, err := messages.ParseSentimentStats(bodyStr)
-		if err != nil {
-			log.Printf("Failed to parse sentiment stats: %v", err)
-			msg.Nack(false)
-			continue
-		}
+	// 	stats, err := messages.ParseSentimentStats(bodyStr)
+	// 	if err != nil {
+	// 		log.Printf("Failed to parse sentiment stats: %v", err)
+	// 		msg.Nack(false)
+	// 		continue
+	// 	}
 
-		if stats.Sentiment == "POSITIVE" {
-			totalPositiveRatio += stats.AverageRatio * float64(stats.TotalMovies)
-			totalPositiveMovies += stats.TotalMovies
-			log.Printf("Received positive sentiment stats: ratio=%.6f, movies=%d, total=%d",
-				stats.AverageRatio, stats.TotalMovies, stats.ProcessedCount)
-		} else if stats.Sentiment == "NEGATIVE" {
-			totalNegativeRatio += stats.AverageRatio * float64(stats.TotalMovies)
-			totalNegativeMovies += stats.TotalMovies
-			log.Printf("Received negative sentiment stats: ratio=%.6f, movies=%d, total=%d",
-				stats.AverageRatio, stats.TotalMovies, stats.ProcessedCount)
-		} else {
-			log.Printf("Unknown sentiment: %s", stats.Sentiment)
-		}
+	// 	if stats.Sentiment == "POSITIVE" {
+	// 		totalPositiveRatio += stats.AverageRatio * float64(stats.TotalMovies)
+	// 		totalPositiveMovies += stats.TotalMovies
+	// 		log.Printf("Received positive sentiment stats: ratio=%.6f, movies=%d, total=%d",
+	// 			stats.AverageRatio, stats.TotalMovies, stats.ProcessedCount)
+	// 	} else if stats.Sentiment == "NEGATIVE" {
+	// 		totalNegativeRatio += stats.AverageRatio * float64(stats.TotalMovies)
+	// 		totalNegativeMovies += stats.TotalMovies
+	// 		log.Printf("Received negative sentiment stats: ratio=%.6f, movies=%d, total=%d",
+	// 			stats.AverageRatio, stats.TotalMovies, stats.ProcessedCount)
+	// 	} else {
+	// 		log.Printf("Unknown sentiment: %s", stats.Sentiment)
+	// 	}
 
-		msg.Ack()
-	}
+	// 	msg.Ack()
+	// }
 
 	// var finalPositiveRatio float64
 	// var finalNegativeRatio float64
@@ -92,5 +89,5 @@ func (s *SentimentSink) Sink() {
 	// 	return
 	// }
 
-	log.Printf("Published sentiment analysis results")
+	// log.Printf("Published sentiment analysis results")
 }

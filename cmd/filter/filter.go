@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/filters"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
@@ -15,6 +16,11 @@ import (
 )
 
 func main() {
+	err := env.LoadEnv()
+	if err != nil {
+		log.Fatalf("Failed to load environment variables: %v", err)
+	}
+
 	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
 	if err != nil {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
@@ -32,14 +38,13 @@ func main() {
 
 	consumeQueueName := fmt.Sprintf("movies_metadata_q%s", query)
 	publishQueueName := fmt.Sprintf("movies_filtered_by_year_q%s", query)
-	consumeQueueNameInternal := fmt.Sprintf("filter_q%s_internal", query)
 
-	filteredByCountryConsumer, err := utils.NewConsumerQueue(conn, consumeQueueName, "movies", consumeQueueNameInternal)
+	filteredByCountryConsumer, err := utils.NewConsumerQueue(conn, consumeQueueName, consumeQueueName, env.AppEnv.MOVIES_RECEIVER_AMOUNT)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	filteredByYearProducer, err := utils.NewProducerQueue(conn, publishQueueName, publishQueueName)
+	filteredByYearProducer, err := utils.NewProducerQueue(conn, publishQueueName, env.AppEnv.Q1_SINK_AMOUNT)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
@@ -56,17 +61,8 @@ func main() {
 		outputMessage = &messages.Q4Movie{}
 	}
 
-	if query == "1" {
-		filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
-		go filter.FilterAndPublish()
-	} else {
-		newClientFanout, err := utils.NewProducerFanout(conn, "new_client_fanout")
-		if err != nil {
-			log.Fatalf("Failed to declare a queue: %v", err)
-		}
-		filter := filters.NewFilterJoiner(filteredByCountryConsumer, outputMessage, newClientFanout, query, conn)
-		go filter.FilterAndPublish()
-	}
+	filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
+	go filter.FilterAndPublish()
 
 	<-sigs
 	log.Printf("Received SIGTERM signal, closing connection")

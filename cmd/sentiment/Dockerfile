@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements-mac.txt
 COPY internal/utils/queue.py /app/internal/utils/
 COPY internal/sentiment/sentiment_worker.py /app/internal/sentiment/
 COPY cmd/sentiment/sentiment_worker.py /app/
+COPY .env /app/.env
 
 ENV PYTHONPATH="/app"
 

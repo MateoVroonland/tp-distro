@@ -13,6 +13,7 @@ type Movie struct {
 	Revenue   float64
 	Budget    float64
 	RawData   []string
+	MovieId   string
 }
 
 type Country struct {
@@ -68,6 +69,8 @@ func (m *Movie) Deserialize(data []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse revenue: %v", err)
 	}
+
+	m.MovieId = data[RawMovieID]
 
 	m.RawData = make([]string, 8)
 	m.RawData[MovieID] = data[RawMovieID]

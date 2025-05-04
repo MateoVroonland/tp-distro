@@ -1,11 +1,6 @@
 package joiners
 
 import (
-	"encoding/csv"
-	"log"
-	"strings"
-
-	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -20,89 +15,89 @@ func NewRatingsJoiner(ratingsJoinerConsumer *utils.ConsumerQueue, moviesJoinerCo
 }
 
 func (r *RatingsJoiner) JoinRatings() error {
-	defer r.ratingsJoinerConsumer.CloseChannel()
-	defer r.moviesJoinerConsumer.CloseChannel()
-	defer r.sinkProducer.CloseChannel()
+	// defer r.ratingsJoinerConsumer.CloseChannel()
+	// defer r.moviesJoinerConsumer.CloseChannel()
+	// defer r.sinkProducer.CloseChannel()
 
-	moviesIds := make(map[int]string)
+	// moviesIds := make(map[int]string)
 
-	i := 0
-	for msg := range r.moviesJoinerConsumer.ConsumeInfinite() {
+	// i := 0
+	// for msg := range r.moviesJoinerConsumer.ConsumeInfinite() {
 
-		stringLine := string(msg.Body)
+	// 	stringLine := string(msg.Body)
 
-		i++
+	// 	i++
 
-		reader := csv.NewReader(strings.NewReader(stringLine))
-		reader.FieldsPerRecord = 2
-		record, err := reader.Read()
-		if err != nil {
-			log.Printf("Failed to read record: %v", err)
-			log.Printf("Movie: %s", stringLine)
-			msg.Nack(false)
-			continue
-		}
+	// 	reader := csv.NewReader(strings.NewReader(stringLine))
+	// 	reader.FieldsPerRecord = 2
+	// 	record, err := reader.Read()
+	// 	if err != nil {
+	// 		log.Printf("Failed to read record: %v", err)
+	// 		log.Printf("Movie: %s", stringLine)
+	// 		msg.Nack(false)
+	// 		continue
+	// 	}
 
-		var movie messages.RatingsJoinMovies
-		err = movie.Deserialize(record)
-		if err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false)
-			continue
-		}
+	// 	var movie messages.RatingsJoinMovies
+	// 	err = movie.Deserialize(record)
+	// 	if err != nil {
+	// 		log.Printf("Failed to deserialize movie: %v", err)
+	// 		msg.Nack(false)
+	// 		continue
+	// 	}
 
-		moviesIds[movie.ID] = movie.Title
-		msg.Ack()
+	// 	moviesIds[movie.ID] = movie.Title
+	// 	msg.Ack()
 
-	}
+	// }
 
-	ratings := make(map[int]float64)
-	ratingsCount := make(map[int]int)
-	j := 0
-	r.ratingsJoinerConsumer.AddFinishSubscriber(r.sinkProducer)
-	for msg := range r.ratingsJoinerConsumer.ConsumeInfinite() {
-		stringLine := string(msg.Body)
-		j++
+	// ratings := make(map[int]float64)
+	// ratingsCount := make(map[int]int)
+	// j := 0
+	// r.ratingsJoinerConsumer.AddFinishSubscriber(r.sinkProducer)
+	// for msg := range r.ratingsJoinerConsumer.ConsumeInfinite() {
+	// 	stringLine := string(msg.Body)
+	// 	j++
 
-		reader := csv.NewReader(strings.NewReader(stringLine))
-		reader.FieldsPerRecord = 2
-		record, err := reader.Read()
-		if err != nil {
-			log.Printf("Failed to read record: %v", err)
-			log.Printf("Rating: %s", stringLine)
-			msg.Nack(false)
-			continue
-		}
+	// 	reader := csv.NewReader(strings.NewReader(stringLine))
+	// 	reader.FieldsPerRecord = 2
+	// 	record, err := reader.Read()
+	// 	if err != nil {
+	// 		log.Printf("Failed to read record: %v", err)
+	// 		log.Printf("Rating: %s", stringLine)
+	// 		msg.Nack(false)
+	// 		continue
+	// 	}
 
-		var rating messages.Ratings
-		err = rating.Deserialize(record)
-		if err != nil {
-			log.Printf("Failed to deserialize ratings: %v", err)
-			msg.Nack(false)
-			continue
-		}
+	// 	var rating messages.Ratings
+	// 	err = rating.Deserialize(record)
+	// 	if err != nil {
+	// 		log.Printf("Failed to deserialize ratings: %v", err)
+	// 		msg.Nack(false)
+	// 		continue
+	// 	}
 
-		if _, ok := moviesIds[rating.MovieID]; !ok {
-			msg.Ack()
-			continue
-		}
+	// 	if _, ok := moviesIds[rating.MovieID]; !ok {
+	// 		msg.Ack()
+	// 		continue
+	// 	}
 
-		currentRatings, ok := ratings[rating.MovieID]
+	// 	currentRatings, ok := ratings[rating.MovieID]
 
-		if !ok {
-			ratings[rating.MovieID] = rating.Rating
-			ratingsCount[rating.MovieID] = 1
-		} else {
-			ratings[rating.MovieID] = currentRatings + rating.Rating
-			ratingsCount[rating.MovieID]++
-		}
+	// 	if !ok {
+	// 		ratings[rating.MovieID] = rating.Rating
+	// 		ratingsCount[rating.MovieID] = 1
+	// 	} else {
+	// 		ratings[rating.MovieID] = currentRatings + rating.Rating
+	// 		ratingsCount[rating.MovieID]++
+	// 	}
 
-		msg.Ack()
-	}
+	// 	msg.Ack()
+	// }
 
-	log.Printf("Ratings: %v", ratings)
-	log.Printf("RatingsCount: %v", ratingsCount)
-	log.Printf("MoviesIds: %v", moviesIds)
+	// log.Printf("Ratings: %v", ratings)
+	// log.Printf("RatingsCount: %v", ratingsCount)
+	// log.Printf("MoviesIds: %v", moviesIds)
 
 	// for movieId, rating := range ratings {
 	// 	count := ratingsCount[movieId]

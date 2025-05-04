@@ -2,33 +2,28 @@ package main
 
 import (
 	"log"
-	"os"
 
-	"github.com/MateoVroonland/tp-distro/internal/joiners"
-	"github.com/MateoVroonland/tp-distro/internal/utils"
-	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/MateoVroonland/tp-distro/internal/env"
 )
 
 func main() {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+	err := env.LoadEnv()
 	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-	defer conn.Close()
-
-	id := os.Getenv("ID")
-
-	if id == "" {
-		log.Fatalf("ID is not set")
+		log.Fatalf("Failed to load environment variables: %v", err)
 	}
 
-	newClientQueue, err := utils.NewConsumerFanout(conn, "new_client_fanout")
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
+	// conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+	// if err != nil {
+	// 	log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+	// }
+	// defer conn.Close()
 
-	creditsJoiner := joiners.NewCreditsJoiner(conn, newClientQueue)
-	log.Printf("Credits joiner initialized with id '%s'", id)
-	creditsJoiner.JoinCredits(id)
+	// newClientQueue, err := utils.NewConsumerFanout(conn, "new_client_fanout")
+	// if err != nil {
+	// 	log.Fatalf("Failed to declare a queue: %v", err)
+	// }
+
+	// creditsJoiner := joiners.NewCreditsJoiner(conn, newClientQueue)
+	// creditsJoiner.JoinCredits(env.AppEnv.ID)
 
 }

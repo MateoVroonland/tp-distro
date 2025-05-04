@@ -22,13 +22,18 @@ func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearPro
 func (f *Filter) FilterAndPublish() error {
 	log.Printf("Filtering and publishing")
 
-	f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
+	// f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
 
 	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
 
-		stringLine := string(msg.Body)
+		if msg.Body == "FINISHED" {
+			log.Printf("Received finished message for client %s", msg.ClientId)
+			f.filteredByYearProducer.PublishFinished(msg.ClientId)
+			msg.Ack()
+			continue
+		}
 
-		reader := csv.NewReader(strings.NewReader(stringLine))
+		reader := csv.NewReader(strings.NewReader(msg.Body))
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
@@ -49,7 +54,7 @@ func (f *Filter) FilterAndPublish() error {
 				continue
 			}
 
-			err = f.filteredByYearProducer.Publish(serializedMovie, msg.ClientId)
+			err = f.filteredByYearProducer.Publish(serializedMovie, msg.ClientId, f.outputMessage.GetMovieId())
 			log.Printf("Published movie with routing key: empty")
 
 			if err != nil {

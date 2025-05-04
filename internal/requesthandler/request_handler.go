@@ -15,6 +15,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -75,15 +76,24 @@ func (s *Server) Start() {
 	s.wg.Wait()
 }
 
+type FileType struct {
+	Name     string
+	Replicas int
+}
+
 func (s *Server) initializeProducers() error {
-	fileTypes := []string{"movies", "credits", "ratings"}
+	fileTypes := []FileType{
+		{Name: "movies", Replicas: env.AppEnv.MOVIES_RECEIVER_AMOUNT},
+		{Name: "credits", Replicas: env.AppEnv.CREDITS_RECEIVER_AMOUNT},
+		{Name: "ratings", Replicas: env.AppEnv.RATINGS_RECEIVER_AMOUNT},
+	}
 	for _, fileType := range fileTypes {
-		producer, err := utils.NewProducerQueue(s.conn, fileType, fileType)
+		producer, err := utils.NewProducerQueue(s.conn, fileType.Name, fileType.Replicas)
 		if err != nil {
-			return fmt.Errorf("error creating producer for %s: %v", fileType, err)
+			return fmt.Errorf("error creating producer for %s: %v", fileType.Name, err)
 		}
-		s.producers[fileType] = producer
-		log.Printf("Producer for %s initialized", fileType)
+		s.producers[fileType.Name] = producer
+		log.Printf("Producer for %s initialized", fileType.Name)
 	}
 
 	return nil
@@ -172,16 +182,20 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 
 	filesRemaining := 3
 	fileType := ""
+	var index int
 
 	reader := bufio.NewReader(conn)
 	for filesRemaining > 0 {
 		switch filesRemaining {
 		case 3:
 			fileType = "movies"
+			index = messages.RawMovieID
 		case 2:
 			fileType = "credits"
+			index = messages.RawCreditsMovieIDIndex
 		case 1:
 			fileType = "ratings"
+			index = messages.RawRatingMovieIDIndex
 		}
 
 		message, err := utils.MessageFromSocket(reader)
@@ -206,7 +220,7 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 				return
 			}
 
-			producer.Publish([]byte("FINISHED"), clientId)
+			producer.PublishFinished(clientId)
 
 			filesRemaining--
 
@@ -238,7 +252,7 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 				continue
 			}
 			writer.Flush()
-			err = producer.Publish(buffer.Bytes(), clientId)
+			err = producer.Publish(buffer.Bytes(), clientId, record[index])
 			if err != nil {
 				log.Printf("Error publishing line to %s: %v", fileType, err)
 			}
@@ -277,7 +291,7 @@ func (s *Server) handleResultRequest(conn net.Conn, clientId string) bool {
 func (s *Server) listenForResults() {
 	defer s.wg.Done()
 
-	resultsConsumer, err := utils.NewConsumerQueue(s.conn, "results", "results", "")
+	resultsConsumer, err := utils.NewConsumerQueue(s.conn, "results", "results", 1)
 	if err != nil {
 		log.Fatalf("Error creating consumer for results: %v", err)
 	}
@@ -286,7 +300,7 @@ func (s *Server) listenForResults() {
 		log.Println("Received results from client:", d.ClientId)
 		clientResults := s.results[d.ClientId]
 
-		err = json.Unmarshal(d.Body, &clientResults)
+		err = json.Unmarshal([]byte(d.Body), &clientResults)
 		if err != nil {
 			log.Printf("Error unmarshalling results: %v", err)
 			d.Nack(false)

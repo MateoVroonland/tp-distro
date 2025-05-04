@@ -15,5 +15,6 @@ ENTRYPOINT ["/main"]
 FROM scratch
 
 COPY --from=builder /main /main
+COPY .env /app/.env
 
 ENTRYPOINT ["/main"]

@@ -1,11 +1,8 @@
 package sinks
 
 import (
-	"encoding/csv"
 	"log"
-	"strings"
 
-	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -22,38 +19,38 @@ func NewQ3Sink(sinkConsumer *utils.ConsumerQueue, resultsProducer *utils.Produce
 }
 
 func (s *Q3Sink) GetMaxAndMinMovies() {
-	log.Printf("Getting max and min movies")
+	// log.Printf("Getting max and min movies")
 
-	maxMovie := messages.MovieRating{}
-	minMovie := messages.MovieRating{}
+	// maxMovie := messages.MovieRating{}
+	// minMovie := messages.MovieRating{}
 
-	log.Printf("Consuming messages")
+	// log.Printf("Consuming messages")
 
-	for msg := range s.SinkConsumer.ConsumeInfinite() {
-		var movie messages.MovieRating
-		stringLine := string(msg.Body)
-		reader := csv.NewReader(strings.NewReader(stringLine))
-		record, err := reader.Read()
-		if err != nil {
-			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false)
-			continue
-		}
-		err = movie.Deserialize(record)
-		if err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false)
-			continue
-		}
+	// for msg := range s.SinkConsumer.ConsumeInfinite() {
+	// 	var movie messages.MovieRating
+	// 	stringLine := string(msg.Body)
+	// 	reader := csv.NewReader(strings.NewReader(stringLine))
+	// 	record, err := reader.Read()
+	// 	if err != nil {
+	// 		log.Printf("Failed to read record: %v", err)
+	// 		msg.Nack(false)
+	// 		continue
+	// 	}
+	// 	err = movie.Deserialize(record)
+	// 	if err != nil {
+	// 		log.Printf("Failed to deserialize movie: %v", err)
+	// 		msg.Nack(false)
+	// 		continue
+	// 	}
 
-		if movie.Rating > maxMovie.Rating {
-			maxMovie = movie
-		}
-		if movie.Rating < minMovie.Rating || minMovie.Rating == 0 {
-			minMovie = movie
-		}
-		msg.Ack()
-	}
+	// 	if movie.Rating > maxMovie.Rating {
+	// 		maxMovie = movie
+	// 	}
+	// 	if movie.Rating < minMovie.Rating || minMovie.Rating == 0 {
+	// 		minMovie = movie
+	// 	}
+	// 	msg.Ack()
+	// }
 
 	log.Printf("Getting results")
 	// results := []messages.Q3Row{
