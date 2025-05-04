@@ -38,11 +38,11 @@ func main() {
 	// }
 	// defer q2.CloseChannel()
 
-	// q3, err := utils.NewProducerQueue(conn, "movies_metadata_q3", "movies")
-	// if err != nil {
-	// 	log.Fatalf("Failed to declare a queue: %v", err)
-	// }
-	// defer q3.CloseChannel()
+	q3, err := utils.NewProducerQueue(conn, "movies_metadata_q3", env.AppEnv.Q3_FILTER_AMOUNT)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+	defer q3.CloseChannel()
 
 	q4, err := utils.NewProducerQueue(conn, "movies_metadata_q4", env.AppEnv.Q4_FILTER_AMOUNT)
 	if err != nil {
@@ -56,7 +56,7 @@ func main() {
 	// }
 	// defer q5.CloseChannel()
 
-	receiver := receiver.NewMoviesReceiver(conn, q, q1, nil, nil, q4, nil)
+	receiver := receiver.NewMoviesReceiver(conn, q, q1, nil, q3, q4, nil)
 	receiver.ReceiveMovies()
 
 }

@@ -43,7 +43,7 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			log.Printf("Received %d movies for client %s", i[d.ClientId], d.ClientId)
 			r.Q1Producer.PublishFinished(d.ClientId)
 			// r.Q2Producer.PublishFinished(d.ClientId)
-			// r.Q3Producer.PublishFinished(d.ClientId)
+			r.Q3Producer.PublishFinished(d.ClientId)
 			r.Q4Producer.PublishFinished(d.ClientId)
 			// r.Q5Producer.PublishFinished(d.ClientId)
 			d.Ack()
@@ -88,10 +88,10 @@ func (r *MoviesReceiver) ReceiveMovies() {
 		// 		}
 		// 	}
 			if movie.IncludesAllCountries([]string{"Argentina"}) {
-				// err = r.Q3Producer.Publish(serializedMovie, d.ClientId, movie.MovieId)
-				// if err != nil {
-				// 	log.Printf("Failed to publish to queue 3: %v", err)
-				// }
+				err = r.Q3Producer.Publish(serializedMovie, d.ClientId, movie.MovieId)
+				if err != nil {
+					log.Printf("Failed to publish to queue 3: %v", err)
+				}
 				err = r.Q4Producer.Publish(serializedMovie, d.ClientId, movie.MovieId)
 				if err != nil {
 					log.Printf("Failed to publish to queue 4: %v", err)

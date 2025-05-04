@@ -73,30 +73,30 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
-  # filter_q3_1:
-  #   environment:
-  #     QUERY: 3
-  #     ID: 1
-  #     REPLICAS: 2
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/filter/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /filter/filter.go
-  # filter_q3_2:
-  #   environment:
-  #     QUERY: 3
-  #     ID: 2
-  #     REPLICAS: 2
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/filter/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /filter/filter.go
+  filter_q3_1:
+    environment:
+      QUERY: 3
+      ID: 1
+      REPLICAS: 2
+    build:
+      context: .
+      dockerfile: cmd/filter/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /filter/filter.go
+  filter_q3_2:
+    environment:
+      QUERY: 3
+      ID: 2
+      REPLICAS: 2
+    build:
+      context: .
+      dockerfile: cmd/filter/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /filter/filter.go
   filter_q4_1:
     environment:
       QUERY: 4
@@ -109,18 +109,43 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
-    deploy:
-      replicas: 2
 
-  ratingsreceiver:
+  filter_q4_2:
+    environment:
+      QUERY: 4
+      ID: 2
+      REPLICAS: 2
+    build:
+      context: .
+      dockerfile: cmd/filter/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /filter/filter.go
+  
+
+  ratingsreceiver_1:
+    environment:
+      ID: 1
+      REPLICAS: 2
     build:
       context: .
       dockerfile: cmd/ratingsreceiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
-    deploy:
-      replicas: 2
+
+  ratingsreceiver_2:
+    environment:
+      ID: 2
+      REPLICAS: 2
+    build:
+      context: .
+      dockerfile: cmd/ratingsreceiver/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    
 
   ratingsjoiner:
     environment:
@@ -155,6 +180,9 @@ services:
     
         
   q1_sink:
+    environment:
+      ID: 1
+      REPLICAS: 1
     build:
       context: .
       dockerfile: cmd/sinks/Dockerfile
@@ -162,16 +190,16 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /q1_sink/q1_sink.go
-  # q3_sink_1:
-  #   environment:
-  #     ID: 1
-  #     REPLICAS: 1
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/sinks_q3/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
+  q3_sink_1:
+    environment:
+      ID: 1
+      REPLICAS: 1
+    build:
+      context: .
+      dockerfile: cmd/sinks_q3/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
   # budget_reducer_1:
   #   environment:
   #     ID: 1

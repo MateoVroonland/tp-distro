@@ -38,7 +38,12 @@ func (f *FilterJoiner) FilterAndPublish() error {
 	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
 
 		if msg.Body == "FINISHED" {
-			queue := f.clientsProducers[msg.ClientId]
+			queue, ok := f.clientsProducers[msg.ClientId]
+			if !ok {
+				log.Printf("No producer for client %s", msg.ClientId)
+				msg.Ack()
+				continue
+			}
 			queue.PublishFinished(msg.ClientId)
 			msg.Ack()
 			continue
@@ -57,7 +62,8 @@ func (f *FilterJoiner) FilterAndPublish() error {
 			err = f.newClientFanout.Publish([]byte("NEW_CLIENT"), msg.ClientId, "")
 			if err != nil {
 				log.Printf("FAILED TO PUBLISH NEW CLIENT: %v", err)
-			
+				msg.Nack(false)
+				continue
 			}
 		}
 

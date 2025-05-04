@@ -1,14 +1,13 @@
 package receiver
 
 import (
-
 	"encoding/csv"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
 
-	"github.com/MateoVroonland/tp-distro/internal/constants"
+	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -31,16 +30,22 @@ func (r *RatingsReceiver) ReceiveRatings() {
 
 	for msg := range r.ratingsConsumer.ConsumeInfinite() {
 		stringLine := string(msg.Body)
-		clientId := msg.Headers["clientId"].(string)
+
+		if msg.Body == "FINISHED" {
+			queue := r.joinerProducers[msg.ClientId]
+			queue.PublishFinished(msg.ClientId)
+			msg.Ack()
+			continue
+		}
+		clientId := msg.ClientId
 		if _, ok := r.joinerProducers[clientId]; !ok {
 			producerName := fmt.Sprintf("ratings_joiner_client_%s", clientId)
-			producer, err := utils.NewProducerQueue(r.conn, producerName, producerName)
+			producer, err := utils.NewProducerQueue(r.conn, producerName, env.AppEnv.RATINGS_JOINER_AMOUNT)
 			if err != nil {
 				log.Printf("Failed to create producer for client %s: %v", clientId, err)
-				msg.Nack(false, false)
+				msg.Nack(false)
 				continue
 			}
-			r.ratingsConsumer.AddFinishSubscriberWithRoutingKey(producer, "1")
 			r.joinerProducers[clientId] = producer
 		}
 		ratingsConsumed++
@@ -66,8 +71,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			continue
 		}
 
-		routingKey := utils.HashString(strconv.Itoa(rating.MovieID), constants.RATINGS_JOINER_AMOUNT)
-		err = r.joinerProducers[clientId].PublishWithRoutingKey(serializedRating, strconv.Itoa(routingKey), clientId)
+		err = r.joinerProducers[clientId].Publish(serializedRating, clientId, strconv.Itoa(rating.MovieID))
 
 		if err != nil {
 			log.Printf("Error publishing rating: %s", err)

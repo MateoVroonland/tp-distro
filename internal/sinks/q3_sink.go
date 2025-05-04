@@ -4,7 +4,9 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"log"
+	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -33,24 +35,14 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 
 	// log.Printf("Consuming messages")
   
-	for msg := range s.SinkConsumer.ConsumeSink() {
+	for msg := range s.SinkConsumer.ConsumeInfinite() {
 		
 		stringLine := string(msg.Body)
 
-		var clientId string
-		var ok bool
-		if clientId, ok = msg.Headers["clientId"].(string); !ok {
-			log.Printf("Failed to get clientId from message headers")
-			msg.Nack(false, false)
-			continue
-		}
-
 		if stringLine == "FINISHED" {
 			log.Printf("Received FINISHED message")
-			log.Printf("CLIENTS RESULTS: %v", clientsResults)
-
-			s.SendClientIdResults(clientId, clientsResults[clientId])
-			msg.Ack(false)
+			s.SendClientIdResults(msg.ClientId, clientsResults[msg.ClientId])
+			msg.Ack()
 			continue
 		}
 
@@ -69,7 +61,7 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 			msg.Nack(false)
 			continue
 		}
-		minAndMaxMovie, ok := clientsResults[clientId]
+		minAndMaxMovie, ok := clientsResults[msg.ClientId]
 		if !ok {
 			minAndMaxMovie = MinAndMaxMovie{}
 		}
@@ -80,9 +72,9 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		if !ok || movie.Rating < minAndMaxMovie.MinMovie.Rating || minAndMaxMovie.MinMovie.Rating == 0 {
 			minAndMaxMovie.MinMovie = movie
 		}
-		clientsResults[clientId] = minAndMaxMovie
+		clientsResults[msg.ClientId] = minAndMaxMovie
 		log.Printf("Clients results: %v", clientsResults)
-		msg.Ack(false)
+		msg.Ack()
 	}
 
 	
@@ -122,7 +114,7 @@ func (s *Q3Sink) SendClientIdResults(clientId string, minAndMaxMovie MinAndMaxMo
 	}
 
 	log.Printf("Publishing results")
-	err = s.ResultsProducer.Publish(bytes, clientId)
+	err = s.ResultsProducer.Publish(bytes, clientId, "")
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)
 		return
