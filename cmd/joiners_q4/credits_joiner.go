@@ -21,6 +21,12 @@ func main() {
 	}
 	defer conn.Close()
 
+	id := os.Getenv("ID")
+
+	if id == "" {
+		log.Fatalf("ID is not set")
+	}
+
 	newClientQueue, err := utils.NewConsumerFanout(conn, "new_client_fanout_q4")
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
