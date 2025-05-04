@@ -182,39 +182,39 @@ services:
   #   depends_on:
   #     rabbitmq:
   #       condition: service_healthy
-  # budget_reducer_1:
-  #   environment:
-  #     ID: 1
-  #     REPLICAS: 2
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/reducers/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /budget_reducer.go
-  # budget_reducer_2:
-  #   environment:
-  #     ID: 2
-  #     REPLICAS: 2
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/reducers/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /budget_reducer.go
-  # budget_sink_1:
-  #   environment:
-  #     ID: 1
-  #     REPLICAS: 1
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/sinks_q2/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /budget_sink/budget_sink.go
+  budget_reducer_1:
+    environment:
+      ID: 1
+      REPLICAS: 2
+    build:
+      context: .
+      dockerfile: cmd/reducers/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /budget_reducer.go
+  budget_reducer_2:
+    environment:
+      ID: 2
+      REPLICAS: 2
+    build:
+      context: .
+      dockerfile: cmd/reducers/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /budget_reducer.go
+  budget_sink_1:
+    environment:
+      ID: 1
+      REPLICAS: 1
+    build:
+      context: .
+      dockerfile: cmd/sinks_q2/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /budget_sink/budget_sink.go
   # sentiment_worker_1:
   #   environment:
   #     ID: 1

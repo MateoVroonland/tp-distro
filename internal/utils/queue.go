@@ -242,9 +242,9 @@ func NewProducerQueue(conn *amqp.Connection, exchangeName string, nextReplicas i
 	}, nil
 }
 
-func (q *ProducerQueue) Publish(body []byte, clientId string, movieId string) error {
-	routingKey := strconv.Itoa(HashString(movieId, q.nextReplicas))
-	return q.publishWithRoutingKey(body, routingKey, clientId)
+func (q *ProducerQueue) Publish(body []byte, clientId string, routingKey string) error {
+	hashedRoutingKey := strconv.Itoa(HashString(routingKey, q.nextReplicas))
+	return q.publishWithRoutingKey(body, hashedRoutingKey, clientId)
 }
 
 func (q *ProducerQueue) PublishFinished(clientId string) error {
