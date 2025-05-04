@@ -82,7 +82,7 @@ class SentimentWorker:
             logger.error(f"CSV parsing error: {e}")
             return None
         
-    def handle_message(self, message, ch, method):
+    def handle_message(self, message):
         try:
             if message.body.startswith("FINISHED:"):
                 client_id = message.client_id
@@ -111,13 +111,12 @@ class SentimentWorker:
             logger.exception(f"Error processing message: {e}")
             message.nack(requeue=False)
 
-    def process_message(self, ch, method, properties, body):    
+    def process_message(self, message):    
         try:
-            message_str = body.decode('utf-8').strip()
-            self.handle_message(message_str, ch, method)
+           self.handle_message(message)
         except Exception as e:
             logger.error(f"Error processing message: {e}")
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            message.nack(requeue=False)
 
     def start(self):
         self.input_queue.consume(

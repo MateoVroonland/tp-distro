@@ -29,7 +29,8 @@ class Message:
         self._channel.basic_nack(delivery_tag=self._delivery_tag, multiple=False, requeue=requeue)
 
 class ConsumerQueue:
-    def __init__(self, connection, name, exchange_name):
+    def __init__(self, connection, name, exchange_name, previous_replicas):
+        self.previous_replicas = previous_replicas
         self.channel = connection.channel()
         signal.signal(signal.SIGTERM, self.signal_handler)
         
