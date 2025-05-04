@@ -32,7 +32,9 @@ class SentimentWorker:
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')
-        self.current_finished_count = 0
+        
+        self.finished_received = {} 
+
         signal.signal(signal.SIGTERM, self.signal_handler)
         logger.info("Sentiment worker initialized with transformer model")
 
@@ -75,36 +77,39 @@ class SentimentWorker:
             output_buffer = StringIO()
             csv_writer = csv.writer(output_buffer)
             csv_writer.writerow([movie_id, movie_title, movie_budget, movie_revenue, sentiment_result['label']])
-            return output_buffer.getvalue()
+            return output_buffer.getvalue(), movie_id
         except Exception as e:
             logger.error(f"CSV parsing error: {e}")
             return None
         
-    def handle_message(self, message_str, ch, method):
-        if message_str == FINISHED_IDENTIFIER:
-            logger.info("Received FINISHED from lower layer")
-            self.current_finished_count += 1
-            self.publish_message_wrapper(self.input_queue, f"{FINISHED_IDENTIFIER}-{self.current_finished_count}")
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-            ch.stop_consuming()
-            return
-        
-        if f"{FINISHED_IDENTIFIER}-" in message_str:
-            logger.info("Received FINISHED from another node")
-            self.current_finished_count = int(message_str.split("-")[1])
-            self.current_finished_count += 1
-            if self.current_finished_count >= NUMBER_OF_SENTIMENT_WORKERS:
-                logger.info("Received FINISHED from all nodes, propagating finish...")
-                self.publish_message_wrapper(self.output_queue, FINISHED_IDENTIFIER)
+    def handle_message(self, message, ch, method):
+        try:
+            if message.body.startswith("FINISHED:"):
+                client_id = message.client_id
+                
+                if client_id not in self.finished_received:
+                    self.finished_received[client_id] = {}
+                
+                self.finished_received[client_id][message.body] = True
+                
+                if len(self.finished_received[client_id]) == self.input_queue.previous_replicas:
+                    logger.info(f"Received all FINISHED messages for client {client_id}")
+                    del self.finished_received[client_id]
+                    self.output_queue.publish_finished(client_id)
+                message.ack()
+                return
+            
+            result, movie_id = self.parse_and_process_message(message.body)
+            if result:
+                self.output_queue.publish(result, message.client_id, movie_id)
+                message.ack()
             else:
-                self.publish_message_wrapper(self.input_queue, f"{FINISHED_IDENTIFIER}-{self.current_finished_count}")
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-            ch.stop_consuming()
-            return
-    
-        csv_line = self.parse_and_process_message(message_str)
-        self.output_queue.publish(csv_line)
-        ch.basic_ack(delivery_tag=method.delivery_tag)  
+                logger.error("Failed to process message")
+                message.nack(requeue=False)
+                
+        except Exception as e:
+            logger.exception(f"Error processing message: {e}")
+            message.nack(requeue=False)
 
     def process_message(self, ch, method, properties, body):    
         try:
@@ -115,7 +120,6 @@ class SentimentWorker:
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def start(self):
-        self.input_queue.set_qos(prefetch_count=1)
         self.input_queue.consume(
             callback=self.process_message,
             auto_ack=False

@@ -86,14 +86,6 @@ class ConsumerQueue:
         logger.info("Received SIGTERM signal, closing connection")
         self.close()
     
-    def publish(self, body):
-        encoded_body = body.encode('utf-8')
-        self.channel.basic_publish(
-            exchange=self.exchange_name,
-            routing_key=self.queue_name,
-            body=encoded_body
-        )
-    
     def start_consuming(self):
         self.channel.start_consuming()
 
