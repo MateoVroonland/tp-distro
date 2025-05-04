@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 
@@ -27,21 +28,37 @@ func NewFilterJoiner(filteredByCountryConsumer *utils.ConsumerQueue, outputMessa
 
 func (f *FilterJoiner) FilterAndPublish() error {
 	log.Printf("Filtering and publishing for query: %s", f.query)
+	var replicas int
+	if f.query == "3" {
+		replicas = env.AppEnv.RATINGS_JOINER_AMOUNT
+	} else if f.query == "4" {
+		replicas = env.AppEnv.CREDITS_JOINER_AMOUNT
+	}
 
 	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
 
+		if msg.Body == "FINISHED" {
+			queue := f.clientsProducers[msg.ClientId]
+			queue.PublishFinished(msg.ClientId)
+			msg.Ack()
+			continue
+		}
+
 		if _, ok := f.clientsProducers[msg.ClientId]; !ok && f.query != "1" {
 			producerName := fmt.Sprintf("filter_q%s_client_%s", f.query, msg.ClientId)
-			producer, err := utils.NewProducerQueue(f.conn, producerName, producerName)
+			producer, err := utils.NewProducerQueue(f.conn, producerName, replicas)
 			if err != nil {
 				log.Printf("Failed to create producer for client %s: %v", msg.ClientId, err)
 				msg.Nack(false)
 				continue
 			}
-			f.filteredByCountryConsumer.AddFinishSubscriberWithRoutingKey(producer, "1") // send to the first queue in the hashed queues
 			f.clientsProducers[msg.ClientId] = producer
 			log.Printf("Created producer for client %s: %s", msg.ClientId, producerName)
-			f.newClientFanout.Publish([]byte("NEW_CLIENT"), msg.ClientId)
+			err = f.newClientFanout.Publish([]byte("NEW_CLIENT"), msg.ClientId, "")
+			if err != nil {
+				log.Printf("FAILED TO PUBLISH NEW CLIENT: %v", err)
+			
+			}
 		}
 
 		stringLine := string(msg.Body)
@@ -67,11 +84,11 @@ func (f *FilterJoiner) FilterAndPublish() error {
 				continue
 			}
 
-			routingKey := f.outputMessage.GetRoutingKey()
+			routingKey := f.outputMessage.GetMovieId()
 
 			queue := f.clientsProducers[msg.ClientId]
 
-			err = queue.PublishWithRoutingKey(serializedMovie, routingKey, msg.ClientId)
+			err = queue.Publish(serializedMovie, msg.ClientId, routingKey)
 			log.Printf("Published movie for client %s with routing key: %s", msg.ClientId, routingKey)
 
 			if err != nil {

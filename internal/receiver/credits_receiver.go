@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/MateoVroonland/tp-distro/internal/constants"
+	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -28,20 +28,25 @@ func (r *CreditsReceiver) ReceiveCredits() {
 
 	i := 0
 
-	// r.creditsConsumer.AddFinishSubscriberWithRoutingKey(r.joinerProducer, "1")
 	for msg := range r.creditsConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
+		if msg.Body == "FINISHED" {
+			queue := r.clientProducers[msg.ClientId]
+			queue.PublishFinished(msg.ClientId)
+			msg.Ack()
+			continue
+		}
+
 		if _, ok := r.clientProducers[msg.ClientId]; !ok {
 			producerName := fmt.Sprintf("credits_joiner_client_%s", msg.ClientId)
-			producer, err := utils.NewProducerQueue(r.conn, producerName, producerName)
+			producer, err := utils.NewProducerQueue(r.conn, producerName, env.AppEnv.CREDITS_JOINER_AMOUNT)
 			if err != nil {
 				log.Printf("Failed to create producer for client %s: %v", msg.ClientId, err)
 				msg.Nack(false)
 				continue
 			}
-			r.creditsConsumer.AddFinishSubscriberWithRoutingKey(producer, "1") // send to the first queue in the hashed queues
 			r.clientProducers[msg.ClientId] = producer
 			log.Printf("Created producer for client %s: %s", msg.ClientId, producerName)
 		}
@@ -69,10 +74,8 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			continue
 		}
 
-		routingKey := utils.HashString(strconv.Itoa(credits.MovieID), constants.CREDITS_JOINER_AMOUNT)
-
 		clientProducer := r.clientProducers[msg.ClientId]
-		err = clientProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey), msg.ClientId)
+		err = clientProducer.Publish(serializedCredits, msg.ClientId, strconv.Itoa(credits.MovieID))
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)
 			continue

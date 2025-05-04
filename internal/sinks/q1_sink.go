@@ -44,7 +44,8 @@ func (s *Q1Sink) SendClientIdResults(clientId string) {
 		return
 	}
 
-	err = s.resultsProducer.Publish(bytes, clientId)
+	err = s.resultsProducer.Publish(bytes, clientId, "")
+
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)
 		return
@@ -52,20 +53,18 @@ func (s *Q1Sink) SendClientIdResults(clientId string) {
 }
 
 func (s *Q1Sink) Reduce() {
-	log.Printf("Q1 sink consuming messages")
+	// log.Printf("Q1 sink consuming messages")
 
-	for msg := range s.filteredByYearConsumer.ConsumeSink() {
+	for msg := range s.filteredByYearConsumer.ConsumeInfinite() {
 
-		stringLine := string(msg.Body)
-
-		if stringLine == "FINISHED" {
-			log.Printf("Received FINISHED message")
+		if msg.Body == "FINISHED" {
+			log.Printf("Received FINISHED message for client %s", msg.ClientId)
 			s.SendClientIdResults(msg.ClientId)
 			msg.Ack()
 			continue
 		}
 
-		reader := csv.NewReader(strings.NewReader(stringLine))
+		reader := csv.NewReader(strings.NewReader(msg.Body))
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)

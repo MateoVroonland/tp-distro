@@ -1,14 +1,5 @@
 package main
 
-import (
-	"log"
-	"os"
-
-	"github.com/MateoVroonland/tp-distro/internal/joiners"
-	"github.com/MateoVroonland/tp-distro/internal/utils"
-	amqp "github.com/rabbitmq/amqp091-go"
-)
-
 func main() {
 	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
 	if err != nil {

@@ -26,17 +26,32 @@ func NewMoviesReceiver(conn *amqp.Connection, moviesConsumer *utils.ConsumerQueu
 }
 
 func (r *MoviesReceiver) ReceiveMovies() {
-	r.MoviesConsumer.AddFinishSubscriber(r.Q1Producer)
-	r.MoviesConsumer.AddFinishSubscriber(r.Q2Producer)
-	r.MoviesConsumer.AddFinishSubscriber(r.Q3Producer)
-	r.MoviesConsumer.AddFinishSubscriber(r.Q4Producer)
-	r.MoviesConsumer.AddFinishSubscriber(r.Q5Producer)
+	// r.MoviesConsumer.AddFinishSubscriber(r.Q1Producer, env.AppEnv.Q1_FILTER_AMOUNT)
+	// r.MoviesConsumer.AddFinishSubscriber(r.Q2Producer)
+	// r.MoviesConsumer.AddFinishSubscriber(r.Q3Producer)
+	// r.MoviesConsumer.AddFinishSubscriber(r.Q4Producer)
+	// r.MoviesConsumer.AddFinishSubscriber(r.Q5Producer)
 
+	i := map[string]int{}
 	for d := range r.MoviesConsumer.ConsumeInfinite() {
+		i[d.ClientId]++
+		if i[d.ClientId]%1000 == 0 {
+			log.Printf("Received %d movies for client %s", i[d.ClientId], d.ClientId)
+		}
 
-		stringLine := string(d.Body)
+		if d.Body == "FINISHED" {
+			log.Printf("Received %d movies for client %s", i[d.ClientId], d.ClientId)
+			r.Q1Producer.PublishFinished(d.ClientId)
+			// r.Q2Producer.PublishFinished(d.ClientId)
+			// r.Q3Producer.PublishFinished(d.ClientId)
+			r.Q4Producer.PublishFinished(d.ClientId)
+			// r.Q5Producer.PublishFinished(d.ClientId)
+			d.Ack()
+			continue
+		}
+		// 	stringLine := string(d.Body)
 
-		reader := csv.NewReader(strings.NewReader(stringLine))
+		reader := csv.NewReader(strings.NewReader(d.Body))
 		reader.FieldsPerRecord = 24
 		record, err := reader.Read()
 		if err != nil {
@@ -59,37 +74,38 @@ func (r *MoviesReceiver) ReceiveMovies() {
 		}
 
 		if movie.IncludesAllCountries([]string{"Argentina", "Spain"}) {
-			err = r.Q1Producer.Publish(serializedMovie, d.ClientId)
+			err = r.Q1Producer.Publish(serializedMovie, d.ClientId, movie.MovieId)
 			if err != nil {
 				log.Printf("Failed to publish to queue 1: %v", err)
 
 			}
 		}
 
-		if len(movie.Countries) == 1 {
-			err = r.Q2Producer.Publish(serializedMovie, d.ClientId)
-			if err != nil {
-				log.Printf("Failed to publish to queue 2: %v", err)
+		// 	if len(movie.Countries) == 1 {
+		// 		err = r.Q2Producer.Publish(serializedMovie, d.ClientId)
+		// 		if err != nil {
+		// 			log.Printf("Failed to publish to queue 2: %v", err)
+		// 		}
+		// 	}
+			if movie.IncludesAllCountries([]string{"Argentina"}) {
+				// err = r.Q3Producer.Publish(serializedMovie, d.ClientId, movie.MovieId)
+				// if err != nil {
+				// 	log.Printf("Failed to publish to queue 3: %v", err)
+				// }
+				err = r.Q4Producer.Publish(serializedMovie, d.ClientId, movie.MovieId)
+				if err != nil {
+					log.Printf("Failed to publish to queue 4: %v", err)
+				}
 			}
-		}
-		if movie.IncludesAllCountries([]string{"Argentina"}) {
-			err = r.Q3Producer.Publish(serializedMovie, d.ClientId)
-			if err != nil {
-				log.Printf("Failed to publish to queue 3: %v", err)
-			}
-			err = r.Q4Producer.Publish(serializedMovie, d.ClientId)
-			if err != nil {
-				log.Printf("Failed to publish to queue 4: %v", err)
-			}
-		}
 
-		if movie.HasValidBudgetAndRevenue() {
-			err = r.Q5Producer.Publish(serializedMovie, d.ClientId)
-			if err != nil {
-				log.Printf("Failed to publish to queue 5: %v", err)
-			}
-		}
+		// 	if movie.HasValidBudgetAndRevenue() {
+		// 		err = r.Q5Producer.Publish(serializedMovie, d.ClientId)
+		// 		if err != nil {
+		// 			log.Printf("Failed to publish to queue 5: %v", err)
+		// 		}
+		// 	}
 
 		d.Ack()
 	}
+	log.Printf("Received %d movies", i)
 }

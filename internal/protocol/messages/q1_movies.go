@@ -55,6 +55,6 @@ func (m *Q1Movie) PassesFilter() bool {
 	return m.ReleaseDate.Year() >= 2000 && m.ReleaseDate.Year() <= 2009
 }
 
-func (m *Q1Movie) GetRoutingKey() string {
-	return ""
+func (m *Q1Movie) GetMovieId() string {
+	return m.ID
 }

@@ -7,57 +7,31 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
-	"time"
 
+	"github.com/MateoVroonland/tp-distro/internal/env"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type FinishSubscriber struct {
-	producer   *ProducerQueue
-	routingKey string
-}
-
 type ConsumerQueue struct {
-	ch                 *amqp.Channel
-	queueName          string
-	deliveryChannel    <-chan amqp.Delivery
-	fanoutName         string
-	closeQueueConsumer *ConsumerQueue
-	closeQueueProducer *ProducerQueue
-	timer              <-chan time.Time
-	isLeader           map[string]bool
-	replicas           int
-	finishSubscribers  []FinishSubscriber
-	signalChan         chan os.Signal
-	replicasMap        map[string]int
+	ch               *amqp.Channel
+	queueName        string
+	deliveryChannel  <-chan amqp.Delivery
+	signalChan       chan os.Signal
+	previousReplicas int
+	finishedReceived map[string]map[string]bool
 }
 
-func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string, fanoutName string) (*ConsumerQueue, error) {
-	return NewConsumerQueueWithRoutingKey(conn, queueName, exchangeName, queueName, fanoutName)
+func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string, previousReplicas int) (*ConsumerQueue, error) {
+	id := env.AppEnv.ID
+	return newConsumerQueueWithRoutingKey(conn, queueName, exchangeName, strconv.Itoa(id), previousReplicas)
 }
 
-func getQueueName(queueName string, routingKey string) string {
-	if routingKey == queueName {
-		return queueName
-	}
-	return fmt.Sprintf("%s_%s", queueName, routingKey)
-}
-
-func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exchangeName string, routingKey string, fanoutName string) (*ConsumerQueue, error) {
+func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exchangeName string, routingKey string, previousReplicas int) (*ConsumerQueue, error) {
 	ch, err := conn.Channel()
 	if err != nil {
 		return nil, err
-	}
-
-	replicas := os.Getenv("REPLICAS")
-	if replicas == "" {
-		log.Printf("REPLICAS environment variable not set, defaulting to 1")
-		replicas = "1"
-	}
-	replicasInt, err := strconv.Atoi(replicas)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert replicas to int: %v", err)
 	}
 
 	signalChan := make(chan os.Signal, 1)
@@ -76,7 +50,7 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return nil, err
 	}
 
-	uniqueQueueName := getQueueName(queueName, routingKey)
+	uniqueQueueName := fmt.Sprintf("%s_%s", queueName, routingKey)
 	_, err = ch.QueueDeclare(uniqueQueueName, false, false, false, false, nil)
 	if err != nil {
 		return nil, err
@@ -106,27 +80,18 @@ func NewConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return nil, err
 	}
 
-	replicasMap := make(map[string]int)
-	isLeader := make(map[string]bool)
-
-	if fanoutName != "" {
-		closeQueueConsumer, err := NewConsumerFanout(conn, fanoutName)
-		if err != nil {
-			return nil, err
-		}
-		closeQueueProducer, err := NewProducerFanout(conn, fanoutName)
-		if err != nil {
-			return nil, err
-		}
-
-		return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, closeQueueConsumer: closeQueueConsumer, closeQueueProducer: closeQueueProducer, deliveryChannel: deliveryChannel, fanoutName: fanoutName, signalChan: signalChan, replicas: replicasInt, replicasMap: replicasMap, isLeader: isLeader}, nil
-	}
-
-	return &ConsumerQueue{ch: ch, queueName: uniqueQueueName, deliveryChannel: deliveryChannel, fanoutName: fanoutName, signalChan: signalChan, replicas: replicasInt, replicasMap: replicasMap, isLeader: isLeader}, nil
+	return &ConsumerQueue{
+		ch:               ch,
+		queueName:        uniqueQueueName,
+		deliveryChannel:  deliveryChannel,
+		signalChan:       signalChan,
+		finishedReceived: make(map[string]map[string]bool),
+		previousReplicas: previousReplicas,
+	}, nil
 }
 
 type Message struct {
-	Body     []byte
+	Body     string
 	ClientId string
 	delivery amqp.Delivery
 }
@@ -146,109 +111,51 @@ func MessageFromDelivery(delivery amqp.Delivery) (*Message, error) {
 	}
 
 	return &Message{
-		Body:     delivery.Body,
+		Body:     string(delivery.Body),
 		ClientId: clientId,
 		delivery: delivery,
 	}, nil
 }
 
-func (q *ConsumerQueue) consume(infinite bool, passDownFinsh bool) iter.Seq[Message] {
+func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 	return func(yield func(Message) bool) {
-
-		var closeQueueDelivery <-chan amqp.Delivery
-		if q.fanoutName != "" {
-			closeQueueDelivery = q.closeQueueConsumer.deliveryChannel
-		}
 
 		for {
 			select {
 			case <-q.signalChan:
 				log.Printf("Received SIGTERM signal, closing connection")
 				return
-			case delivery := <-closeQueueDelivery: // FINISHED-RECEIVED | FINISHED-DONE
-				message, err := MessageFromDelivery(delivery)
-				if err != nil {
-					log.Printf("Failed to parse message in consume: %v", err)
-					log.Printf("delivery: %v", delivery)
-					delivery.Nack(false, false)
-					continue
-				}
-
-				if string(message.Body) == "FINISHED-RECEIVED" {
-					log.Printf("Received FINISHED-RECEIVED")
-					q.closeQueueProducer.Publish([]byte("FINISHED-DONE"), message.ClientId)
-					log.Printf("Sent FINISHED-DONE to %s", q.closeQueueProducer.queueName)
-					if !infinite && !q.isLeader[message.ClientId] {
-						message.Ack()
-						return
-					}
-
-					if infinite && q.isLeader[message.ClientId] {
-						message.Ack()
-						continue
-					}
-
-					if infinite && !q.isLeader[message.ClientId] {
-						if passDownFinsh {
-							message.Body = []byte("FINISHED")
-							if !yield(*message) {
-								return
-							}
-						} else {
-							message.Ack()
-						}
-						continue
-					}
-
-					message.Ack()
-				}
-
-				// if message == "FINISHED-ACK" && q.isLeader {
-				// 	log.Printf("Received FINISHED-ACK")
-				// 	q.replicas++
-				// 	log.Printf("Replicas counted: %d", q.replicas)
-				// }
-
-				if string(message.Body) == "FINISHED-DONE" && q.isLeader[message.ClientId] {
-					log.Printf("Received FINISHED-DONE")
-					q.replicasMap[message.ClientId]--
-					log.Printf("Replicas remaining: %d", q.replicas)
-					if q.replicasMap[message.ClientId] == 0 {
-						log.Println("All replicas finished for clientId ", message.ClientId)
-						q.sendFinished(message.ClientId)
-						if !infinite {
-							return
-						}
-					}
-				}
 			case delivery := <-q.deliveryChannel:
-				// if q.timer != nil {
-				// 	q.timer = time.After(time.Millisecond * 1500)
-				// }
-
 				message, err := MessageFromDelivery(delivery)
 				if err != nil {
 					log.Printf("Failed to parse message in delivery channel: %v", err)
 					log.Printf("delivery: %v", delivery)
-					delivery.Nack(false, false)
+					message.Nack(false)
 					continue
 				}
 
-				if _, ok := q.replicasMap[message.ClientId]; !ok {
-					q.replicasMap[message.ClientId] = q.replicas
+				if _, ok := q.finishedReceived[message.ClientId]; !ok {
+					q.finishedReceived[message.ClientId] = make(map[string]bool)
 				}
-
-				if string(delivery.Body) == "FINISHED" && q.fanoutName != "" {
-					log.Printf("Received FINISHED from %s", q.queueName)
-					q.isLeader[message.ClientId] = true
-					log.Printf("Is leader: %t", q.isLeader[message.ClientId])
-					q.closeQueueProducer.Publish([]byte("FINISHED-RECEIVED"), message.ClientId)
-					log.Printf("Sent FINISHED-RECEIVED to")
-					if !passDownFinsh {
-						err := delivery.Ack(false)
-						if err != nil {
-							log.Printf("Failed to ack delivery: %v", err)
+				if strings.HasPrefix(message.Body, "FINISHED:") {
+					q.finishedReceived[message.ClientId][message.Body] = true
+					if len(q.finishedReceived[message.ClientId]) == q.previousReplicas {
+						log.Printf("Received all messages for client %s", message.ClientId)
+						delete(q.finishedReceived, message.ClientId)
+						if infinite {
+							finishedMessage := message
+							finishedMessage.Body = "FINISHED"
+							if !yield(*finishedMessage) {
+								log.Printf("Exiting early consumer loop")
+								return
+							}
+							continue
 						}
+						message.Ack()
+						return
+
+					} else {
+						message.Ack()
 						continue
 					}
 				}
@@ -257,49 +164,43 @@ func (q *ConsumerQueue) consume(infinite bool, passDownFinsh bool) iter.Seq[Mess
 					log.Printf("Exiting early consumer loop")
 					return
 				}
-				// case <-q.timer:
-				// 	q.closeQueueProducer.Publish([]byte("FINISHED-DONE"), "AAAA")
-				// 	log.Printf("Sent FINISHED-DONE")
-				// 	if !q.isLeader {
-				// 		return
-				// 	}
 			}
 		}
 	}
 }
 
-func (q *ConsumerQueue) ConsumeSink() iter.Seq[Message] {
-	return q.consume(true, true)
-}
+// func (q *ConsumerQueue) ConsumeSink() iter.Seq[Message] {
+// 	return q.consume(true, true)
+// }
 
 func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
-	return q.consume(true, false)
+	return q.consume(true)
 }
 
 func (q *ConsumerQueue) Consume() iter.Seq[Message] {
-	return q.consume(false, false)
+	return q.consume(false)
 }
 
-func (q *ConsumerQueue) AddFinishSubscriber(pq *ProducerQueue) {
-	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: ""})
-}
-func (q *ConsumerQueue) AddFinishSubscriberWithRoutingKey(pq *ProducerQueue, routingKey string) {
-	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: routingKey})
-}
+// func (q *ConsumerQueue) AddFinishSubscriber(pq *ProducerQueue) {
+// 	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: ""})
+// }
+// func (q *ConsumerQueue) AddFinishSubscriberWithRoutingKey(pq *ProducerQueue, routingKey string) {
+// 	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: routingKey})
+// }
 
-func (q *ConsumerQueue) sendFinished(clientId string) {
-	if !q.isLeader[clientId] {
-		return
-	}
-	for _, sub := range q.finishSubscribers {
-		log.Printf("Sending FINISHED to %s", sub.producer.queueName)
-		if sub.routingKey == "" {
-			sub.producer.Publish([]byte("FINISHED"), clientId)
-		} else {
-			sub.producer.PublishWithRoutingKey([]byte("FINISHED"), sub.routingKey, clientId)
-		}
-	}
-}
+// func (q *ConsumerQueue) sendFinished(clientId string) {
+// 	if !q.isLeader[clientId] {
+// 		return
+// 	}
+// 	for _, sub := range q.finishSubscribers {
+// 		log.Printf("Sending FINISHED to %s", sub.producer.queueName)
+// 		if sub.routingKey == "" {
+// 			sub.producer.Publish([]byte("FINISHED"), clientId)
+// 		} else {
+// 			sub.producer.PublishWithRoutingKey([]byte("FINISHED"), sub.routingKey, clientId)
+// 		}
+// 	}
+// }
 
 func (q *ConsumerQueue) CloseChannel() error {
 	return q.ch.Close()
@@ -308,12 +209,12 @@ func (q *ConsumerQueue) CloseChannel() error {
 type ProducerQueue struct {
 	ch           *amqp.Channel
 	boundQueues  map[string]bool
-	queueName    string
 	exchangeName string
 	isFanout     bool
+	nextReplicas int
 }
 
-func NewProducerQueue(conn *amqp.Connection, queueName string, exchangeName string) (*ProducerQueue, error) {
+func NewProducerQueue(conn *amqp.Connection, exchangeName string, nextReplicas int) (*ProducerQueue, error) {
 	ch, err := conn.Channel()
 	if err != nil {
 		return nil, err
@@ -332,16 +233,31 @@ func NewProducerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 		return nil, err
 	}
 
-	return &ProducerQueue{ch: ch, queueName: queueName, exchangeName: exchangeName, boundQueues: make(map[string]bool), isFanout: false}, nil
+	return &ProducerQueue{
+		ch:           ch,
+		exchangeName: exchangeName,
+		boundQueues:  make(map[string]bool),
+		isFanout:     false,
+		nextReplicas: nextReplicas,
+	}, nil
 }
 
-func (q *ProducerQueue) Publish(body []byte, clientId string) error {
-	return q.PublishWithRoutingKey(body, q.queueName, clientId)
+func (q *ProducerQueue) Publish(body []byte, clientId string, movieId string) error {
+	routingKey := strconv.Itoa(HashString(movieId, q.nextReplicas))
+	return q.publishWithRoutingKey(body, routingKey, clientId)
 }
 
-func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string, clientId string) error {
+func (q *ProducerQueue) PublishFinished(clientId string) error {
+	for i := range q.nextReplicas {
+		log.Printf("Publishing FINISHED for client %s to exchange %s with routing key %s", clientId, q.exchangeName, strconv.Itoa(i+1))
+		q.publishWithRoutingKey([]byte("FINISHED:"+strconv.Itoa(env.AppEnv.ID)), strconv.Itoa(i+1), clientId)
+	}
+	return nil
+}
+
+func (q *ProducerQueue) publishWithRoutingKey(body []byte, routingKey string, clientId string) error {
 	if !q.boundQueues[routingKey] && !q.isFanout {
-		name := getQueueName(q.queueName, routingKey)
+		name := fmt.Sprintf("%s_%s", q.exchangeName, routingKey)
 		_, err := q.ch.QueueDeclare(name, false, false, false, false, nil)
 		if err != nil {
 			return err
@@ -376,6 +292,7 @@ func (q *ProducerQueue) PublishWithRoutingKey(body []byte, routingKey string, cl
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -431,10 +348,12 @@ func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQue
 		return nil, err
 	}
 
-	replicasMap := make(map[string]int)
-	isLeader := make(map[string]bool)
-
-	return &ConsumerQueue{ch: ch, queueName: q.Name, deliveryChannel: deliveryChannel, replicasMap: replicasMap, isLeader: isLeader}, nil
+	return &ConsumerQueue{
+		ch:              ch,
+		queueName:       q.Name,
+		deliveryChannel: deliveryChannel,
+		finishedReceived: make(map[string]map[string]bool),
+	}, nil
 }
 
 func NewProducerFanout(conn *amqp.Connection, exchangeName string) (*ProducerQueue, error) {
@@ -456,5 +375,5 @@ func NewProducerFanout(conn *amqp.Connection, exchangeName string) (*ProducerQue
 		return nil, err
 	}
 
-	return &ProducerQueue{ch: ch, exchangeName: exchangeName, isFanout: true}, nil
+	return &ProducerQueue{ch: ch, exchangeName: exchangeName, isFanout: true, nextReplicas: 1}, nil
 }

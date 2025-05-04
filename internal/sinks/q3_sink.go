@@ -4,9 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"log"
-	"strings"
 
-	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -28,13 +26,13 @@ func NewQ3Sink(sinkConsumer *utils.ConsumerQueue, resultsProducer *utils.Produce
 }
 
 func (s *Q3Sink) GetMaxAndMinMovies() {
-	log.Printf("Getting max and min movies")
+	// log.Printf("Getting max and min movies")
 
 
 	clientsResults := map[string]MinAndMaxMovie{}
 
-	log.Printf("Consuming messages")
-
+	// log.Printf("Consuming messages")
+  
 	for msg := range s.SinkConsumer.ConsumeSink() {
 		
 		stringLine := string(msg.Body)

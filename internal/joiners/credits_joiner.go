@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -25,7 +26,7 @@ func NewCreditsJoiner(conn *amqp.Connection, newClientQueue *utils.ConsumerQueue
 	return &CreditsJoiner{conn: conn, newClientQueue: newClientQueue, waitGroup: &sync.WaitGroup{}, clientsLock: &sync.Mutex{}, moviesConsumers: make(map[string]*utils.ConsumerQueue), creditsConsumers: make(map[string]*utils.ConsumerQueue)}
 }
 
-func (c *CreditsJoiner) JoinCredits(routingKey string) error {
+func (c *CreditsJoiner) JoinCredits(routingKey int) error {
 
 	defer c.newClientQueue.CloseChannel()
 
@@ -35,7 +36,7 @@ func (c *CreditsJoiner) JoinCredits(routingKey string) error {
 
 		c.clientsLock.Lock()
 		if _, ok := c.moviesConsumers[msg.ClientId]; !ok {
-			moviesConsumer, err := utils.NewConsumerQueueWithRoutingKey(c.conn, "filter_q4_client_"+msg.ClientId, "filter_q4_client_"+msg.ClientId, routingKey, "internal_filter_q4_client_"+msg.ClientId)
+			moviesConsumer, err := utils.NewConsumerQueue(c.conn, "filter_q4_client_"+msg.ClientId, "filter_q4_client_"+msg.ClientId, env.AppEnv.MOVIES_RECEIVER_AMOUNT)
 			if err != nil {
 				log.Printf("Failed to create movies consumer for client %s: %v", msg.ClientId, err)
 				msg.Nack(false)
@@ -46,7 +47,7 @@ func (c *CreditsJoiner) JoinCredits(routingKey string) error {
 		}
 
 		if _, ok := c.creditsConsumers[msg.ClientId]; !ok {
-			creditsConsumer, err := utils.NewConsumerQueueWithRoutingKey(c.conn, "credits_joiner_client_"+msg.ClientId, "credits_joiner_client_"+msg.ClientId, routingKey, "internal_credits_joiner_client_"+msg.ClientId)
+			creditsConsumer, err := utils.NewConsumerQueue(c.conn, "credits_joiner_client_"+msg.ClientId, "credits_joiner_client_"+msg.ClientId, env.AppEnv.CREDITS_RECEIVER_AMOUNT)
 			if err != nil {
 				log.Printf("Failed to create credits consumer for client %s: %v", msg.ClientId, err)
 				msg.Nack(false)
@@ -70,7 +71,7 @@ func (c *CreditsJoiner) JoinCredits(routingKey string) error {
 func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 	log.Printf("Joining credits for client %s", clientId)
 
-	sinkProducer, err := utils.NewProducerQueue(c.conn, "sink_q4", "sink_q4")
+	sinkProducer, err := utils.NewProducerQueue(c.conn, "sink_q4", env.AppEnv.CREDITS_SINK_AMOUNT)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
@@ -118,7 +119,6 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 	var credits []messages.Credits
 
 	j := 0
-	creditsConsumer.AddFinishSubscriber(sinkProducer)
 	for msg := range creditsConsumer.Consume() {
 
 		stringLine := string(msg.Body)
@@ -155,12 +155,13 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 			msg.Nack(false)
 			continue
 		}
-		sinkProducer.Publish(payload, clientId)
+		sinkProducer.Publish(payload, clientId, "")
 
 		msg.Ack()
 	}
 
 	log.Printf("Saved %d credits for client %s", len(credits), clientId)
+	sinkProducer.PublishFinished(clientId)
 
 	c.clientsLock.Lock()
 	delete(c.moviesConsumers, clientId)

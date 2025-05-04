@@ -1,14 +1,15 @@
 package sinks
 
 import (
+	"log"
+
+	"github.com/MateoVroonland/tp-distro/internal/utils"
 	"encoding/csv"
 	"encoding/json"
-	"log"
 	"sort"
 	"strings"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
-	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
 type CreditsSink struct {
@@ -30,7 +31,7 @@ func (s *CreditsSink) Sink() {
 	actors := make(map[string]map[string]int)
 
 	i := 0
-	for msg := range s.sinkConsumer.ConsumeSink() {
+	for msg := range s.sinkConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
@@ -108,7 +109,7 @@ func (s *CreditsSink) SendClientIdResults(clientId string, actors map[string]int
 		return
 	}
 
-	err = s.resultsProducer.Publish(bytes, clientId)
+	err = s.resultsProducer.Publish(bytes, clientId, "")
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)
 		return

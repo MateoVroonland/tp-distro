@@ -1,6 +1,37 @@
-import yaml, sys
+import yaml, sys, os
+from dotenv import load_dotenv
 
-def generate_compose(num_replicas):
+def get_env(key):
+    value = os.getenv(key)
+    if value is None:
+        raise ValueError(f"Required environment variable {key} is not set")
+    try:
+        return int(value)
+    except ValueError:
+        raise ValueError(f"Environment variable {key} must be an integer")
+
+def generate_compose():
+    # Load environment variables from .env file
+    load_dotenv()
+
+    # Get replica counts from environment variables
+    movies_receiver_amount = get_env("MOVIES_RECEIVER_AMOUNT")
+    credits_receiver_amount = get_env("CREDITS_RECEIVER_AMOUNT")
+    ratings_receiver_amount = get_env("RATINGS_RECEIVER_AMOUNT")
+    q1_filter_amount = get_env("Q1_FILTER_AMOUNT")
+    q3_filter_amount = get_env("Q3_FILTER_AMOUNT")
+    q4_filter_amount = get_env("Q4_FILTER_AMOUNT")
+    credits_joiner_amount = get_env("CREDITS_JOINER_AMOUNT")
+    ratings_joiner_amount = get_env("RATINGS_JOINER_AMOUNT")
+    budget_reducer_amount = get_env("BUDGET_REDUCER_AMOUNT")
+    sentiment_reducer_amount = get_env("SENTIMENT_REDUCER_AMOUNT")
+    budget_sink_amount = get_env("BUDGET_SINK_AMOUNT")
+    q1_sink_amount = get_env("Q1_SINK_AMOUNT")
+    credits_sink_amount = get_env("CREDITS_SINK_AMOUNT")
+    sentiment_sink_amount = get_env("SENTIMENT_SINK_AMOUNT")
+    sentiment_worker_amount = get_env("SENTIMENT_WORKER_AMOUNT")
+    clients_amount = get_env("CLIENTS_AMOUNT")
+
     compose = {
         "name": "movies-analysis",
         "services": {
@@ -22,6 +53,10 @@ def generate_compose(num_replicas):
                 }
             },
             "requesthandler": {
+                "environment": {
+                    "ID": 1,
+                    "REPLICAS": 1
+                },
                 "build": {
                     "context": ".",
                     "dockerfile": "cmd/requesthandler/Dockerfile"
@@ -35,60 +70,78 @@ def generate_compose(num_replicas):
                     "./docs:/docs"
                 ],
                 "command": "/requesthandler/request_handler.go"
+            }
+        }
+    }
+
+    # Generate movies receiver services
+    for i in range(1, movies_receiver_amount + 1):
+        service_name = f"moviesreceiver_{i}"
+        compose["services"][service_name] = {
+            "environment": {
+                "ID": i,
+                "REPLICAS": movies_receiver_amount
             },
-            "moviesreceiver": {
+            "build": {
+                "context": ".",
+                "dockerfile": "cmd/moviesreceiver/Dockerfile"
+            },
+            "depends_on": {
+                "rabbitmq": {
+                    "condition": "service_healthy"
+                }
+            }
+        }
+
+    # Generate filter services
+    for query in [1, 3, 4]:
+        amount = q1_filter_amount if query == 1 else (q3_filter_amount if query == 3 else q4_filter_amount)
+        for i in range(1, amount + 1):
+            service_name = f"filter_q{query}_{i}"
+            compose["services"][service_name] = {
+                "environment": {
+                    "QUERY": query,
+                    "ID": i,
+                    "REPLICAS": amount
+                },
                 "build": {
                     "context": ".",
-                    "dockerfile": "cmd/moviesreceiver/Dockerfile"
+                    "dockerfile": "cmd/filter/Dockerfile"
                 },
                 "depends_on": {
                     "rabbitmq": {
                         "condition": "service_healthy"
                     }
                 },
-                "deploy": {
-                    "replicas": 3
-                }
+                "command": "/filter/filter.go"
             }
-        }
-    }
-    for query in [1, 3, 4]:
-        service_name = f"filter_q{query}"
+
+    # Generate ratings receiver services
+    for i in range(1, ratings_receiver_amount + 1):
+        service_name = f"ratingsreceiver_{i}"
         compose["services"][service_name] = {
             "environment": {
-                "QUERY": query
+                "ID": i,
+                "REPLICAS": ratings_receiver_amount
             },
             "build": {
                 "context": ".",
-                "dockerfile": "cmd/filter/Dockerfile"
+                "dockerfile": "cmd/ratingsreceiver/Dockerfile"
             },
             "depends_on": {
                 "rabbitmq": {
                     "condition": "service_healthy"
                 }
-            },
-            "command": "/filter/filter.go"
-        }
-        compose["services"][service_name]["deploy"] = {"replicas": num_replicas}
-    compose["services"]["ratingsreceiver"] = {
-        "build": {
-            "context": ".",
-            "dockerfile": "cmd/ratingsreceiver/Dockerfile"
-        },
-        "depends_on": {
-            "rabbitmq": {
-                "condition": "service_healthy"
             }
-        },
-        "deploy": {
-            "replicas": 3
         }
-    }
-    for i in range(1, 4):
+
+    # Generate ratings joiner services
+    for i in range(1, ratings_joiner_amount + 1):
         service_name = f"ratingsjoiner_{i}"
         compose["services"][service_name] = {
             "environment": {
-                "ID": i
+                "ID": i,
+                "REPLICAS": ratings_joiner_amount
             },
             "build": {
                 "context": ".",
@@ -100,26 +153,40 @@ def generate_compose(num_replicas):
                 }
             }
         }
+
+    # Generate sink services
     for query in [1, 3]:
-        service_name = f"q{query}_sink"
-        dockerfile = "cmd/sinks/Dockerfile" if query == 1 else "cmd/sinks_q3/Dockerfile"
-        command = "/q1_sink/q1_sink.go" if query == 1 else None 
-        compose["services"][service_name] = {
-            "build": {
-                "context": ".",
-                "dockerfile": dockerfile
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
+        amount = q1_sink_amount if query == 1 else sentiment_sink_amount
+        for i in range(1, amount + 1):
+            service_name = f"q{query}_sink_{i}"
+            dockerfile = "cmd/sinks/Dockerfile" if query == 1 else "cmd/sinks_q3/Dockerfile"
+            command = "/q1_sink/q1_sink.go" if query == 1 else None
+            compose["services"][service_name] = {
+                "environment": {
+                    "ID": i,
+                    "REPLICAS": amount
+                },
+                "build": {
+                    "context": ".",
+                    "dockerfile": dockerfile
+                },
+                "depends_on": {
+                    "rabbitmq": {
+                        "condition": "service_healthy"
+                    }
                 }
             }
-        }
-        
-        if command:
-            compose["services"][service_name]["command"] = command
-    compose["services"].update({
-        "budget_reducer": {
+            if command:
+                compose["services"][service_name]["command"] = command
+
+    # Generate budget reducer services
+    for i in range(1, budget_reducer_amount + 1):
+        service_name = f"budget_reducer_{i}"
+        compose["services"][service_name] = {
+            "environment": {
+                "ID": i,
+                "REPLICAS": budget_reducer_amount
+            },
             "build": {
                 "context": ".",
                 "dockerfile": "cmd/reducers/Dockerfile"
@@ -129,12 +196,17 @@ def generate_compose(num_replicas):
                     "condition": "service_healthy"
                 }
             },
-            "command": "/budget_reducer.go",
-            "deploy": {
-                "replicas": 3
-            }
-        },
-        "budget_sink": {
+            "command": "/budget_reducer.go"
+        }
+
+    # Generate budget sink services
+    for i in range(1, budget_sink_amount + 1):
+        service_name = f"budget_sink_{i}"
+        compose["services"][service_name] = {
+            "environment": {
+                "ID": i,
+                "REPLICAS": budget_sink_amount
+            },
             "build": {
                 "context": ".",
                 "dockerfile": "cmd/sinks_q2/Dockerfile"
@@ -146,10 +218,15 @@ def generate_compose(num_replicas):
             },
             "command": "/budget_sink/budget_sink.go"
         }
-    })
 
-    compose["services"].update({
-        "sentiment_worker": {
+    # Generate sentiment worker services
+    for i in range(1, sentiment_worker_amount + 1):
+        service_name = f"sentiment_worker_{i}"
+        compose["services"][service_name] = {
+            "environment": {
+                "ID": i,
+                "REPLICAS": sentiment_worker_amount
+            },
             "build": {
                 "context": ".",
                 "dockerfile": "cmd/sentiment/Dockerfile"
@@ -158,12 +235,17 @@ def generate_compose(num_replicas):
                 "rabbitmq": {
                     "condition": "service_healthy"
                 }
-            },
-            "deploy": {
-                "replicas": 2
             }
-        },
-        "sentiment_reducer": {
+        }
+
+    # Generate sentiment reducer services
+    for i in range(1, sentiment_reducer_amount + 1):
+        service_name = f"sentiment_reducer_{i}"
+        compose["services"][service_name] = {
+            "environment": {
+                "ID": i,
+                "REPLICAS": sentiment_reducer_amount
+            },
             "build": {
                 "context": ".",
                 "dockerfile": "cmd/reducers/sentiment_reducer/Dockerfile"
@@ -175,13 +257,14 @@ def generate_compose(num_replicas):
             },
             "command": "/sentiment_reducer/sentiment_reducer.go"
         }
-    })
 
-    for i in range(1, 4):
-        service_name = f"credits_joiner_{i}" if i > 1 else "credits_joiner"
+    # Generate credits joiner services
+    for i in range(1, credits_joiner_amount + 1):
+        service_name = f"credits_joiner_{i}"
         compose["services"][service_name] = {
             "environment": {
-                "ID": i
+                "ID": i,
+                "REPLICAS": credits_joiner_amount
             },
             "build": {
                 "context": ".",
@@ -193,8 +276,15 @@ def generate_compose(num_replicas):
                 }
             }
         }
-    compose["services"].update({
-        "credits_receiver": {
+
+    # Generate credits receiver services
+    for i in range(1, credits_receiver_amount + 1):
+        service_name = f"credits_receiver_{i}"
+        compose["services"][service_name] = {
+            "environment": {
+                "ID": i,
+                "REPLICAS": credits_receiver_amount
+            },
             "build": {
                 "context": ".",
                 "dockerfile": "cmd/credits_receiver/Dockerfile"
@@ -204,12 +294,17 @@ def generate_compose(num_replicas):
                     "condition": "service_healthy"
                 }
             },
-            "command": "/credits_receiver/credits_receiver.go",
-            "deploy": {
-                "replicas": 3
-            }
-        },
-        "credits_sink": {
+            "command": "/credits_receiver/credits_receiver.go"
+        }
+
+    # Generate credits sink services
+    for i in range(1, credits_sink_amount + 1):
+        service_name = f"credits_sink_{i}"
+        compose["services"][service_name] = {
+            "environment": {
+                "ID": i,
+                "REPLICAS": credits_sink_amount
+            },
             "build": {
                 "context": ".",
                 "dockerfile": "cmd/sinks_q4/Dockerfile"
@@ -221,13 +316,32 @@ def generate_compose(num_replicas):
             },
             "command": "/credits_sink/credits_sink.go"
         }
-    })
 
-    with open('docker-compose-prueba.yml', 'w') as f:
+    # Generate clients 
+    compose["services"]["client"] = {
+        "build": {
+            "context": ".",
+            "dockerfile": "cmd/client/Dockerfile"
+        },
+        "depends_on": [
+            "requesthandler"
+        ],
+        "deploy": {
+            "replicas": clients_amount
+        },
+        "volumes": [
+            "./docs:/docs"
+        ]
+    }
+
+    with open('docker-compose.yml', 'w') as f:
         yaml.dump(compose, f, default_flow_style=False, sort_keys=False)
 
 if __name__ == "__main__":
-    num_replicas = int(sys.argv[1]) if len(sys.argv) > 1 else 3
-    generate_compose(num_replicas)
+    try:
+        generate_compose()
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     
     

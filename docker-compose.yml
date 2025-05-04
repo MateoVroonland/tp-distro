@@ -3,36 +3,35 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./definitions.json:/etc/rabbitmq/definitions.json:ro
     healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
+      test:
+        - CMD
+        - rabbitmqctl
+        - status
       interval: 10s
       timeout: 5s
       retries: 5
-
-  client:
-    build:
-      context: .
-      dockerfile: cmd/client/Dockerfile
-    depends_on:
-      - requesthandler
-    deploy:
-      replicas: 2
-    volumes:
-      - ./docs:/docs
-
   requesthandler:
+    environment:
+      ID: 1
+      REPLICAS: 1
     build:
       context: .
       dockerfile: cmd/requesthandler/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - ./docs:/docs
     command: /requesthandler/request_handler.go
-
-  moviesreceiver:
+  moviesreceiver_1:
     environment:
+      ID: 1
       REPLICAS: 2
     build:
       context: .
@@ -40,12 +39,20 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    deploy:
-      replicas: 2
-
-  filter_q1:
+  moviesreceiver_2:
+    environment:
+      ID: 2
+      REPLICAS: 2
+    build:
+      context: .
+      dockerfile: cmd/moviesreceiver/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_q1_1:
     environment:
       QUERY: 1
+      ID: 1
       REPLICAS: 2
     build:
       context: .
@@ -54,12 +61,10 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
-    deploy:
-      replicas: 2
-
-  filter_q3:
+  filter_q1_2:
     environment:
-      QUERY: 3
+      QUERY: 1
+      ID: 2
       REPLICAS: 2
     build:
       context: .
@@ -68,12 +73,34 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
-    deploy:
-      replicas: 2
-
-  filter_q4:
+  # filter_q3_1:
+  #   environment:
+  #     QUERY: 3
+  #     ID: 1
+  #     REPLICAS: 2
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/filter/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  # filter_q3_2:
+  #   environment:
+  #     QUERY: 3
+  #     ID: 2
+  #     REPLICAS: 2
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/filter/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  filter_q4_1:
     environment:
       QUERY: 4
+      ID: 1
       REPLICAS: 2
     build:
       context: .
@@ -135,34 +162,83 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /q1_sink/q1_sink.go
-
-  q3_sink:
-    build:
-      context: .
-      dockerfile: cmd/sinks_q3/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  budget_reducer:
-    build:
-      context: .
-      dockerfile: cmd/reducers/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /budget_reducer.go
-    deploy:
-      replicas: 2
-  budget_sink:
-    build:
-      context: .
-      dockerfile: cmd/sinks_q2/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /budget_sink/budget_sink.go
-
-  # sentiment_reducer:
+  # q3_sink_1:
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 1
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sinks_q3/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # budget_reducer_1:
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 2
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/reducers/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_reducer.go
+  # budget_reducer_2:
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 2
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/reducers/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_reducer.go
+  # budget_sink_1:
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 1
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sinks_q2/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_sink/budget_sink.go
+  # sentiment_worker_1:
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 3
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sentiment/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # sentiment_worker_2:
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 3
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sentiment/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # sentiment_worker_3:
+  #   environment:
+  #     ID: 3
+  #     REPLICAS: 3
+  #   build:
+  #     context: .
+  #     dockerfile: cmd/sentiment/Dockerfile
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # sentiment_reducer_1:
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 2
   #   build:
   #     context: .
   #     dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
@@ -170,32 +246,21 @@ services:
   #     rabbitmq:
   #       condition: service_healthy
   #   command: /sentiment_reducer/sentiment_reducer.go
-  #   deploy:
-  #     replicas: 2
-
-  # sentiment_worker:
+  # sentiment_reducer_2:
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 2
   #   build:
   #     context: .
-  #     dockerfile: cmd/sentiment/Dockerfile
+  #     dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
   #   depends_on:
   #     rabbitmq:
   #       condition: service_healthy
-  #   deploy:
-  #     replicas: 3
-
-  # sentiment_sink:
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/sinks_q5/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /sentiment_sink/sentiment_sink.go
-
-  credits_joiner:
+  #   command: /sentiment_reducer/sentiment_reducer.go
+  credits_joiner_1:
     environment:
       ID: 1
-      REPLICAS: 3
+      REPLICAS: 2
     build:
       context: .
       dockerfile: cmd/joiners_q4/Dockerfile
@@ -205,26 +270,16 @@ services:
   credits_joiner_2:
     environment:
       ID: 2
-      REPLICAS: 3
+      REPLICAS: 2
     build:
       context: .
       dockerfile: cmd/joiners_q4/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
-  credits_joiner_3:
+  credits_receiver_1:
     environment:
-      ID: 3
-      REPLICAS: 3
-    build:
-      context: .
-      dockerfile: cmd/joiners_q4/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-  credits_receiver:
-    environment:
+      ID: 1
       REPLICAS: 2
     build:
       context: .
@@ -233,10 +288,21 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /credits_receiver/credits_receiver.go
-    deploy:
-      replicas: 2
-
-  credits_sink:
+  credits_receiver_2:
+    environment:
+      ID: 2
+      REPLICAS: 2
+    build:
+      context: .
+      dockerfile: cmd/credits_receiver/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /credits_receiver/credits_receiver.go
+  credits_sink_1:
+    environment:
+      ID: 1
+      REPLICAS: 1
     build:
       context: .
       dockerfile: cmd/sinks_q4/Dockerfile
@@ -244,3 +310,13 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /credits_sink/credits_sink.go
+  client:
+    build:
+      context: .
+      dockerfile: cmd/client/Dockerfile
+    depends_on:
+      - requesthandler
+    deploy:
+      replicas: 2
+    volumes:
+      - ./docs:/docs

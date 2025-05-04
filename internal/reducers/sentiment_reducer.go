@@ -1,11 +1,6 @@
 package reducers
 
 import (
-	"encoding/csv"
-	"log"
-	"strings"
-
-	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -35,75 +30,75 @@ func NewSentimentReducer(queue *utils.ConsumerQueue, publishQueue *utils.Produce
 }
 
 func (r *SentimentReducer) Reduce() {
-	positiveStats := NewSentimentStats("POSITIVE")
-	negativeStats := NewSentimentStats("NEGATIVE")
+	// positiveStats := NewSentimentStats("POSITIVE")
+	// negativeStats := NewSentimentStats("NEGATIVE")
 
-	r.queue.AddFinishSubscriber(r.publishQueue)
+	// r.queue.AddFinishSubscriber(r.publishQueue)
 
-	processedCount := 0
+	// processedCount := 0
 
-	defer r.queue.CloseChannel()
-	defer r.publishQueue.CloseChannel()
+	// defer r.queue.CloseChannel()
+	// defer r.publishQueue.CloseChannel()
 
-	log.Printf("Sentiment reducer started processing")
+	// log.Printf("Sentiment reducer started processing")
 
-	for d := range r.queue.ConsumeInfinite() {
-		stringLine := string(d.Body)
+	// for d := range r.queue.ConsumeInfinite() {
+	// 	stringLine := string(d.Body)
 
-		processedCount++
+	// 	processedCount++
 
-		reader := csv.NewReader(strings.NewReader(stringLine))
-		record, err := reader.Read()
-		// log.Printf("Received message in Sentiment reducer: %s", stringLine)
-		if err != nil {
-			log.Printf("Failed to read record: %v", err)
-			d.Nack(false)
-			continue
-		}
+	// 	reader := csv.NewReader(strings.NewReader(stringLine))
+	// 	record, err := reader.Read()
+	// 	// log.Printf("Received message in Sentiment reducer: %s", stringLine)
+	// 	if err != nil {
+	// 		log.Printf("Failed to read record: %v", err)
+	// 		d.Nack(false)
+	// 		continue
+	// 	}
 
-		if processedCount%1000 == 0 {
-			log.Printf("Processed %d messages", processedCount)
-		}
+	// 	if processedCount%1000 == 0 {
+	// 		log.Printf("Processed %d messages", processedCount)
+	// 	}
 
-		var movieSentiment messages.SentimentAnalysis
-		err = movieSentiment.Deserialize(record)
+	// 	var movieSentiment messages.SentimentAnalysis
+	// 	err = movieSentiment.Deserialize(record)
 
-		if err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
-			d.Nack(false)
-			continue
-		}
+	// 	if err != nil {
+	// 		log.Printf("Failed to deserialize movie: %v", err)
+	// 		d.Nack(false)
+	// 		continue
+	// 	}
 
-		if movieSentiment.Sentiment == "POSITIVE" {
-			positiveStats.TotalMovies++
-			positiveStats.TotalRatio += movieSentiment.Ratio
-		} else if movieSentiment.Sentiment == "NEGATIVE" {
-			negativeStats.TotalMovies++
-			negativeStats.TotalRatio += movieSentiment.Ratio
-		}
+	// 	if movieSentiment.Sentiment == "POSITIVE" {
+	// 		positiveStats.TotalMovies++
+	// 		positiveStats.TotalRatio += movieSentiment.Ratio
+	// 	} else if movieSentiment.Sentiment == "NEGATIVE" {
+	// 		negativeStats.TotalMovies++
+	// 		negativeStats.TotalRatio += movieSentiment.Ratio
+	// 	}
 
-		d.Ack()
-	}
+	// 	d.Ack()
+	// }
 
-	log.Printf("Sentiment reducer finished processing %d movies", processedCount)
-	if positiveStats.TotalMovies > 0 {
-		positiveStats.AverageRatio = positiveStats.TotalRatio / float64(positiveStats.TotalMovies)
-	}
-	if negativeStats.TotalMovies > 0 {
-		negativeStats.AverageRatio = negativeStats.TotalRatio / float64(negativeStats.TotalMovies)
-	}
+	// log.Printf("Sentiment reducer finished processing %d movies", processedCount)
+	// if positiveStats.TotalMovies > 0 {
+	// 	positiveStats.AverageRatio = positiveStats.TotalRatio / float64(positiveStats.TotalMovies)
+	// }
+	// if negativeStats.TotalMovies > 0 {
+	// 	negativeStats.AverageRatio = negativeStats.TotalRatio / float64(negativeStats.TotalMovies)
+	// }
 
-	log.Printf("Publishing sentiment statistics: Positive avg ratio: %.2f (%d movies), Negative avg ratio: %.2f (%d movies)",
-		positiveStats.AverageRatio, positiveStats.TotalMovies,
-		negativeStats.AverageRatio, negativeStats.TotalMovies)
+	// log.Printf("Publishing sentiment statistics: Positive avg ratio: %.2f (%d movies), Negative avg ratio: %.2f (%d movies)",
+	// 	positiveStats.AverageRatio, positiveStats.TotalMovies,
+	// 	negativeStats.AverageRatio, negativeStats.TotalMovies)
 
-	// positiveCSV := fmt.Sprintf("POSITIVE,%.6f,%d,%d",
-	// 	positiveStats.AverageRatio, positiveStats.TotalMovies, processedCount)
-	// r.publishQueue.Publish([]byte(positiveCSV))
+	// // positiveCSV := fmt.Sprintf("POSITIVE,%.6f,%d,%d",
+	// // 	positiveStats.AverageRatio, positiveStats.TotalMovies, processedCount)
+	// // r.publishQueue.Publish([]byte(positiveCSV))
 
-	// negativeCSV := fmt.Sprintf("NEGATIVE,%.6f,%d,%d",
-	// 	negativeStats.AverageRatio, negativeStats.TotalMovies, processedCount)
-	// r.publishQueue.Publish([]byte(negativeCSV))
+	// // negativeCSV := fmt.Sprintf("NEGATIVE,%.6f,%d,%d",
+	// // 	negativeStats.AverageRatio, negativeStats.TotalMovies, processedCount)
+	// // r.publishQueue.Publish([]byte(negativeCSV))
 
-	log.Printf("Sentiment reducer finished processing %d movies", processedCount)
+	// log.Printf("Sentiment reducer finished processing %d movies", processedCount)
 }

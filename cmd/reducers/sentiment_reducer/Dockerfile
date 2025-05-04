@@ -12,5 +12,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/reducers/sentiment_reducer/
 FROM scratch
 
 COPY --from=builder /main /main
+COPY .env /app/.env
 
 ENTRYPOINT ["/main"]
