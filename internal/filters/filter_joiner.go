@@ -1,8 +1,12 @@
 package filters
 
 import (
+	"encoding/csv"
+	"fmt"
 	"log"
+	"strings"
 
+	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 
@@ -24,60 +28,82 @@ func NewFilterJoiner(filteredByCountryConsumer *utils.ConsumerQueue, outputMessa
 
 func (f *FilterJoiner) FilterAndPublish() error {
 	log.Printf("Filtering and publishing for query: %s", f.query)
+	var replicas int
+	if f.query == "3" {
+		replicas = env.AppEnv.RATINGS_JOINER_AMOUNT
+	} else if f.query == "4" {
+		replicas = env.AppEnv.CREDITS_JOINER_AMOUNT
+	}
 
-	// for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
+	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
 
-	// 	if _, ok := f.clientsProducers[msg.ClientId]; !ok && f.query != "1" {
-	// 		producerName := fmt.Sprintf("filter_q%s_client_%s", f.query, msg.ClientId)
-	// 		producer, err := utils.NewProducerQueue(f.conn, producerName, producerName)
-	// 		if err != nil {
-	// 			log.Printf("Failed to create producer for client %s: %v", msg.ClientId, err)
-	// 			msg.Nack(false)
-	// 			continue
-	// 		}
-	// 		f.filteredByCountryConsumer.AddFinishSubscriberWithRoutingKey(producer, "1") // send to the first queue in the hashed queues
-	// 		f.clientsProducers[msg.ClientId] = producer
-	// 		log.Printf("Created producer for client %s: %s", msg.ClientId, producerName)
-	// 		f.newClientFanout.Publish([]byte("NEW_CLIENT"), msg.ClientId)
-	// 	}
+		if msg.Body == "FINISHED" {
+			queue, ok := f.clientsProducers[msg.ClientId]
+			if !ok {
+				log.Printf("No producer for client %s", msg.ClientId)
+				msg.Ack()
+				continue
+			}
+			queue.PublishFinished(msg.ClientId)
+			msg.Ack()
+			continue
+		}
 
-	// 	stringLine := string(msg.Body)
+		if _, ok := f.clientsProducers[msg.ClientId]; !ok && f.query != "1" {
+			producerName := fmt.Sprintf("filter_q%s_client_%s", f.query, msg.ClientId)
+			producer, err := utils.NewProducerQueue(f.conn, producerName, replicas)
+			if err != nil {
+				log.Printf("Failed to create producer for client %s: %v", msg.ClientId, err)
+				msg.Nack(false)
+				continue
+			}
+			f.clientsProducers[msg.ClientId] = producer
+			log.Printf("Created producer for client %s: %s", msg.ClientId, producerName)
+			err = f.newClientFanout.Publish([]byte("NEW_CLIENT"), msg.ClientId, "")
+			if err != nil {
+				log.Printf("FAILED TO PUBLISH NEW CLIENT: %v", err)
+				msg.Nack(false)
+				continue
+			}
+		}
 
-	// 	reader := csv.NewReader(strings.NewReader(stringLine))
-	// 	record, err := reader.Read()
-	// 	if err != nil {
-	// 		log.Printf("Failed to read record: %v", err)
-	// 		msg.Nack(false)
-	// 		continue
-	// 	}
-	// 	if err := f.outputMessage.Deserialize(record); err != nil {
-	// 		log.Printf("Failed to deserialize movie: %s", string(msg.Body))
-	// 		log.Printf("Error deserializing movie: %s", err)
-	// 		msg.Nack(false)
-	// 		continue
-	// 	}
-	// 	if f.outputMessage.PassesFilter() {
-	// 		serializedMovie, err := protocol.Serialize(f.outputMessage)
-	// 		if err != nil {
-	// 			log.Printf("Error serializing movie: %s", err)
-	// 			msg.Nack(false)
-	// 			continue
-	// 		}
+		stringLine := string(msg.Body)
 
-	// 		routingKey := f.outputMessage.GetRoutingKey()
+		reader := csv.NewReader(strings.NewReader(stringLine))
+		record, err := reader.Read()
+		if err != nil {
+			log.Printf("Failed to read record: %v", err)
+			msg.Nack(false)
+			continue
+		}
+		if err := f.outputMessage.Deserialize(record); err != nil {
+			log.Printf("Failed to deserialize movie: %s", string(msg.Body))
+			log.Printf("Error deserializing movie: %s", err)
+			msg.Nack(false)
+			continue
+		}
+		if f.outputMessage.PassesFilter() {
+			serializedMovie, err := protocol.Serialize(f.outputMessage)
+			if err != nil {
+				log.Printf("Error serializing movie: %s", err)
+				msg.Nack(false)
+				continue
+			}
 
-	// 		queue := f.clientsProducers[msg.ClientId]
+			routingKey := f.outputMessage.GetMovieId()
 
-	// 		err = queue.PublishWithRoutingKey(serializedMovie, routingKey, msg.ClientId)
-	// 		log.Printf("Published movie for client %s with routing key: %s", msg.ClientId, routingKey)
+			queue := f.clientsProducers[msg.ClientId]
 
-	// 		if err != nil {
-	// 			log.Printf("Error publishing movie: %s", err)
-	// 			msg.Nack(false)
-	// 			continue
-	// 		}
-	// 	}
-	// 	msg.Ack()
-	// }
+			err = queue.Publish(serializedMovie, msg.ClientId, routingKey)
+			log.Printf("Published movie for client %s with routing key: %s", msg.ClientId, routingKey)
+
+			if err != nil {
+				log.Printf("Error publishing movie: %s", err)
+				msg.Nack(false)
+				continue
+			}
+		}
+		msg.Ack()
+	}
 	return nil
 }

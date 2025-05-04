@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"fmt"
 	"strconv"
 )
 
@@ -19,6 +20,7 @@ func (r *RawRatings) Deserialize(data []string) error {
 	var err error
 	r.MovieID, err = strconv.Atoi(data[RawRatingMovieIDIndex])
 	if err != nil {
+		fmt.Println("data[1]", data[1])
 		return err
 	}
 	r.Rating, err = strconv.ParseFloat(data[RawRatingRatingIndex], 64)
