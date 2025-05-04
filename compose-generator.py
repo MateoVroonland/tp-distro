@@ -155,12 +155,22 @@ def generate_compose():
         }
 
     # Generate sink services
-    for query in [1, 3]:
-        amount = q1_sink_amount if query == 1 else sentiment_sink_amount
+    for query in [1, 3, 5]:
+        if query == 1:
+            amount = q1_sink_amount
+            dockerfile = "cmd/sinks/Dockerfile"
+            command = "/q1_sink/q1_sink.go"
+        elif query == 3:
+            amount = sentiment_sink_amount  # Ajustar si es necesario
+            dockerfile = "cmd/sinks_q3/Dockerfile"
+            command = None
+        else:
+            amount = sentiment_sink_amount
+            dockerfile = "cmd/sinks_q5/Dockerfile"
+            command = None
+
         for i in range(1, amount + 1):
             service_name = f"q{query}_sink_{i}"
-            dockerfile = "cmd/sinks/Dockerfile" if query == 1 else "cmd/sinks_q3/Dockerfile"
-            command = "/q1_sink/q1_sink.go" if query == 1 else None
             compose["services"][service_name] = {
                 "environment": {
                     "ID": i,
