@@ -57,7 +57,7 @@ func (r *SentimentReducer) Reduce() {
 		// log.Printf("Received message in Sentiment reducer: %s", stringLine)
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			d.Nack(false, false)
+			d.Nack(false)
 			continue
 		}
 
@@ -70,7 +70,7 @@ func (r *SentimentReducer) Reduce() {
 
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			d.Nack(false, false)
+			d.Nack(false)
 			continue
 		}
 
@@ -82,7 +82,7 @@ func (r *SentimentReducer) Reduce() {
 			negativeStats.TotalRatio += movieSentiment.Ratio
 		}
 
-		d.Ack(false)
+		d.Ack()
 	}
 
 	log.Printf("Sentiment reducer finished processing %d movies", processedCount)

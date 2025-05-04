@@ -16,22 +16,9 @@ services:
       context: .
       dockerfile: cmd/client/Dockerfile
     depends_on:
-      rabbitmq:
-        condition: service_healthy
-      requesthandler:
-        condition: service_started
-    volumes:
-      - ./docs:/docs
-
-  client2:
-    build:
-      context: .
-      dockerfile: cmd/client/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      requesthandler:
-        condition: service_started
+      - requesthandler
+    deploy:
+      replicas: 2
     volumes:
       - ./docs:/docs
 
@@ -156,26 +143,24 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-
-  # budget_reducer:
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/reducers/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /budget_reducer.go
-  #   deploy:
-  #     replicas: 2
-
-  # budget_sink:
-  #   build:
-  #     context: .
-  #     dockerfile: cmd/sinks_q2/Dockerfile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   command: /budget_sink/budget_sink.go
+  budget_reducer:
+    build:
+      context: .
+      dockerfile: cmd/reducers/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /budget_reducer.go
+    deploy:
+      replicas: 2
+  budget_sink:
+    build:
+      context: .
+      dockerfile: cmd/sinks_q2/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /budget_sink/budget_sink.go
 
   # sentiment_reducer:
   #   build:

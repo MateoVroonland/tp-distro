@@ -30,40 +30,33 @@ func (c *CreditsJoiner) JoinCredits(routingKey string) error {
 	defer c.newClientQueue.CloseChannel()
 
 	for msg := range c.newClientQueue.ConsumeInfinite() {
-		var clientId string
-		var ok bool
-		if clientId, ok = msg.Headers["clientId"].(string); !ok {
-			log.Printf("Failed to get clientId from message headers")
-			msg.Nack(false, false)
-			continue
-		}
 
-		log.Printf("Received new client %s", clientId)
+		log.Printf("Received new client %s", msg.ClientId)
 
 		c.clientsLock.Lock()
-		if _, ok := c.moviesConsumers[clientId]; !ok {
-			moviesConsumer, err := utils.NewConsumerQueueWithRoutingKey(c.conn, "filter_q4_client_"+clientId, "filter_q4_client_"+clientId, routingKey, "internal_filter_q4_client_"+clientId)
+		if _, ok := c.moviesConsumers[msg.ClientId]; !ok {
+			moviesConsumer, err := utils.NewConsumerQueueWithRoutingKey(c.conn, "filter_q4_client_"+msg.ClientId, "filter_q4_client_"+msg.ClientId, routingKey, "internal_filter_q4_client_"+msg.ClientId)
 			if err != nil {
-				log.Printf("Failed to create movies consumer for client %s: %v", clientId, err)
-				msg.Nack(false, false)
+				log.Printf("Failed to create movies consumer for client %s: %v", msg.ClientId, err)
+				msg.Nack(false)
 				c.clientsLock.Unlock()
 				continue
 			}
-			c.moviesConsumers[clientId] = moviesConsumer
+			c.moviesConsumers[msg.ClientId] = moviesConsumer
 		}
 
-		if _, ok := c.creditsConsumers[clientId]; !ok {
-			creditsConsumer, err := utils.NewConsumerQueueWithRoutingKey(c.conn, "credits_joiner_client_"+clientId, "credits_joiner_client_"+clientId, routingKey, "internal_credits_joiner_client_"+clientId)
+		if _, ok := c.creditsConsumers[msg.ClientId]; !ok {
+			creditsConsumer, err := utils.NewConsumerQueueWithRoutingKey(c.conn, "credits_joiner_client_"+msg.ClientId, "credits_joiner_client_"+msg.ClientId, routingKey, "internal_credits_joiner_client_"+msg.ClientId)
 			if err != nil {
-				log.Printf("Failed to create credits consumer for client %s: %v", clientId, err)
-				msg.Nack(false, false)
+				log.Printf("Failed to create credits consumer for client %s: %v", msg.ClientId, err)
+				msg.Nack(false)
 				c.clientsLock.Unlock()
-				delete(c.moviesConsumers, clientId)
+				delete(c.moviesConsumers, msg.ClientId)
 				continue
 			}
-			c.creditsConsumers[clientId] = creditsConsumer
+			c.creditsConsumers[msg.ClientId] = creditsConsumer
 			c.waitGroup.Add(1)
-			go c.JoinCreditsForClient(clientId)
+			go c.JoinCreditsForClient(msg.ClientId)
 		}
 
 		c.clientsLock.Unlock()
@@ -104,7 +97,7 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Movie: %s", stringLine)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -112,12 +105,12 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 		err = movie.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
 		moviesIds[movie.ID] = true
-		msg.Ack(false)
+		msg.Ack()
 	}
 
 	log.Printf("Received %d movies for client %s", i, clientId)
@@ -137,7 +130,7 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Credit: %s", stringLine)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -145,12 +138,12 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 		err = credit.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize credits: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
 		if !moviesIds[credit.MovieID] {
-			msg.Ack(false)
+			msg.Ack()
 			continue
 		}
 
@@ -159,12 +152,12 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 		if err != nil {
 			log.Printf("Failed to serialize credits: %v", record)
 			log.Printf("json.Marshal: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 		sinkProducer.Publish(payload, clientId)
 
-		msg.Ack(false)
+		msg.Ack()
 	}
 
 	log.Printf("Saved %d credits for client %s", len(credits), clientId)

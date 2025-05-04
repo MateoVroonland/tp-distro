@@ -153,7 +153,7 @@ class Client:
                         for _ in range(20):
                             if not self.is_running:
                                 break
-                            time.sleep(1)
+                            time.sleep(9)
                         continue
                     
                     logger.info(f"Received result: {data}")
@@ -176,12 +176,6 @@ class Client:
             {"path": "/docs/ratings_short.csv"}
         ]
         
-        logger.info("Waiting 15 seconds before starting...")
-        for i in range(15):
-            if not self.is_running:
-                logger.info("Shutdown requested during initial wait")
-                return
-            time.sleep(1)
 
         self.create_tcp_connection(self.SERVER_HOST, self.SERVER_PORT)
         if not self.current_connection:

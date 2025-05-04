@@ -107,7 +107,7 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Movie: %s", stringLine)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -115,12 +115,12 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 		err = movie.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
 		moviesIds[movie.ID] = movie.Title
-		msg.Ack(false)
+		msg.Ack()
 
 	}
 
@@ -138,7 +138,7 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Rating: %s", stringLine)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -146,12 +146,12 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 		err = rating.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize ratings: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
 		if _, ok := moviesIds[rating.MovieID]; !ok {
-			msg.Ack(false)
+			msg.Ack()
 			continue
 		}
 
@@ -165,7 +165,7 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 			ratingsCount[rating.MovieID]++
 		}
 
-		msg.Ack(false)
+		msg.Ack()
 	}
 
 	log.Printf("Ratings: %v", ratings)

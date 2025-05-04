@@ -48,31 +48,32 @@ func (r *RatingsReceiver) ReceiveRatings() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Error reading record: %s", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
 		rating := &messages.RawRatings{}
 		if err := rating.Deserialize(record); err != nil {
 			log.Printf("Error deserializing rating: %s", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 		serializedRating, err := protocol.Serialize(rating)
 		if err != nil {
 			log.Printf("Error serializing rating: %s", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
 		routingKey := utils.HashString(strconv.Itoa(rating.MovieID), constants.RATINGS_JOINER_AMOUNT)
 		err = r.joinerProducers[clientId].PublishWithRoutingKey(serializedRating, strconv.Itoa(routingKey), clientId)
+
 		if err != nil {
 			log.Printf("Error publishing rating: %s", err)
-			msg.Nack(false, true)
+			msg.Nack(false)
 			continue
 		}
-		msg.Ack(false)
+		msg.Ack()
 	}
 	log.Printf("Ratings consumed: %d", ratingsConsumed)
 }

@@ -32,19 +32,18 @@ func (r *CreditsReceiver) ReceiveCredits() {
 	for msg := range r.creditsConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
-		clientId := msg.Headers["clientId"].(string)
 
-		if _, ok := r.clientProducers[clientId]; !ok {
-			producerName := fmt.Sprintf("credits_joiner_client_%s", clientId)
+		if _, ok := r.clientProducers[msg.ClientId]; !ok {
+			producerName := fmt.Sprintf("credits_joiner_client_%s", msg.ClientId)
 			producer, err := utils.NewProducerQueue(r.conn, producerName, producerName)
 			if err != nil {
-				log.Printf("Failed to create producer for client %s: %v", clientId, err)
-				msg.Nack(false, false)
+				log.Printf("Failed to create producer for client %s: %v", msg.ClientId, err)
+				msg.Nack(false)
 				continue
 			}
 			r.creditsConsumer.AddFinishSubscriberWithRoutingKey(producer, "1") // send to the first queue in the hashed queues
-			r.clientProducers[clientId] = producer
-			log.Printf("Created producer for client %s: %s", clientId, producerName)
+			r.clientProducers[msg.ClientId] = producer
+			log.Printf("Created producer for client %s: %s", msg.ClientId, producerName)
 		}
 
 		i++
@@ -60,25 +59,25 @@ func (r *CreditsReceiver) ReceiveCredits() {
 		credits := &messages.RawCredits{}
 		if err := credits.Deserialize(record); err != nil {
 			log.Printf("Error deserializing credits: %s", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 		serializedCredits, err := protocol.Serialize(credits)
 		if err != nil {
 			log.Printf("Error serializing credits: %s", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
 		routingKey := utils.HashString(strconv.Itoa(credits.MovieID), constants.CREDITS_JOINER_AMOUNT)
 
-		clientProducer := r.clientProducers[clientId]
-		err = clientProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey), clientId)
+		clientProducer := r.clientProducers[msg.ClientId]
+		err = clientProducer.PublishWithRoutingKey(serializedCredits, strconv.Itoa(routingKey), msg.ClientId)
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)
 			continue
 		}
-		msg.Ack(false)
+		msg.Ack()
 	}
 
 	log.Printf("Received %d credits", i)

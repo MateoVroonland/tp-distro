@@ -60,7 +60,7 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 
@@ -68,7 +68,7 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		err = movie.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false, false)
+			msg.Nack(false)
 			continue
 		}
 		minAndMaxMovie, ok := clientsResults[clientId]
