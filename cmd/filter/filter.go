@@ -60,7 +60,8 @@ func main() {
 		filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
 		go filter.FilterAndPublish()
 	} else {
-		newClientFanout, err := utils.NewProducerFanout(conn, "new_client_fanout")
+		producerName := fmt.Sprintf("new_client_fanout_q%s", query)
+		newClientFanout, err := utils.NewProducerFanout(conn, producerName)
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}
