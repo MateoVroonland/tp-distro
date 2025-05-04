@@ -1,12 +1,18 @@
 package reducers
 
 import (
+	"encoding/csv"
+	"log"
+	"strings"
+
+	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
 type SentimentReducer struct {
 	queue        *utils.ConsumerQueue
 	publishQueue *utils.ProducerQueue
+	clientStats  map[string]map[string]SentimentStats
 }
 
 type SentimentStats struct {
@@ -26,79 +32,122 @@ func NewSentimentStats(sentiment string) SentimentStats {
 }
 
 func NewSentimentReducer(queue *utils.ConsumerQueue, publishQueue *utils.ProducerQueue) *SentimentReducer {
-	return &SentimentReducer{queue: queue, publishQueue: publishQueue}
+	return &SentimentReducer{
+		queue:        queue,
+		publishQueue: publishQueue,
+		clientStats:  make(map[string]map[string]SentimentStats),
+	}
 }
 
 func (r *SentimentReducer) Reduce() {
-	// positiveStats := NewSentimentStats("POSITIVE")
-	// negativeStats := NewSentimentStats("NEGATIVE")
+	processedCount := make(map[string]int)
 
-	// r.queue.AddFinishSubscriber(r.publishQueue)
+	defer r.queue.CloseChannel()
+	defer r.publishQueue.CloseChannel()
 
-	// processedCount := 0
+	log.Printf("Sentiment reducer started processing")
 
-	// defer r.queue.CloseChannel()
-	// defer r.publishQueue.CloseChannel()
+	for msg := range r.queue.ConsumeInfinite() {
+		clientId := msg.ClientId
 
-	// log.Printf("Sentiment reducer started processing")
+		if msg.Body == "FINISHED" {
+			log.Printf("Received FINISHED message for client %s", clientId)
+			r.CalculateAverages(clientId)
+			r.SendResults(clientId)
+			msg.Ack()
+			continue
+		}
 
-	// for d := range r.queue.ConsumeInfinite() {
-	// 	stringLine := string(d.Body)
+		if _, ok := r.clientStats[clientId]; !ok {
+			r.clientStats[clientId] = map[string]SentimentStats{
+				"POSITIVE": NewSentimentStats("POSITIVE"),
+				"NEGATIVE": NewSentimentStats("NEGATIVE"),
+			}
+			processedCount[clientId] = 0
+		}
 
-	// 	processedCount++
+		processedCount[clientId]++
 
-	// 	reader := csv.NewReader(strings.NewReader(stringLine))
-	// 	record, err := reader.Read()
-	// 	// log.Printf("Received message in Sentiment reducer: %s", stringLine)
-	// 	if err != nil {
-	// 		log.Printf("Failed to read record: %v", err)
-	// 		d.Nack(false)
-	// 		continue
-	// 	}
+		reader := csv.NewReader(strings.NewReader(msg.Body))
+		record, err := reader.Read()
+		if err != nil {
+			log.Printf("Failed to read record: %v", err)
+			msg.Nack(false)
+			continue
+		}
 
-	// 	if processedCount%1000 == 0 {
-	// 		log.Printf("Processed %d messages", processedCount)
-	// 	}
+		var movieSentiment messages.SentimentAnalysis
+		err = movieSentiment.Deserialize(record)
 
-	// 	var movieSentiment messages.SentimentAnalysis
-	// 	err = movieSentiment.Deserialize(record)
+		if err != nil {
+			log.Printf("Failed to deserialize movie: %v", err)
+			msg.Nack(false)
+			continue
+		}
 
-	// 	if err != nil {
-	// 		log.Printf("Failed to deserialize movie: %v", err)
-	// 		d.Nack(false)
-	// 		continue
-	// 	}
+		clientStats := r.clientStats[clientId]
 
-	// 	if movieSentiment.Sentiment == "POSITIVE" {
-	// 		positiveStats.TotalMovies++
-	// 		positiveStats.TotalRatio += movieSentiment.Ratio
-	// 	} else if movieSentiment.Sentiment == "NEGATIVE" {
-	// 		negativeStats.TotalMovies++
-	// 		negativeStats.TotalRatio += movieSentiment.Ratio
-	// 	}
+		if movieSentiment.Sentiment == "POSITIVE" {
+			stats := clientStats["POSITIVE"]
+			stats.TotalMovies++
+			stats.TotalRatio += movieSentiment.Ratio
+			clientStats["POSITIVE"] = stats
+		} else if movieSentiment.Sentiment == "NEGATIVE" {
+			stats := clientStats["NEGATIVE"]
+			stats.TotalMovies++
+			stats.TotalRatio += movieSentiment.Ratio
+			clientStats["NEGATIVE"] = stats
+		}
 
-	// 	d.Ack()
-	// }
+		r.clientStats[clientId] = clientStats
+		msg.Ack()
+	}
+}
 
-	// log.Printf("Sentiment reducer finished processing %d movies", processedCount)
-	// if positiveStats.TotalMovies > 0 {
-	// 	positiveStats.AverageRatio = positiveStats.TotalRatio / float64(positiveStats.TotalMovies)
-	// }
-	// if negativeStats.TotalMovies > 0 {
-	// 	negativeStats.AverageRatio = negativeStats.TotalRatio / float64(negativeStats.TotalMovies)
-	// }
+func (r *SentimentReducer) CalculateAverages(clientId string) {
+	clientStats := r.clientStats[clientId]
 
-	// log.Printf("Publishing sentiment statistics: Positive avg ratio: %.2f (%d movies), Negative avg ratio: %.2f (%d movies)",
-	// 	positiveStats.AverageRatio, positiveStats.TotalMovies,
-	// 	negativeStats.AverageRatio, negativeStats.TotalMovies)
+	positiveStats := clientStats["POSITIVE"]
+	if positiveStats.TotalMovies > 0 {
+		positiveStats.AverageRatio = positiveStats.TotalRatio / float64(positiveStats.TotalMovies)
+		clientStats["POSITIVE"] = positiveStats
+	}
 
-	// // positiveCSV := fmt.Sprintf("POSITIVE,%.6f,%d,%d",
-	// // 	positiveStats.AverageRatio, positiveStats.TotalMovies, processedCount)
-	// // r.publishQueue.Publish([]byte(positiveCSV))
+	negativeStats := clientStats["NEGATIVE"]
+	if negativeStats.TotalMovies > 0 {
+		negativeStats.AverageRatio = negativeStats.TotalRatio / float64(negativeStats.TotalMovies)
+		clientStats["NEGATIVE"] = negativeStats
+	}
 
-	// // negativeCSV := fmt.Sprintf("NEGATIVE,%.6f,%d,%d",
-	// // 	negativeStats.AverageRatio, negativeStats.TotalMovies, processedCount)
-	// // r.publishQueue.Publish([]byte(negativeCSV))
+	r.clientStats[clientId] = clientStats
 
-	// log.Printf("Sentiment reducer finished processing %d movies", processedCount)
+	log.Printf("Client %s: Sentiment statistics calculated - Positive avg ratio: %.2f (%d movies), Negative avg ratio: %.2f (%d movies)",
+		clientId,
+		positiveStats.AverageRatio, positiveStats.TotalMovies,
+		negativeStats.AverageRatio, negativeStats.TotalMovies)
+}
+
+func (r *SentimentReducer) SendResults(clientId string) {
+	clientStats := r.clientStats[clientId]
+	positiveStats := clientStats["POSITIVE"]
+	negativeStats := clientStats["NEGATIVE"]
+
+	positiveResult := messages.SentimentResult{
+		Sentiment:    "POSITIVE",
+		AverageRatio: positiveStats.AverageRatio,
+		TotalMovies:  positiveStats.TotalMovies,
+	}
+
+	negativeResult := messages.SentimentResult{
+		Sentiment:    "NEGATIVE",
+		AverageRatio: negativeStats.AverageRatio,
+		TotalMovies:  negativeStats.TotalMovies,
+	}
+
+	r.publishQueue.Publish([]byte(positiveResult.Serialize()), clientId, "positive")
+	r.publishQueue.Publish([]byte(negativeResult.Serialize()), clientId, "negative")
+
+	r.publishQueue.PublishFinished(clientId)
+
+	log.Printf("Client %s: Sentiment analysis results published", clientId)
 }
