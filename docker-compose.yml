@@ -179,6 +179,40 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /budget_sink/budget_sink.go
+  sentiment_worker_1:
+    image: movies/sentiment:latest
+    environment:
+      ID: 1
+      REPLICAS: 2
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  sentiment_worker_2:
+    image: movies/sentiment:latest
+    environment:
+      ID: 2
+      REPLICAS: 2
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  sentiment_reducer_1:
+    image: movies/sentiment_reducer:latest
+    environment:
+      ID: 1
+      REPLICAS: 2
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /sentiment_reducer/sentiment_reducer.go
+  sentiment_reducer_2:
+    image: movies/sentiment_reducer:latest
+    environment:
+      ID: 2
+      REPLICAS: 2
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: /sentiment_reducer/sentiment_reducer.go
   sentiment_sink_1:
     image: movies/sink_q5:latest
     environment:
