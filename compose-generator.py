@@ -30,6 +30,7 @@ def generate_compose():
     credits_sink_amount = get_env("CREDITS_SINK_AMOUNT")
     sentiment_sink_amount = get_env("SENTIMENT_SINK_AMOUNT")
     sentiment_worker_amount = get_env("SENTIMENT_WORKER_AMOUNT")
+    sentiment_sink_amount = get_env("SENTIMENT_SINK_AMOUNT")
     clients_amount = get_env("CLIENTS_AMOUNT")
 
     compose = {
@@ -100,6 +101,7 @@ def generate_compose():
     add_services("budget_sink", budget_sink_amount, "movies/sink_q2:latest", None, "/budget_sink/budget_sink.go")
     add_services("sentiment_worker", sentiment_worker_amount, "movies/sentiment:latest")
     add_services("sentiment_reducer", sentiment_reducer_amount, "movies/sentiment_reducer:latest", None, "/sentiment_reducer/sentiment_reducer.go")
+    add_services("sentiment_sink", sentiment_sink_amount, "movies/sink_q5:latest", None, "/sentiment_sink/sentiment_sink.go")
     add_services("credits_joiner", credits_joiner_amount, "movies/credits_joiner:latest")
     add_services("credits_receiver", credits_receiver_amount, "movies/credits_receiver:latest", None, "/credits_receiver/credits_receiver.go")
     add_services("credits_sink", credits_sink_amount, "movies/sink_q4:latest", None, "/credits_sink/credits_sink.go")

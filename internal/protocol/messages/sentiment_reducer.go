@@ -3,6 +3,7 @@ package messages
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -21,6 +22,50 @@ type SentimentAnalysis struct {
 	Sentiment string
 	Ratio     float64
 	RawData   []string
+}
+
+type SentimentResult struct {
+	Sentiment    string
+	AverageRatio float64
+	TotalMovies  int
+}
+
+type SentimentSinkResults struct {
+	PositiveRatio      float64
+	PositiveMovies     int
+	PositiveTotalRatio float64
+	NegativeRatio      float64
+	NegativeMovies     int
+	NegativeTotalRatio float64
+}
+
+func (s *SentimentResult) Serialize() string {
+	return fmt.Sprintf("%s,%.6f,%d", s.Sentiment, s.AverageRatio, s.TotalMovies)
+}
+
+func ParseSentimentResult(data string) (SentimentResult, error) {
+	parts := strings.Split(data, ",")
+	if len(parts) < 3 {
+		return SentimentResult{}, fmt.Errorf("invalid sentiment result format")
+	}
+
+	sentiment := parts[0]
+
+	averageRatio, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return SentimentResult{}, fmt.Errorf("invalid average ratio: %v", err)
+	}
+
+	totalMovies, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return SentimentResult{}, fmt.Errorf("invalid total movies: %v", err)
+	}
+
+	return SentimentResult{
+		Sentiment:    sentiment,
+		AverageRatio: averageRatio,
+		TotalMovies:  totalMovies,
+	}, nil
 }
 
 func (s *SentimentAnalysis) Deserialize(data []string) error {

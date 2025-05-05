@@ -2,10 +2,7 @@ import ast
 import logging
 import json
 
-
-
 def process_movies_row(row):
-
     try:
         genres_idx = 3
         production_countries_idx = 13
