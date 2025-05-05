@@ -173,7 +173,7 @@ class Client:
         files = [
             {"path": "/docs/movies.csv"},
             {"path": "/docs/credits.csv"},
-            {"path": "/docs/ratings_short.csv"}
+            {"path": "/docs/ratings.csv"}
         ]
         
 

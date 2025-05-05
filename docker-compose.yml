@@ -20,9 +20,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
-    build:
-      context: .
-      dockerfile: cmd/requesthandler/Dockerfile
+    image: movies/requesthandler:latest
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -30,300 +28,202 @@ services:
     - ./docs:/docs
     command: /requesthandler/request_handler.go
   moviesreceiver_1:
+    image: movies/moviesreceiver:latest
     environment:
       ID: 1
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/moviesreceiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
   moviesreceiver_2:
+    image: movies/moviesreceiver:latest
     environment:
       ID: 2
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/moviesreceiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
   filter_q1_1:
+    image: movies/filter:latest
     environment:
-      QUERY: 1
       ID: 1
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/filter/Dockerfile
+      QUERY: 1
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
   filter_q1_2:
+    image: movies/filter:latest
     environment:
-      QUERY: 1
       ID: 2
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/filter/Dockerfile
+      QUERY: 1
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
   filter_q3_1:
+    image: movies/filter:latest
     environment:
-      QUERY: 3
       ID: 1
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/filter/Dockerfile
+      QUERY: 3
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
   filter_q3_2:
+    image: movies/filter:latest
     environment:
-      QUERY: 3
       ID: 2
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/filter/Dockerfile
+      QUERY: 3
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
   filter_q4_1:
+    image: movies/filter:latest
     environment:
-      QUERY: 4
       ID: 1
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/filter/Dockerfile
+      QUERY: 4
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
   filter_q4_2:
+    image: movies/filter:latest
     environment:
-      QUERY: 4
       ID: 2
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/filter/Dockerfile
+      QUERY: 4
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /filter/filter.go
   ratingsreceiver_1:
+    image: movies/ratingsreceiver:latest
     environment:
       ID: 1
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/ratingsreceiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
   ratingsreceiver_2:
+    image: movies/ratingsreceiver:latest
     environment:
       ID: 2
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/ratingsreceiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
   ratingsjoiner_1:
+    image: movies/ratingsjoiner:latest
     environment:
       ID: 1
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/joiners/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
   ratingsjoiner_2:
+    image: movies/ratingsjoiner:latest
     environment:
       ID: 2
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/joiners/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
   q1_sink_1:
+    image: movies/sink:latest
     environment:
       ID: 1
       REPLICAS: 1
-    build:
-      context: .
-      dockerfile: cmd/sinks/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /q1_sink/q1_sink.go
   q3_sink_1:
+    image: movies/sink_q3:latest
     environment:
       ID: 1
       REPLICAS: 1
-    build:
-      context: .
-      dockerfile: cmd/sinks_q3/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
   budget_reducer_1:
+    image: movies/reducer:latest
     environment:
       ID: 1
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/reducers/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /budget_reducer.go
   budget_reducer_2:
+    image: movies/reducer:latest
     environment:
       ID: 2
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/reducers/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /budget_reducer.go
   budget_sink_1:
+    image: movies/sink_q2:latest
     environment:
       ID: 1
       REPLICAS: 1
-    build:
-      context: .
-      dockerfile: cmd/sinks_q2/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /budget_sink/budget_sink.go
-  sentiment_worker_1:
-    environment:
-      ID: 1
-      REPLICAS: 3
-    build:
-      context: .
-      dockerfile: cmd/sentiment/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  sentiment_worker_2:
-    environment:
-      ID: 2
-      REPLICAS: 3
-    build:
-      context: .
-      dockerfile: cmd/sentiment/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  sentiment_worker_3:
-    environment:
-      ID: 3
-      REPLICAS: 3
-    build:
-      context: .
-      dockerfile: cmd/sentiment/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  sentiment_reducer_1:
-    environment:
-      ID: 1
-      REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /sentiment_reducer/sentiment_reducer.go
-  sentiment_reducer_2:
-    environment:
-      ID: 2
-      REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/reducers/sentiment_reducer/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /sentiment_reducer/sentiment_reducer.go
   credits_joiner_1:
+    image: movies/credits_joiner:latest
     environment:
       ID: 1
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/joiners_q4/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
   credits_joiner_2:
+    image: movies/credits_joiner:latest
     environment:
       ID: 2
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/joiners_q4/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
   credits_receiver_1:
+    image: movies/credits_receiver:latest
     environment:
       ID: 1
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/credits_receiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /credits_receiver/credits_receiver.go
   credits_receiver_2:
+    image: movies/credits_receiver:latest
     environment:
       ID: 2
       REPLICAS: 2
-    build:
-      context: .
-      dockerfile: cmd/credits_receiver/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /credits_receiver/credits_receiver.go
   credits_sink_1:
+    image: movies/sink_q4:latest
     environment:
       ID: 1
       REPLICAS: 1
-    build:
-      context: .
-      dockerfile: cmd/sinks_q4/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /credits_sink/credits_sink.go
   client:
-    build:
-      context: .
-      dockerfile: cmd/client/Dockerfile
+    image: movies/client:latest
     depends_on:
     - requesthandler
     deploy:

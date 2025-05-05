@@ -57,10 +57,7 @@ def generate_compose():
                     "ID": 1,
                     "REPLICAS": 1
                 },
-                "build": {
-                    "context": ".",
-                    "dockerfile": "cmd/requesthandler/Dockerfile"
-                },
+                "image": "movies/requesthandler:latest",
                 "depends_on": {
                     "rabbitmq": {
                         "condition": "service_healthy"
@@ -74,102 +71,14 @@ def generate_compose():
         }
     }
 
-    # Generate movies receiver services
-    for i in range(1, movies_receiver_amount + 1):
-        service_name = f"moviesreceiver_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": movies_receiver_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/moviesreceiver/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            }
-        }
-
-    # Generate filter services
-    for query in [1, 3, 4]:
-        amount = q1_filter_amount if query == 1 else (q3_filter_amount if query == 3 else q4_filter_amount)
+    def add_services(prefix, amount, image, extra_env=None, command=None):
         for i in range(1, amount + 1):
-            service_name = f"filter_q{query}_{i}"
-            compose["services"][service_name] = {
-                "environment": {
-                    "QUERY": query,
-                    "ID": i,
-                    "REPLICAS": amount
-                },
-                "build": {
-                    "context": ".",
-                    "dockerfile": "cmd/filter/Dockerfile"
-                },
-                "depends_on": {
-                    "rabbitmq": {
-                        "condition": "service_healthy"
-                    }
-                },
-                "command": "/filter/filter.go"
-            }
-
-    # Generate ratings receiver services
-    for i in range(1, ratings_receiver_amount + 1):
-        service_name = f"ratingsreceiver_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": ratings_receiver_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/ratingsreceiver/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            }
-        }
-
-    # Generate ratings joiner services
-    for i in range(1, ratings_joiner_amount + 1):
-        service_name = f"ratingsjoiner_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": ratings_joiner_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/joiners/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            }
-        }
-
-    # Generate sink services
-    for query in [1, 3]:
-        amount = q1_sink_amount if query == 1 else sentiment_sink_amount
-        for i in range(1, amount + 1):
-            service_name = f"q{query}_sink_{i}"
-            dockerfile = "cmd/sinks/Dockerfile" if query == 1 else "cmd/sinks_q3/Dockerfile"
-            command = "/q1_sink/q1_sink.go" if query == 1 else None
-            compose["services"][service_name] = {
-                "environment": {
-                    "ID": i,
-                    "REPLICAS": amount
-                },
-                "build": {
-                    "context": ".",
-                    "dockerfile": dockerfile
-                },
+            env = {"ID": i, "REPLICAS": amount}
+            if extra_env:
+                env.update(extra_env)
+            compose["services"][f"{prefix}_{i}"] = {
+                "image": image,
+                "environment": env,
                 "depends_on": {
                     "rabbitmq": {
                         "condition": "service_healthy"
@@ -177,155 +86,27 @@ def generate_compose():
                 }
             }
             if command:
-                compose["services"][service_name]["command"] = command
+                compose["services"][f"{prefix}_{i}"]["command"] = command
 
-    # Generate budget reducer services
-    for i in range(1, budget_reducer_amount + 1):
-        service_name = f"budget_reducer_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": budget_reducer_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/reducers/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            },
-            "command": "/budget_reducer.go"
-        }
+    add_services("moviesreceiver", movies_receiver_amount, "movies/moviesreceiver:latest")
+    add_services("filter_q1", q1_filter_amount, "movies/filter:latest", {"QUERY": 1}, "/filter/filter.go")
+    add_services("filter_q3", q3_filter_amount, "movies/filter:latest", {"QUERY": 3}, "/filter/filter.go")
+    add_services("filter_q4", q4_filter_amount, "movies/filter:latest", {"QUERY": 4}, "/filter/filter.go")
+    add_services("ratingsreceiver", ratings_receiver_amount, "movies/ratingsreceiver:latest")
+    add_services("ratingsjoiner", ratings_joiner_amount, "movies/ratingsjoiner:latest")
+    add_services("q1_sink", q1_sink_amount, "movies/sink:latest", None, "/q1_sink/q1_sink.go")
+    add_services("q3_sink", sentiment_sink_amount, "movies/sink_q3:latest")
+    add_services("budget_reducer", budget_reducer_amount, "movies/reducer:latest", None, "/budget_reducer.go")
+    add_services("budget_sink", budget_sink_amount, "movies/sink_q2:latest", None, "/budget_sink/budget_sink.go")
+    add_services("sentiment_worker", sentiment_worker_amount, "movies/sentiment:latest")
+    add_services("sentiment_reducer", sentiment_reducer_amount, "movies/sentiment_reducer:latest", None, "/sentiment_reducer/sentiment_reducer.go")
+    add_services("credits_joiner", credits_joiner_amount, "movies/credits_joiner:latest")
+    add_services("credits_receiver", credits_receiver_amount, "movies/credits_receiver:latest", None, "/credits_receiver/credits_receiver.go")
+    add_services("credits_sink", credits_sink_amount, "movies/sink_q4:latest", None, "/credits_sink/credits_sink.go")
 
-    # Generate budget sink services
-    for i in range(1, budget_sink_amount + 1):
-        service_name = f"budget_sink_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": budget_sink_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/sinks_q2/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            },
-            "command": "/budget_sink/budget_sink.go"
-        }
-
-    # Generate sentiment worker services
-    for i in range(1, sentiment_worker_amount + 1):
-        service_name = f"sentiment_worker_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": sentiment_worker_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/sentiment/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            }
-        }
-
-    # Generate sentiment reducer services
-    for i in range(1, sentiment_reducer_amount + 1):
-        service_name = f"sentiment_reducer_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": sentiment_reducer_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/reducers/sentiment_reducer/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            },
-            "command": "/sentiment_reducer/sentiment_reducer.go"
-        }
-
-    # Generate credits joiner services
-    for i in range(1, credits_joiner_amount + 1):
-        service_name = f"credits_joiner_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": credits_joiner_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/joiners_q4/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            }
-        }
-
-    # Generate credits receiver services
-    for i in range(1, credits_receiver_amount + 1):
-        service_name = f"credits_receiver_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": credits_receiver_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/credits_receiver/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            },
-            "command": "/credits_receiver/credits_receiver.go"
-        }
-
-    # Generate credits sink services
-    for i in range(1, credits_sink_amount + 1):
-        service_name = f"credits_sink_{i}"
-        compose["services"][service_name] = {
-            "environment": {
-                "ID": i,
-                "REPLICAS": credits_sink_amount
-            },
-            "build": {
-                "context": ".",
-                "dockerfile": "cmd/sinks_q4/Dockerfile"
-            },
-            "depends_on": {
-                "rabbitmq": {
-                    "condition": "service_healthy"
-                }
-            },
-            "command": "/credits_sink/credits_sink.go"
-        }
-
-    # Generate clients 
     compose["services"]["client"] = {
-        "build": {
-            "context": ".",
-            "dockerfile": "cmd/client/Dockerfile"
-        },
-        "depends_on": [
-            "requesthandler"
-        ],
+        "image": "movies/client:latest",
+        "depends_on": ["requesthandler"],
         "deploy": {
             "replicas": clients_amount
         },
@@ -343,5 +124,3 @@ if __name__ == "__main__":
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-    
-    
