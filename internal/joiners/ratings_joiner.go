@@ -14,11 +14,11 @@ import (
 )
 
 type RatingsJoiner struct {
-	conn *amqp.Connection
-	newClientQueue *utils.ConsumerQueue
-	waitGroup *sync.WaitGroup
-	clientsLock *sync.Mutex
-	moviesConsumers map[string]*utils.ConsumerQueue
+	conn             *amqp.Connection
+	newClientQueue   *utils.ConsumerQueue
+	waitGroup        *sync.WaitGroup
+	clientsLock      *sync.Mutex
+	moviesConsumers  map[string]*utils.ConsumerQueue
 	ratingsConsumers map[string]*utils.ConsumerQueue
 }
 
@@ -62,6 +62,8 @@ func (r *RatingsJoiner) JoinRatings(routingKey string) error {
 
 		r.clientsLock.Unlock()
 
+		msg.Ack()
+
 	}
 
 	r.waitGroup.Wait()
@@ -75,7 +77,6 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
-	
 
 	defer sinkProducer.CloseChannel()
 	defer r.waitGroup.Done()
@@ -117,6 +118,8 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 		msg.Ack()
 
 	}
+
+	moviesConsumer.DeleteQueue()
 
 	ratings := make(map[int]float64)
 	ratingsCount := make(map[int]int)
@@ -160,6 +163,8 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 
 		msg.Ack()
 	}
+
+	ratingsConsumer.DeleteQueue()
 
 	log.Printf("Ratings: %v", ratings)
 	log.Printf("RatingsCount: %v", ratingsCount)

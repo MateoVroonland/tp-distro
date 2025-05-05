@@ -25,7 +25,9 @@ type ConsumerQueue struct {
 
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string, previousReplicas int) (*ConsumerQueue, error) {
 	id := env.AppEnv.ID
-	return newConsumerQueueWithRoutingKey(conn, queueName, exchangeName, strconv.Itoa(id), previousReplicas)
+	uniqueQueueName := fmt.Sprintf("%s_%s", queueName, strconv.Itoa(id))
+
+	return newConsumerQueueWithRoutingKey(conn, uniqueQueueName, exchangeName, strconv.Itoa(id), previousReplicas)
 }
 
 func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exchangeName string, routingKey string, previousReplicas int) (*ConsumerQueue, error) {
@@ -50,14 +52,13 @@ func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return nil, err
 	}
 
-	uniqueQueueName := fmt.Sprintf("%s_%s", queueName, routingKey)
-	_, err = ch.QueueDeclare(uniqueQueueName, false, false, false, false, nil)
+	_, err = ch.QueueDeclare(queueName, false, false, false, false, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	err = ch.QueueBind(
-		uniqueQueueName,
+		queueName,
 		routingKey,
 		exchangeName,
 		false,
@@ -68,21 +69,27 @@ func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 	}
 
 	deliveryChannel, err := ch.Consume(
-		uniqueQueueName, // queue name - use the unique queue name
-		"",              // id
-		false,           // auto-ack
-		false,           // exclusive
-		false,           // no-local
-		false,           // no-wait
-		nil,             // args
+		queueName, // queue name - use the unique queue name
+		"",        // id
+		false,     // auto-ack
+		false,     // exclusive
+		false,     // no-local
+		false,     // no-wait
+		nil,       // args
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	ch.Qos(
+		200,   // prefetch count
+		0,     // prefetch size
+		false, // global
+	)
+
 	return &ConsumerQueue{
 		ch:               ch,
-		queueName:        uniqueQueueName,
+		queueName:        queueName,
 		deliveryChannel:  deliveryChannel,
 		signalChan:       signalChan,
 		finishedReceived: make(map[string]map[string]bool),
@@ -349,9 +356,9 @@ func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQue
 	}
 
 	return &ConsumerQueue{
-		ch:              ch,
-		queueName:       q.Name,
-		deliveryChannel: deliveryChannel,
+		ch:               ch,
+		queueName:        q.Name,
+		deliveryChannel:  deliveryChannel,
 		finishedReceived: make(map[string]map[string]bool),
 	}, nil
 }
@@ -376,4 +383,10 @@ func NewProducerFanout(conn *amqp.Connection, exchangeName string) (*ProducerQue
 	}
 
 	return &ProducerQueue{ch: ch, exchangeName: exchangeName, isFanout: true, nextReplicas: 1}, nil
+}
+
+func (q *ConsumerQueue) DeleteQueue() error {
+	_, err := q.ch.QueueDelete(q.queueName, false, false, false)
+	log.Printf("Deleted queue %s", q.queueName)
+	return err
 }

@@ -62,6 +62,8 @@ func (c *CreditsJoiner) JoinCredits(routingKey int) error {
 
 		c.clientsLock.Unlock()
 
+		msg.Ack()
+
 	}
 
 	c.waitGroup.Wait()
@@ -113,6 +115,7 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 		moviesIds[movie.ID] = true
 		msg.Ack()
 	}
+	moviesConsumer.DeleteQueue()
 
 	log.Printf("Received %d movies for client %s", i, clientId)
 
@@ -159,7 +162,7 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 
 		msg.Ack()
 	}
-
+	creditsConsumer.DeleteQueue()
 	log.Printf("Saved %d credits for client %s", len(credits), clientId)
 	sinkProducer.PublishFinished(clientId)
 
