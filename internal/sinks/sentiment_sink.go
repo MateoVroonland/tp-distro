@@ -1,24 +1,47 @@
 package sinks
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"log"
+	"math"
+	"strings"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
+type SentimentSinkResults struct {
+	PositiveRatio      float64
+	PositiveMovies     int
+	PositiveTotalRatio float64
+	NegativeRatio      float64
+	NegativeMovies     int
+	NegativeTotalRatio float64
+}
+
+func NewSentimentSinkResults() SentimentSinkResults {
+	return SentimentSinkResults{
+		PositiveRatio:      0,
+		PositiveMovies:     0,
+		PositiveTotalRatio: 0,
+		NegativeRatio:      0,
+		NegativeMovies:     0,
+		NegativeTotalRatio: 0,
+	}
+}
+
 type SentimentSink struct {
 	sinkConsumer    *utils.ConsumerQueue
 	resultsProducer *utils.ProducerQueue
-	clientResults   map[string]messages.SentimentSinkResults
+	clientResults   map[string]SentimentSinkResults
 }
 
 func NewSentimentSink(queue *utils.ConsumerQueue, resultsProducer *utils.ProducerQueue) *SentimentSink {
 	return &SentimentSink{
 		sinkConsumer:    queue,
 		resultsProducer: resultsProducer,
-		clientResults:   make(map[string]messages.SentimentSinkResults),
+		clientResults:   make(map[string]SentimentSinkResults),
 	}
 }
 
@@ -26,7 +49,10 @@ func (s *SentimentSink) SendClientResults(clientId string) {
 	log.Printf("Sending sentiment results for client: %s", clientId)
 	results := s.clientResults[clientId]
 
-	row := messages.NewQ5Row(results.PositiveRatio, results.NegativeRatio)
+	positiveRatio := math.Round(results.PositiveRatio*100) / 100
+	negativeRatio := math.Round(results.NegativeRatio*100) / 100
+
+	row := messages.NewQ5Row(positiveRatio, negativeRatio)
 	rows := []messages.Q5Row{*row}
 
 	rowsBytes, err := json.Marshal(rows)
@@ -69,22 +95,19 @@ func (s *SentimentSink) Sink() {
 		}
 
 		if _, ok := s.clientResults[clientId]; !ok {
-			s.clientResults[clientId] = messages.SentimentSinkResults{
-				PositiveRatio:      0,
-				PositiveMovies:     0,
-				PositiveTotalRatio: 0,
-				NegativeRatio:      0,
-				NegativeMovies:     0,
-				NegativeTotalRatio: 0,
-			}
+			s.clientResults[clientId] = NewSentimentSinkResults()
 		}
 
-		sentimentResult, err := messages.ParseSentimentResult(msg.Body)
+		reader := csv.NewReader(strings.NewReader(msg.Body))
+		record, err := reader.Read()
 		if err != nil {
-			log.Printf("Failed to parse sentiment result: %v", err)
+			log.Printf("Failed to read record: %v", err)
 			msg.Nack(false)
 			continue
 		}
+
+		var sentimentResult messages.SentimentResult
+		err = sentimentResult.Deserialize(record)
 
 		clientResults := s.clientResults[clientId]
 

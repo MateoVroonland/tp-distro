@@ -16,10 +16,10 @@ type SentimentReducer struct {
 }
 
 type SentimentStats struct {
-	Sentiment    string  `json:"sentiment"`
-	TotalMovies  int     `json:"total_movies"`
-	TotalRatio   float64 `json:"total_ratio"`
-	AverageRatio float64 `json:"average_ratio"`
+	Sentiment    string
+	TotalMovies  int
+	TotalRatio   float64
+	AverageRatio float64
 }
 
 func NewSentimentStats(sentiment string) SentimentStats {
@@ -144,8 +144,8 @@ func (r *SentimentReducer) SendResults(clientId string) {
 		TotalMovies:  negativeStats.TotalMovies,
 	}
 
-	r.publishQueue.Publish([]byte(positiveResult.Serialize()), clientId, "positive")
-	r.publishQueue.Publish([]byte(negativeResult.Serialize()), clientId, "negative")
+	r.publishQueue.Publish([]byte(positiveResult.Serialize()), clientId, "")
+	r.publishQueue.Publish([]byte(negativeResult.Serialize()), clientId, "")
 
 	r.publishQueue.PublishFinished(clientId)
 
