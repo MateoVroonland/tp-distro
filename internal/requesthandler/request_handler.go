@@ -166,6 +166,7 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 			s.handleDataStream(conn, clientId)
 		}
 	}
+	log.Printf("Client %s disconnected", clientId)
 }
 
 func (s *Server) handleClientIDRequest(conn net.Conn) string {
@@ -185,7 +186,7 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 	var index int
 
 	reader := bufio.NewReader(conn)
-	for filesRemaining > 0 {
+	for filesRemaining > 0 && !s.shuttingDown {
 		switch filesRemaining {
 		case 3:
 			fileType = "movies"

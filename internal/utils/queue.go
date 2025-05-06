@@ -313,6 +313,9 @@ func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQue
 		return nil, err
 	}
 
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGTERM)
+
 	err = ch.ExchangeDeclare(
 		exchangeName, // name
 		"fanout",     // type.
@@ -360,6 +363,7 @@ func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQue
 		queueName:        q.Name,
 		deliveryChannel:  deliveryChannel,
 		finishedReceived: make(map[string]map[string]bool),
+		signalChan:       signalChan,
 	}, nil
 }
 
