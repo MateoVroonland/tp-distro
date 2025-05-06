@@ -188,29 +188,10 @@ services:
       rabbitmq:
         condition: service_healthy
   sentiment_worker_2:
-<<<<<<< Updated upstream
     image: movies/sentiment:latest
     environment:
       ID: 2
       REPLICAS: 2
-=======
-    environment:
-      ID: 2
-      REPLICAS: 3
-    build:
-      context: .
-      dockerfile: cmd/sentiment/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  sentiment_worker_3:
-    environment:
-      ID: 3
-      REPLICAS: 3
-    build:
-      context: .
-      dockerfile: cmd/sentiment/Dockerfile
->>>>>>> Stashed changes
     depends_on:
       rabbitmq:
         condition: service_healthy
