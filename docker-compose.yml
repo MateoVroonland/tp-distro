@@ -199,16 +199,7 @@ services:
     image: movies/sentiment_reducer:latest
     environment:
       ID: 1
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /sentiment_reducer/sentiment_reducer.go
-  sentiment_reducer_2:
-    image: movies/sentiment_reducer:latest
-    environment:
-      ID: 2
-      REPLICAS: 2
+      REPLICAS: 1
     depends_on:
       rabbitmq:
         condition: service_healthy

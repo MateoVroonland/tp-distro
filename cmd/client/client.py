@@ -149,7 +149,7 @@ class Client:
                         break
 
                     if data == "NO_RESULTS":
-                        logger.info("No results available yet")
+                        logger.info("Results request failed, retrying...")
                         for _ in range(20):
                             if not self.is_running:
                                 break

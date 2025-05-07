@@ -26,31 +26,34 @@ const (
 )
 
 type Server struct {
-	conn            *amqp.Connection
-	results         map[string]messages.Results
-	resultsLock     sync.Mutex
-	wg              sync.WaitGroup
-	producers       map[string]*utils.ProducerQueue
-	isListening     bool
-	listener        net.Listener
-	shuttingDown    bool
-	shutdownChannel chan struct{}
-	clientsLock     sync.Mutex
-	clients         map[string]bool
+	conn               *amqp.Connection
+	wg                 sync.WaitGroup
+	producers          map[string]*utils.ProducerQueue
+	isListening        bool
+	listener           net.Listener
+	shuttingDown       bool
+	shutdownChannel    chan struct{}
+	clientsLock        sync.Mutex
+	clients            map[string]bool
+	clientsResultsChan map[string]chan messages.Results
+	resultsChanLock    sync.RWMutex
+	partialResults     map[string]messages.Results
+	partialResultsLock sync.RWMutex
 }
 
 func NewServer(conn *amqp.Connection) *Server {
 	return &Server{
-		conn:            conn,
-		results:         make(map[string]messages.Results),
-		resultsLock:     sync.Mutex{},
-		wg:              sync.WaitGroup{},
-		producers:       make(map[string]*utils.ProducerQueue),
-		isListening:     false,
-		shuttingDown:    false,
-		shutdownChannel: make(chan struct{}),
-		clientsLock:     sync.Mutex{},
-		clients:         make(map[string]bool),
+		conn:               conn,
+		wg:                 sync.WaitGroup{},
+		producers:          make(map[string]*utils.ProducerQueue),
+		isListening:        false,
+		shuttingDown:       false,
+		shutdownChannel:    make(chan struct{}),
+		clientsLock:        sync.Mutex{},
+		clients:            make(map[string]bool),
+		clientsResultsChan: make(map[string]chan messages.Results),
+		partialResults:     make(map[string]messages.Results),
+		partialResultsLock: sync.RWMutex{},
 	}
 }
 
@@ -264,15 +267,18 @@ func (s *Server) handleDataStream(conn net.Conn, clientId string) {
 func (s *Server) handleResultRequest(conn net.Conn, clientId string) bool {
 	log.Printf("Client requested results, clientId: %s", clientId)
 
-	s.resultsLock.Lock()
-	clientResults, exists := s.results[clientId]
-	s.resultsLock.Unlock()
+	s.resultsChanLock.RLock()
+	channel, exists := s.clientsResultsChan[clientId]
+	s.resultsChanLock.RUnlock()
 
 	if !exists {
-		log.Printf("No results found for clientId: %s", clientId)
-		utils.SendMessage(conn, []byte("NO_RESULTS"))
-		return false
+		s.resultsChanLock.Lock()
+		s.clientsResultsChan[clientId] = make(chan messages.Results)
+		channel = s.clientsResultsChan[clientId]
+		s.resultsChanLock.Unlock()
 	}
+
+	clientResults := <-channel
 
 	if !clientResults.IsComplete() {
 		utils.SendMessage(conn, []byte("NO_RESULTS"))
@@ -299,7 +305,10 @@ func (s *Server) listenForResults() {
 
 	for d := range resultsConsumer.ConsumeInfinite() {
 		log.Println("Received results from client:", d.ClientId)
-		clientResults := s.results[d.ClientId]
+
+		s.partialResultsLock.RLock()
+		clientResults := s.partialResults[d.ClientId]
+		s.partialResultsLock.RUnlock()
 
 		err = json.Unmarshal([]byte(d.Body), &clientResults)
 		if err != nil {
@@ -310,9 +319,25 @@ func (s *Server) listenForResults() {
 
 		s.logResults(clientResults)
 
-		s.resultsLock.Lock()
-		s.results[d.ClientId] = clientResults
-		s.resultsLock.Unlock()
+		if clientResults.IsComplete() {
+			s.resultsChanLock.Lock()
+			channel, exists := s.clientsResultsChan[d.ClientId]
+			if !exists {
+				channel = make(chan messages.Results)
+				s.clientsResultsChan[d.ClientId] = channel
+			}
+			s.resultsChanLock.Unlock()
+
+			channel <- clientResults
+
+			s.partialResultsLock.Lock()
+			delete(s.partialResults, d.ClientId)
+			s.partialResultsLock.Unlock()
+		} else {
+			s.partialResultsLock.Lock()
+			s.partialResults[d.ClientId] = clientResults
+			s.partialResultsLock.Unlock()
+		}
 
 		d.Ack()
 	}
