@@ -68,6 +68,12 @@ func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		return nil, err
 	}
 
+	ch.Qos(
+		700,   // prefetch count
+		0,     // prefetch size
+		false, // global
+	)
+
 	deliveryChannel, err := ch.Consume(
 		queueName, // queue name - use the unique queue name
 		"",        // id
@@ -80,12 +86,6 @@ func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 	if err != nil {
 		return nil, err
 	}
-
-	ch.Qos(
-		200,   // prefetch count
-		0,     // prefetch size
-		false, // global
-	)
 
 	return &ConsumerQueue{
 		ch:               ch,
