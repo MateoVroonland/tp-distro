@@ -72,7 +72,7 @@ func (s *SentimentSink) SendClientResults(clientId string) {
 		return
 	}
 
-	err = s.resultsProducer.Publish(resultBytes, clientId, "")
+	err = s.resultsProducer.PublishResults(resultBytes, clientId, "q5")
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)
 		return

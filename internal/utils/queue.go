@@ -21,6 +21,8 @@ type ConsumerQueue struct {
 	signalChan       chan os.Signal
 	previousReplicas int
 	finishedReceived map[string]map[string]bool
+	sequenceNumbers  map[string]map[string]int // clientId -> producerId -> sequenceNumber
+	isFanout         bool
 }
 
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string, previousReplicas int) (*ConsumerQueue, error) {
@@ -94,13 +96,17 @@ func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		signalChan:       signalChan,
 		finishedReceived: make(map[string]map[string]bool),
 		previousReplicas: previousReplicas,
+		sequenceNumbers:  make(map[string]map[string]int),
+		isFanout:         false,
 	}, nil
 }
 
 type Message struct {
-	Body     string
-	ClientId string
-	delivery amqp.Delivery
+	Body           string
+	ClientId       string
+	delivery       amqp.Delivery
+	SequenceNumber int
+	ProducerId     string
 }
 
 func (m *Message) Ack() {
@@ -116,11 +122,32 @@ func MessageFromDelivery(delivery amqp.Delivery) (*Message, error) {
 	if !ok {
 		return nil, fmt.Errorf("clientId not found in headers")
 	}
+	sequenceNumberRaw, ok := delivery.Headers["sequenceNumber"]
+	if !ok {
+		return nil, fmt.Errorf("sequenceNumber not found in headers, headers: %s", delivery.Headers)
+	}
+
+	sequenceNumber, ok := sequenceNumberRaw.(int32)
+	if !ok {
+		return nil, fmt.Errorf("sequenceNumber of invalid type, sequenceNumberRaw: %s", sequenceNumberRaw)
+	}
+
+	producerIdRaw, ok := delivery.Headers["producerId"]
+	if !ok {
+		return nil, fmt.Errorf("producerId not found in headers, headers: %s", delivery.Headers)
+	}
+
+	producerId, ok := producerIdRaw.(string)
+	if !ok {
+		return nil, fmt.Errorf("producerId of invalid type, producerIdRaw: %s", producerIdRaw)
+	}
 
 	return &Message{
-		Body:     string(delivery.Body),
-		ClientId: clientId,
-		delivery: delivery,
+		Body:           string(delivery.Body),
+		ClientId:       clientId,
+		delivery:       delivery,
+		SequenceNumber: int(sequenceNumber),
+		ProducerId:     producerId,
 	}, nil
 }
 
@@ -137,8 +164,32 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 				if err != nil {
 					log.Printf("Failed to parse message in delivery channel: %v", err)
 					log.Printf("delivery: %v", delivery)
-					message.Nack(false)
+					delivery.Nack(false, false)
 					continue
+				}
+
+				if !q.isFanout {
+					if _, ok := q.sequenceNumbers[message.ClientId]; !ok {
+						q.sequenceNumbers[message.ClientId] = make(map[string]int)
+					}
+
+					expectedSequenceNumber := q.sequenceNumbers[message.ClientId][message.ProducerId] + 1
+
+					if message.SequenceNumber < expectedSequenceNumber {
+						log.Printf("Duplicate message for client %s on queue %s, sequence number %d, expected %d, producer %s, ignoring...", message.ClientId, q.queueName, message.SequenceNumber, expectedSequenceNumber, message.ProducerId)
+						log.Printf("Message: %v", message.Body)
+						message.Nack(false)
+						continue
+					}
+
+					if message.SequenceNumber > expectedSequenceNumber {
+						log.Printf("Out of order message for client %s on queue %s, sequence number %d, expected %d, producer %s, requeuing...", message.ClientId, q.queueName, message.SequenceNumber, expectedSequenceNumber, message.ProducerId)
+						log.Printf("Message: %v", message.Body)
+						message.Nack(true)
+						continue
+					}
+
+					q.sequenceNumbers[message.ClientId][message.ProducerId]++
 				}
 
 				if _, ok := q.finishedReceived[message.ClientId]; !ok {
@@ -149,6 +200,7 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 					if len(q.finishedReceived[message.ClientId]) == q.previousReplicas {
 						log.Printf("Received all messages for client %s", message.ClientId)
 						delete(q.finishedReceived, message.ClientId)
+						// delete(q.sequenceNumbers, message.ClientId) // TODO: check if no data will be lost, maybe do later or garbage collect?
 						if infinite {
 							finishedMessage := message
 							finishedMessage.Body = "FINISHED"
@@ -176,10 +228,6 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 	}
 }
 
-// func (q *ConsumerQueue) ConsumeSink() iter.Seq[Message] {
-// 	return q.consume(true, true)
-// }
-
 func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
 	return q.consume(true)
 }
@@ -188,37 +236,17 @@ func (q *ConsumerQueue) Consume() iter.Seq[Message] {
 	return q.consume(false)
 }
 
-// func (q *ConsumerQueue) AddFinishSubscriber(pq *ProducerQueue) {
-// 	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: ""})
-// }
-// func (q *ConsumerQueue) AddFinishSubscriberWithRoutingKey(pq *ProducerQueue, routingKey string) {
-// 	q.finishSubscribers = append(q.finishSubscribers, FinishSubscriber{producer: pq, routingKey: routingKey})
-// }
-
-// func (q *ConsumerQueue) sendFinished(clientId string) {
-// 	if !q.isLeader[clientId] {
-// 		return
-// 	}
-// 	for _, sub := range q.finishSubscribers {
-// 		log.Printf("Sending FINISHED to %s", sub.producer.queueName)
-// 		if sub.routingKey == "" {
-// 			sub.producer.Publish([]byte("FINISHED"), clientId)
-// 		} else {
-// 			sub.producer.PublishWithRoutingKey([]byte("FINISHED"), sub.routingKey, clientId)
-// 		}
-// 	}
-// }
-
 func (q *ConsumerQueue) CloseChannel() error {
 	return q.ch.Close()
 }
 
 type ProducerQueue struct {
-	ch           *amqp.Channel
-	boundQueues  map[string]bool
-	exchangeName string
-	isFanout     bool
-	nextReplicas int
+	ch              *amqp.Channel
+	boundQueues     map[string]bool
+	exchangeName    string
+	isFanout        bool
+	nextReplicas    int
+	sequenceNumbers map[string]map[string]int // clientId -> routingKey -> sequenceNumber
 }
 
 func NewProducerQueue(conn *amqp.Connection, exchangeName string, nextReplicas int) (*ProducerQueue, error) {
@@ -241,28 +269,34 @@ func NewProducerQueue(conn *amqp.Connection, exchangeName string, nextReplicas i
 	}
 
 	return &ProducerQueue{
-		ch:           ch,
-		exchangeName: exchangeName,
-		boundQueues:  make(map[string]bool),
-		isFanout:     false,
-		nextReplicas: nextReplicas,
+		ch:              ch,
+		exchangeName:    exchangeName,
+		boundQueues:     make(map[string]bool),
+		isFanout:        false,
+		nextReplicas:    nextReplicas,
+		sequenceNumbers: make(map[string]map[string]int),
 	}, nil
 }
 
 func (q *ProducerQueue) Publish(body []byte, clientId string, routingKey string) error {
 	hashedRoutingKey := strconv.Itoa(HashString(routingKey, q.nextReplicas))
-	return q.publishWithRoutingKey(body, hashedRoutingKey, clientId)
+	return q.publishWithParams(body, hashedRoutingKey, clientId, strconv.Itoa(env.AppEnv.ID))
+}
+
+func (q *ProducerQueue) PublishResults(body []byte, clientId string, producerId string) error {
+	hashedRoutingKey := strconv.Itoa(HashString(producerId, q.nextReplicas))
+	return q.publishWithParams(body, hashedRoutingKey, clientId, producerId)
 }
 
 func (q *ProducerQueue) PublishFinished(clientId string) error {
 	for i := range q.nextReplicas {
-		log.Printf("Publishing FINISHED for client %s to exchange %s with routing key %s", clientId, q.exchangeName, strconv.Itoa(i+1))
-		q.publishWithRoutingKey([]byte("FINISHED:"+strconv.Itoa(env.AppEnv.ID)), strconv.Itoa(i+1), clientId)
+		q.publishWithParams([]byte("FINISHED:"+strconv.Itoa(env.AppEnv.ID)), strconv.Itoa(i+1), clientId, strconv.Itoa(env.AppEnv.ID))
 	}
+	// delete(q.sequenceNumbers, clientId) // TODO: check if no data will be lost, maybe do later or garbage collect?
 	return nil
 }
 
-func (q *ProducerQueue) publishWithRoutingKey(body []byte, routingKey string, clientId string) error {
+func (q *ProducerQueue) publishWithParams(body []byte, routingKey string, clientId string, producerId string) error {
 	if !q.boundQueues[routingKey] && !q.isFanout {
 		name := fmt.Sprintf("%s_%s", q.exchangeName, routingKey)
 		_, err := q.ch.QueueDeclare(name, false, false, false, false, nil)
@@ -282,8 +316,16 @@ func (q *ProducerQueue) publishWithRoutingKey(body []byte, routingKey string, cl
 		q.boundQueues[routingKey] = true
 	}
 
+	if _, ok := q.sequenceNumbers[clientId]; !ok {
+		q.sequenceNumbers[clientId] = make(map[string]int)
+	}
+
+	q.sequenceNumbers[clientId][routingKey]++
+
 	headers := amqp.Table{
-		"clientId": clientId,
+		"clientId":       clientId,
+		"sequenceNumber": q.sequenceNumbers[clientId][routingKey],
+		"producerId":     producerId,
 	}
 
 	err := q.ch.Publish(
@@ -364,6 +406,7 @@ func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQue
 		deliveryChannel:  deliveryChannel,
 		finishedReceived: make(map[string]map[string]bool),
 		signalChan:       signalChan,
+		isFanout:         true,
 	}, nil
 }
 
@@ -386,7 +429,7 @@ func NewProducerFanout(conn *amqp.Connection, exchangeName string) (*ProducerQue
 		return nil, err
 	}
 
-	return &ProducerQueue{ch: ch, exchangeName: exchangeName, isFanout: true, nextReplicas: 1}, nil
+	return &ProducerQueue{ch: ch, exchangeName: exchangeName, isFanout: true, nextReplicas: 1, sequenceNumbers: make(map[string]map[string]int)}, nil
 }
 
 func (q *ConsumerQueue) DeleteQueue() error {

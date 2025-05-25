@@ -89,7 +89,7 @@ func (s *BudgetSink) SendResults(budgetPerCountry map[string]int, clientId strin
 		return
 	}
 
-	err = s.resultsProducer.Publish(bytes, clientId, "")
+	err = s.resultsProducer.PublishResults(bytes, clientId, "q2")
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)
 		return

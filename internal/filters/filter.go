@@ -55,7 +55,6 @@ func (f *Filter) FilterAndPublish() error {
 			}
 
 			err = f.filteredByYearProducer.Publish(serializedMovie, msg.ClientId, f.outputMessage.GetMovieId())
-			log.Printf("Published movie with routing key: empty")
 
 			if err != nil {
 				log.Printf("Error publishing movie: %s", err)

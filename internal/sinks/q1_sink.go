@@ -44,7 +44,7 @@ func (s *Q1Sink) SendClientIdResults(clientId string) {
 		return
 	}
 
-	err = s.resultsProducer.Publish(bytes, clientId, "")
+	err = s.resultsProducer.PublishResults(bytes, clientId, "q1")
 
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)

@@ -3,11 +3,12 @@ package sinks
 import (
 	"log"
 
-	"github.com/MateoVroonland/tp-distro/internal/utils"
 	"encoding/csv"
 	"encoding/json"
 	"sort"
 	"strings"
+
+	"github.com/MateoVroonland/tp-distro/internal/utils"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 )
@@ -109,7 +110,7 @@ func (s *CreditsSink) SendClientIdResults(clientId string, actors map[string]int
 		return
 	}
 
-	err = s.resultsProducer.Publish(bytes, clientId, "")
+	err = s.resultsProducer.PublishResults(bytes, clientId, "q4")
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)
 		return

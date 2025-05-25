@@ -30,13 +30,12 @@ func NewQ3Sink(sinkConsumer *utils.ConsumerQueue, resultsProducer *utils.Produce
 func (s *Q3Sink) GetMaxAndMinMovies() {
 	// log.Printf("Getting max and min movies")
 
-
 	clientsResults := map[string]MinAndMaxMovie{}
 
 	// log.Printf("Consuming messages")
-  
+
 	for msg := range s.SinkConsumer.ConsumeInfinite() {
-		
+
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
@@ -77,7 +76,6 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		msg.Ack()
 	}
 
-	
 }
 
 func (s *Q3Sink) SendClientIdResults(clientId string, minAndMaxMovie MinAndMaxMovie) {
@@ -114,7 +112,7 @@ func (s *Q3Sink) SendClientIdResults(clientId string, minAndMaxMovie MinAndMaxMo
 	}
 
 	log.Printf("Publishing results")
-	err = s.ResultsProducer.Publish(bytes, clientId, "")
+	err = s.ResultsProducer.PublishResults(bytes, clientId, "q3")
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)
 		return
