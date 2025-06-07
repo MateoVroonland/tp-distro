@@ -11,10 +11,8 @@ def get_env(key):
         raise ValueError(f"Environment variable {key} must be an integer")
 
 def generate_compose():
-    # Load environment variables from .env file
     load_dotenv()
 
-    # Get replica counts from environment variables
     movies_receiver_amount = get_env("MOVIES_RECEIVER_AMOUNT")
     credits_receiver_amount = get_env("CREDITS_RECEIVER_AMOUNT")
     ratings_receiver_amount = get_env("RATINGS_RECEIVER_AMOUNT")
