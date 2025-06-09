@@ -5,6 +5,14 @@ import (
 	"strconv"
 )
 
+const (
+	SentimentWorkerMovieID = iota
+	SentimentWorkerMovieTitle
+	SentimentWorkerMovieBudget
+	SentimentWorkerMovieRevenue
+	SentimentWorkerMovieOverview
+)
+
 type MovieSentiment struct {
 	ID       string
 	Title    string
@@ -19,26 +27,26 @@ func (m *MovieSentiment) Deserialize(data []string) error {
 		return fmt.Errorf("invalid record format, expected at least 8 fields, got %d", len(data))
 	}
 
-	m.ID = data[RawMovieID]
-	m.Title = data[RawMovieTitle]
-	budget, err := strconv.ParseFloat(data[RawMovieBudget], 64)
+	m.ID = data[MovieID]
+	m.Title = data[MovieTitle]
+	budget, err := strconv.ParseFloat(data[MovieBudget], 64)
 	if err != nil {
 		return fmt.Errorf("failed to parse budget: %w", err)
 	}
 	m.Budget = budget
 
-	revenue, err := strconv.ParseFloat(data[RawMovieRevenue], 64)
+	revenue, err := strconv.ParseFloat(data[MovieRevenue], 64)
 	if err != nil {
 		return fmt.Errorf("failed to parse revenue: %w", err)
 	}
 	m.Revenue = revenue
-	m.Overview = data[RawMovieOverview]
+	m.Overview = data[MovieOverview]
 	m.RawData = make([]string, 5)
-	m.RawData[RawMovieID] = data[RawMovieID]
-	m.RawData[RawMovieTitle] = data[RawMovieTitle]
-	m.RawData[RawMovieBudget] = data[RawMovieBudget]
-	m.RawData[RawMovieRevenue] = data[RawMovieRevenue]
-	m.RawData[RawMovieOverview] = data[RawMovieOverview]
+	m.RawData[SentimentWorkerMovieID] = data[MovieID]
+	m.RawData[SentimentWorkerMovieTitle] = data[MovieTitle]
+	m.RawData[SentimentWorkerMovieBudget] = data[MovieBudget]
+	m.RawData[SentimentWorkerMovieRevenue] = data[MovieRevenue]
+	m.RawData[SentimentWorkerMovieOverview] = data[MovieOverview]
 
 	return nil
 }

@@ -68,7 +68,7 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message) {
 		Revenue:   movieMetadata.Revenue,
 		Sentiment: sentiment,
 		Ratio:     movieMetadata.Revenue / movieMetadata.Budget,
-		RawData:   movieMetadata.RawData[:5],
+		RawData:   movieMetadata.RawData,
 	}
 
 	serialized, err := protocol.Serialize(sentimentAnalysis)

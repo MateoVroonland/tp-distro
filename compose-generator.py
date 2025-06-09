@@ -97,7 +97,7 @@ def generate_compose():
     add_services("q3_sink", sentiment_sink_amount, "movies/sink_q3:latest")
     add_services("budget_reducer", budget_reducer_amount, "movies/reducer:latest", None, "/budget_reducer.go")
     add_services("budget_sink", budget_sink_amount, "movies/sink_q2:latest", None, "/budget_sink/budget_sink.go")
-    add_services("sentiment_worker", sentiment_worker_amount, "movies/sentiment:latest")
+    add_services("sentiment_worker", sentiment_worker_amount, "movies/sentiment:latest", None, "/sentiment/sentiment_worker.go")
     add_services("sentiment_reducer", sentiment_reducer_amount, "movies/sentiment_reducer:latest", None, "/sentiment_reducer/sentiment_reducer.go")
     add_services("sentiment_sink", sentiment_sink_amount, "movies/sink_q5:latest", None, "/sentiment_sink/sentiment_sink.go")
     add_services("credits_joiner", credits_joiner_amount, "movies/credits_joiner:latest")
