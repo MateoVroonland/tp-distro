@@ -11,6 +11,7 @@ const (
 	SentimentWorkerMovieBudget
 	SentimentWorkerMovieRevenue
 	SentimentWorkerMovieOverview
+	SentimentWorkerMovieSentiment
 )
 
 type MovieSentiment struct {
@@ -41,7 +42,7 @@ func (m *MovieSentiment) Deserialize(data []string) error {
 	}
 	m.Revenue = revenue
 	m.Overview = data[MovieOverview]
-	m.RawData = make([]string, 5)
+	m.RawData = make([]string, 6)
 	m.RawData[SentimentWorkerMovieID] = data[MovieID]
 	m.RawData[SentimentWorkerMovieTitle] = data[MovieTitle]
 	m.RawData[SentimentWorkerMovieBudget] = data[MovieBudget]
@@ -53,4 +54,8 @@ func (m *MovieSentiment) Deserialize(data []string) error {
 
 func (m *MovieSentiment) GetRawData() []string {
 	return m.RawData
+}
+
+func (m *MovieSentiment) AppendSentiment(sentiment string) {
+	m.RawData[SentimentWorkerMovieSentiment] = sentiment
 }

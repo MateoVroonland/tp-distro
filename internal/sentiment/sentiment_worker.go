@@ -61,24 +61,16 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message) {
 
 	sentiment := w.analyzeSentiment(movieMetadata.Overview)
 
-	sentimentAnalysis := &messages.SentimentAnalysis{
-		MovieID:   movieMetadata.ID,
-		Title:     movieMetadata.Title,
-		Budget:    movieMetadata.Budget,
-		Revenue:   movieMetadata.Revenue,
-		Sentiment: sentiment,
-		Ratio:     movieMetadata.Revenue / movieMetadata.Budget,
-		RawData:   movieMetadata.RawData,
-	}
+	movieMetadata.AppendSentiment(sentiment)
 
-	serialized, err := protocol.Serialize(sentimentAnalysis)
+	serialized, err := protocol.Serialize(&movieMetadata)
 	if err != nil {
 		log.Printf("Failed to serialize sentiment analysis: %v", err)
 		msg.Nack(false)
 		return
 	}
 
-	w.publishQueue.Publish(serialized, msg.ClientId, sentimentAnalysis.MovieID)
+	w.publishQueue.Publish(serialized, msg.ClientId, movieMetadata.ID)
 	msg.Ack()
 }
 
