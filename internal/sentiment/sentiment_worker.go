@@ -3,23 +3,29 @@ package sentiment
 import (
 	"encoding/csv"
 	"log"
-	"math/rand/v2"
 	"strings"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
+	"github.com/cdipaolo/sentiment"
 )
 
 type SentimentWorker struct {
 	queue        *utils.ConsumerQueue
 	publishQueue *utils.ProducerQueue
+	model        sentiment.Models
 }
 
 func NewSentimentWorker(queue *utils.ConsumerQueue, publishQueue *utils.ProducerQueue) *SentimentWorker {
+	model, err := sentiment.Restore()
+	if err != nil {
+		log.Fatalf("Failed to initialize sentiment model: %v", err)
+	}
 	return &SentimentWorker{
 		queue:        queue,
 		publishQueue: publishQueue,
+		model:        model,
 	}
 }
 
@@ -28,11 +34,16 @@ func (w *SentimentWorker) analyzeSentiment(text string) string {
 		return "NEUTRAL"
 	}
 
-	randomProbability := rand.Float64()
-	if randomProbability < 0.5 {
+	analysis := w.model.SentimentAnalysis(text, sentiment.English)
+
+	switch analysis.Score {
+	case 0:
+		return "NEGATIVE"
+	case 1:
 		return "POSITIVE"
+	default:
+		return "NEUTRAL"
 	}
-	return "NEGATIVE"
 }
 
 func (w *SentimentWorker) handleMessage(msg *utils.Message) {
