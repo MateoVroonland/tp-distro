@@ -40,7 +40,7 @@ func TestAtomicallyWriteFile_NoPartialWrites(t *testing.T) {
 	filename := "test_atomic_no_partial.txt"
 	defer os.Remove(filename)
 
-	const fileSize = 2 * 1024 * 1024 * 1024 // 2GB
+	const fileSize = 1*1024*1024*1024 + 1 // 1GB + 1 byte
 	data := make([]byte, fileSize)
 	for i := range data {
 		data[i] = byte(i % 256)
@@ -94,13 +94,11 @@ func TestAtomicallyWriteFile_NoPartialWrites(t *testing.T) {
 
 // TestOsWriteFile_ShowsPartialWrites demonstrates that os.WriteFile can
 // result in partial writes, making it non-atomic.
-// THIS TEST IS DESIGNED TO FAIL to prove that os.WriteFile is not atomic
-// under concurrent observation.
 func TestOsWriteFile_ShowsPartialWrites(t *testing.T) {
 	filename := "test_os_write_partial.txt"
 	defer os.Remove(filename)
 
-	const fileSize = 2 * 1024 * 1024 * 1024 // 2GB
+	const fileSize = 1*1024*1024*1024 + 1 // 1GB + 1 byte
 	data := make([]byte, fileSize)
 	for i := range data {
 		data[i] = byte(i % 256)
@@ -128,7 +126,6 @@ func TestOsWriteFile_ShowsPartialWrites(t *testing.T) {
 			fi, err := os.Stat(filename)
 			if err != nil {
 				if os.IsNotExist(err) {
-					time.Sleep(1 * time.Millisecond)
 					continue // File doesn't exist yet, which is fine.
 				}
 				t.Fatalf("Unexpected error stating file: %v", err)
@@ -137,7 +134,7 @@ func TestOsWriteFile_ShowsPartialWrites(t *testing.T) {
 			// With os.WriteFile, it's possible to see the file as it's being written.
 			// If we see a file that is not empty but not yet complete, we've found a partial write.
 			if fi.Size() > 0 && fi.Size() < int64(fileSize) {
-				t.Logf("Detected a partial write of size %d. This shows os.WriteFile is not atomic.", fi.Size())
+				t.Logf("Detected a partial write of size %d (expected %d). This shows os.WriteFile is not atomic.", fi.Size(), fileSize)
 				return
 			}
 			// time.Sleep(1 * time.Millisecond)
