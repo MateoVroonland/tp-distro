@@ -65,10 +65,15 @@ def generate_compose():
                     }
                 },
                 "volumes": [
-                    "./docs:/docs"
+                    "./docs:/docs",
+                    "requesthandler_volume:/data"
                 ],
                 "command": "/requesthandler/request_handler.go"
             }
+        },
+        "volumes": {
+            "rabbitmq_volume": {},
+            "requesthandler_volume": {}
         }
     }
 
@@ -77,17 +82,26 @@ def generate_compose():
             env = {"ID": i, "REPLICAS": amount}
             if extra_env:
                 env.update(extra_env)
-            compose["services"][f"{prefix}_{i}"] = {
+            service_name = f"{prefix}_{i}"
+            compose["services"][service_name] = {
                 "image": image,
                 "environment": env,
                 "depends_on": {
                     "rabbitmq": {
                         "condition": "service_healthy"
                     }
-                }
+                },
+                "volumes": [
+                    f"{service_name}_volume:/data"
+                ]
             }
             if command:
-                compose["services"][f"{prefix}_{i}"]["command"] = command
+                compose["services"][service_name]["command"] = command
+            
+            # Add volume definition if it doesn't exist
+            volume_name = f"{service_name}_volume"
+            if volume_name not in compose["volumes"]:
+                compose["volumes"][volume_name] = {}
 
     add_services("moviesreceiver", movies_receiver_amount, "movies/moviesreceiver:latest")
     add_services("filter_q1", q1_filter_amount, "movies/filter:latest", {"QUERY": 1}, "/filter/filter.go")

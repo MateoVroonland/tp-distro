@@ -25,11 +25,33 @@ type ConsumerQueue struct {
 	isFanout         bool
 }
 
+type ConsumerQueueState struct {
+	FinishedReceived map[string]map[string]bool
+	SequenceNumbers  map[string]map[string]int // clientId -> producerId -> sequenceNumber
+}
+
+func (q *ConsumerQueue) GetState() ConsumerQueueState {
+	return ConsumerQueueState{
+		FinishedReceived: q.finishedReceived,
+		SequenceNumbers:  q.sequenceNumbers,
+	}
+}
+
 func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName string, previousReplicas int) (*ConsumerQueue, error) {
 	id := env.AppEnv.ID
 	uniqueQueueName := fmt.Sprintf("%s_%s", queueName, strconv.Itoa(id))
 
 	return newConsumerQueueWithRoutingKey(conn, uniqueQueueName, exchangeName, strconv.Itoa(id), previousReplicas)
+}
+
+func NewConsumerQueueFromState(conn *amqp.Connection, queueName string, exchangeName string, previousReplicas int, state ConsumerQueueState) (*ConsumerQueue, error) {
+	consumerQueue, err := NewConsumerQueue(conn, queueName, exchangeName, previousReplicas)
+	if err != nil {
+		return nil, err
+	}
+	consumerQueue.finishedReceived = state.FinishedReceived
+	consumerQueue.sequenceNumbers = state.SequenceNumbers
+	return consumerQueue, nil
 }
 
 func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exchangeName string, routingKey string, previousReplicas int) (*ConsumerQueue, error) {
@@ -177,7 +199,6 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 
 					if message.SequenceNumber < expectedSequenceNumber {
 						log.Printf("Duplicate message for client %s on queue %s, sequence number %d, expected %d, producer %s, ignoring...", message.ClientId, q.queueName, message.SequenceNumber, expectedSequenceNumber, message.ProducerId)
-						log.Printf("Message: %v", message.Body)
 						message.Nack(false)
 						continue
 					}
@@ -247,6 +268,25 @@ type ProducerQueue struct {
 	isFanout        bool
 	nextReplicas    int
 	sequenceNumbers map[string]map[string]int // clientId -> routingKey -> sequenceNumber
+}
+
+type ProducerQueueState struct {
+	SequenceNumbers map[string]map[string]int // clientId -> routingKey -> sequenceNumber
+}
+
+func (q *ProducerQueue) GetState() ProducerQueueState {
+	return ProducerQueueState{
+		SequenceNumbers: q.sequenceNumbers,
+	}
+}
+
+func NewProducerQueueFromState(conn *amqp.Connection, exchangeName string, nextReplicas int, state ProducerQueueState) (*ProducerQueue, error) {
+	producerQueue, err := NewProducerQueue(conn, exchangeName, nextReplicas)
+	if err != nil {
+		return nil, err
+	}
+	producerQueue.sequenceNumbers = state.SequenceNumbers
+	return producerQueue, nil
 }
 
 func NewProducerQueue(conn *amqp.Connection, exchangeName string, nextReplicas int) (*ProducerQueue, error) {

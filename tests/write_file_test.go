@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
@@ -76,7 +75,6 @@ func TestAtomicallyWriteFile_NoPartialWrites(t *testing.T) {
 			fi, err := os.Stat(filename)
 			if err != nil {
 				if os.IsNotExist(err) {
-					time.Sleep(1 * time.Millisecond)
 					continue // File doesn't exist yet, which is fine.
 				}
 				t.Fatalf("Unexpected error stating file: %v", err)
@@ -87,7 +85,6 @@ func TestAtomicallyWriteFile_NoPartialWrites(t *testing.T) {
 			if fi.Size() != int64(fileSize) {
 				t.Fatalf("Detected a file with partial size: %d. This should not happen with atomic writes.", fi.Size())
 			}
-			time.Sleep(1 * time.Millisecond)
 		}
 	}
 }
