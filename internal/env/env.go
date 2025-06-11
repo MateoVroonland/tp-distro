@@ -14,6 +14,8 @@ type Env struct {
 	// NODE INFO
 	ID       int
 	REPLICAS int
+	PORT     int
+	SERVICE_TYPE string
 
 	// RECEIVERS
 	MOVIES_RECEIVER_AMOUNT  int

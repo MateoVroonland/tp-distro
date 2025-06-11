@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	"os"
+	"strconv"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/joiners"
@@ -23,11 +23,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	id := os.Getenv("ID")
-
-	if id == "" {
-		log.Fatalf("ID is not set")
-	}
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.PORT, env.AppEnv.ID)
+	go healthCheckServer.Start()
 
 	newClientQueue, err := utils.NewConsumerFanout(conn, "new_client_fanout_q3")
 	if err != nil {
@@ -36,7 +33,9 @@ func main() {
 
 
 	ratingsJoiner := joiners.NewRatingsJoiner(conn, newClientQueue)
-	log.Printf("Ratings joiner initialized with id '%s'", id)
+	log.Printf("Ratings joiner initialized with id '%d'", env.AppEnv.ID)
+
+	id := strconv.Itoa(env.AppEnv.ID)
 	ratingsJoiner.JoinRatings(id)
 
 }

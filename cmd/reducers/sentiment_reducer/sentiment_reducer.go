@@ -33,6 +33,9 @@ func main() {
 		log.Fatalf("Failed to declare output queue: %v", err)
 	}
 
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.PORT, env.AppEnv.ID)
+	go healthCheckServer.Start()
+
 	log.Printf("Sentiment reducer initialized - consuming from %d workers, producing to %d sinks",
 		previousReplicas, nextReplicas)
 

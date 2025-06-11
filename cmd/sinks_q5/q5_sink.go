@@ -33,6 +33,9 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.PORT, env.AppEnv.ID)
+	go healthCheckServer.Start()
+
 	log.Printf("Sentiment sink initialized - consuming from %d reducers", previousReplicas)
 
 	sink := sinks.NewSentimentSink(sinkConsumer, resultsProducer)

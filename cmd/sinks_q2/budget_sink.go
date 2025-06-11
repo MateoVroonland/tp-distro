@@ -31,6 +31,9 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.PORT, env.AppEnv.ID)
+	go healthCheckServer.Start()
+
 	sink := sinks.NewBudgetSink(budgetSinkConsumer, resultsProducer)
 
 	sink.Sink()

@@ -27,6 +27,9 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.PORT, env.AppEnv.ID)
+	go healthCheckServer.Start()
+
 	creditsJoiner := joiners.NewCreditsJoiner(conn, newClientQueue)
 	creditsJoiner.JoinCredits(env.AppEnv.ID)
 
