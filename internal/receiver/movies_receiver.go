@@ -1,9 +1,7 @@
 package receiver
 
 import (
-	"bytes"
 	"encoding/csv"
-	"encoding/gob"
 	"log"
 	"strings"
 
@@ -22,43 +20,9 @@ type MoviesReceiver struct {
 	Q4Producer     *utils.ProducerQueue
 	Q5Producer     *utils.ProducerQueue
 }
-type MoviesReceiverState struct {
-	MoviesConsumer utils.ConsumerQueueState
-	Q1Producer     utils.ProducerQueueState
-	Q2Producer     utils.ProducerQueueState
-	Q3Producer     utils.ProducerQueueState
-	Q4Producer     utils.ProducerQueueState
-	Q5Producer     utils.ProducerQueueState
-}
 
 func NewMoviesReceiver(conn *amqp.Connection, moviesConsumer *utils.ConsumerQueue, q1Producer *utils.ProducerQueue, q2Producer *utils.ProducerQueue, q3Producer *utils.ProducerQueue, q4Producer *utils.ProducerQueue, q5Producer *utils.ProducerQueue) *MoviesReceiver {
 	return &MoviesReceiver{conn: conn, MoviesConsumer: moviesConsumer, Q1Producer: q1Producer, Q2Producer: q2Producer, Q3Producer: q3Producer, Q4Producer: q4Producer, Q5Producer: q5Producer}
-}
-
-func (r *MoviesReceiver) SaveState() error {
-	state := MoviesReceiverState{
-		MoviesConsumer: r.MoviesConsumer.GetState(),
-		Q1Producer:     r.Q1Producer.GetState(),
-		Q2Producer:     r.Q2Producer.GetState(),
-		Q3Producer:     r.Q3Producer.GetState(),
-		Q4Producer:     r.Q4Producer.GetState(),
-		Q5Producer:     r.Q5Producer.GetState(),
-	}
-
-	var buff bytes.Buffer
-
-	enc := gob.NewEncoder(&buff)
-	err := enc.Encode(state)
-	if err != nil {
-		return err
-	}
-
-	err = utils.AtomicallyWriteFile("data/movies_receiver_state.gob", buff.Bytes())
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (r *MoviesReceiver) ReceiveMovies() {
@@ -142,7 +106,7 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			}
 		}
 
-		err = r.SaveState()
+		err = SaveState(r)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}

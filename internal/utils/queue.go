@@ -44,15 +44,20 @@ func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 	return newConsumerQueueWithRoutingKey(conn, uniqueQueueName, exchangeName, strconv.Itoa(id), previousReplicas)
 }
 
-func NewConsumerQueueFromState(conn *amqp.Connection, queueName string, exchangeName string, previousReplicas int, state ConsumerQueueState) (*ConsumerQueue, error) {
-	consumerQueue, err := NewConsumerQueue(conn, queueName, exchangeName, previousReplicas)
-	if err != nil {
-		return nil, err
-	}
-	consumerQueue.finishedReceived = state.FinishedReceived
-	consumerQueue.sequenceNumbers = state.SequenceNumbers
-	return consumerQueue, nil
+func (q *ConsumerQueue) RestoreState(state ConsumerQueueState) {
+	q.finishedReceived = state.FinishedReceived
+	q.sequenceNumbers = state.SequenceNumbers
 }
+
+// func NewConsumerQueueFromState(conn *amqp.Connection, queueName string, exchangeName string, previousReplicas int, state ConsumerQueueState) (*ConsumerQueue, error) {
+// 	consumerQueue, err := NewConsumerQueue(conn, queueName, exchangeName, previousReplicas)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	consumerQueue.finishedReceived = state.FinishedReceived
+// 	consumerQueue.sequenceNumbers = state.SequenceNumbers
+// 	return consumerQueue, nil
+// }
 
 func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exchangeName string, routingKey string, previousReplicas int) (*ConsumerQueue, error) {
 	ch, err := conn.Channel()
@@ -280,14 +285,18 @@ func (q *ProducerQueue) GetState() ProducerQueueState {
 	}
 }
 
-func NewProducerQueueFromState(conn *amqp.Connection, exchangeName string, nextReplicas int, state ProducerQueueState) (*ProducerQueue, error) {
-	producerQueue, err := NewProducerQueue(conn, exchangeName, nextReplicas)
-	if err != nil {
-		return nil, err
-	}
-	producerQueue.sequenceNumbers = state.SequenceNumbers
-	return producerQueue, nil
+func (q *ProducerQueue) RestoreState(state ProducerQueueState) {
+	q.sequenceNumbers = state.SequenceNumbers
 }
+
+// func NewProducerQueueFromState(conn *amqp.Connection, exchangeName string, nextReplicas int, state ProducerQueueState) (*ProducerQueue, error) {
+// 	producerQueue, err := NewProducerQueue(conn, exchangeName, nextReplicas)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	producerQueue.sequenceNumbers = state.SequenceNumbers
+// 	return producerQueue, nil
+// }
 
 func NewProducerQueue(conn *amqp.Connection, exchangeName string, nextReplicas int) (*ProducerQueue, error) {
 	ch, err := conn.Channel()
