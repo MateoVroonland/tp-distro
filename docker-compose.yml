@@ -21,6 +21,8 @@ services:
       ID: 1
       REPLICAS: 1
     image: movies/requesthandler:latest
+    ports:
+      - "8888:8888"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -31,7 +33,9 @@ services:
     image: movies/moviesreceiver:latest
     environment:
       ID: 1
+      SERVICE_TYPE: moviesreceiver_1
       REPLICAS: 2
+      PORT: 4
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -39,230 +43,232 @@ services:
     image: movies/moviesreceiver:latest
     environment:
       ID: 2
+      SERVICE_TYPE: moviesreceiver_2
       REPLICAS: 2
+      PORT: 4
     depends_on:
       rabbitmq:
         condition: service_healthy
-  filter_q1_1:
-    image: movies/filter:latest
-    environment:
-      ID: 1
-      REPLICAS: 2
-      QUERY: 1
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /filter/filter.go
-  filter_q1_2:
-    image: movies/filter:latest
-    environment:
-      ID: 2
-      REPLICAS: 2
-      QUERY: 1
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /filter/filter.go
-  filter_q3_1:
-    image: movies/filter:latest
-    environment:
-      ID: 1
-      REPLICAS: 2
-      QUERY: 3
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /filter/filter.go
-  filter_q3_2:
-    image: movies/filter:latest
-    environment:
-      ID: 2
-      REPLICAS: 2
-      QUERY: 3
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /filter/filter.go
-  filter_q4_1:
-    image: movies/filter:latest
-    environment:
-      ID: 1
-      REPLICAS: 2
-      QUERY: 4
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /filter/filter.go
-  filter_q4_2:
-    image: movies/filter:latest
-    environment:
-      ID: 2
-      REPLICAS: 2
-      QUERY: 4
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /filter/filter.go
-  ratingsreceiver_1:
-    image: movies/ratingsreceiver:latest
-    environment:
-      ID: 1
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  ratingsreceiver_2:
-    image: movies/ratingsreceiver:latest
-    environment:
-      ID: 2
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  ratingsjoiner_1:
-    image: movies/ratingsjoiner:latest
-    environment:
-      ID: 1
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  ratingsjoiner_2:
-    image: movies/ratingsjoiner:latest
-    environment:
-      ID: 2
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  q1_sink_1:
-    image: movies/sink:latest
-    environment:
-      ID: 1
-      REPLICAS: 1
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /q1_sink/q1_sink.go
-  q3_sink_1:
-    image: movies/sink_q3:latest
-    environment:
-      ID: 1
-      REPLICAS: 1
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  budget_reducer_1:
-    image: movies/reducer:latest
-    environment:
-      ID: 1
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /budget_reducer.go
-  budget_reducer_2:
-    image: movies/reducer:latest
-    environment:
-      ID: 2
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /budget_reducer.go
-  budget_sink_1:
-    image: movies/sink_q2:latest
-    environment:
-      ID: 1
-      REPLICAS: 1
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /budget_sink/budget_sink.go
-  # sentiment_worker_1:
-  #   image: movies/sentiment:latest
+  # filter_q1_1:
+  #   image: movies/filter:latest
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 2
+  #     QUERY: 1
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  # filter_q1_2:
+  #   image: movies/filter:latest
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 2
+  #     QUERY: 1
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  # filter_q3_1:
+  #   image: movies/filter:latest
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 2
+  #     QUERY: 3
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  # filter_q3_2:
+  #   image: movies/filter:latest
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 2
+  #     QUERY: 3
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  # filter_q4_1:
+  #   image: movies/filter:latest
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 2
+  #     QUERY: 4
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  # filter_q4_2:
+  #   image: movies/filter:latest
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 2
+  #     QUERY: 4
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /filter/filter.go
+  # ratingsreceiver_1:
+  #   image: movies/ratingsreceiver:latest
   #   environment:
   #     ID: 1
   #     REPLICAS: 2
   #   depends_on:
   #     rabbitmq:
   #       condition: service_healthy
-  # sentiment_worker_2:
-  #   image: movies/sentiment:latest
+  # ratingsreceiver_2:
+  #   image: movies/ratingsreceiver:latest
   #   environment:
   #     ID: 2
   #     REPLICAS: 2
   #   depends_on:
   #     rabbitmq:
   #       condition: service_healthy
-  # sentiment_reducer_1:
-  #   image: movies/sentiment_reducer:latest
+  # ratingsjoiner_1:
+  #   image: movies/ratingsjoiner:latest
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 2
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # ratingsjoiner_2:
+  #   image: movies/ratingsjoiner:latest
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 2
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # q1_sink_1:
+  #   image: movies/sink:latest
   #   environment:
   #     ID: 1
   #     REPLICAS: 1
   #   depends_on:
   #     rabbitmq:
   #       condition: service_healthy
-  #   command: /sentiment_reducer/sentiment_reducer.go
-  # sentiment_sink_1:
-  #   image: movies/sink_q5:latest
+  #   command: /q1_sink/q1_sink.go
+  # q3_sink_1:
+  #   image: movies/sink_q3:latest
   #   environment:
   #     ID: 1
   #     REPLICAS: 1
   #   depends_on:
   #     rabbitmq:
   #       condition: service_healthy
-  #   command: /sentiment_sink/sentiment_sink.go
-  credits_joiner_1:
-    image: movies/credits_joiner:latest
-    environment:
-      ID: 1
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  credits_joiner_2:
-    image: movies/credits_joiner:latest
-    environment:
-      ID: 2
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  credits_receiver_1:
-    image: movies/credits_receiver:latest
-    environment:
-      ID: 1
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /credits_receiver/credits_receiver.go
-  credits_receiver_2:
-    image: movies/credits_receiver:latest
-    environment:
-      ID: 2
-      REPLICAS: 2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /credits_receiver/credits_receiver.go
-  credits_sink_1:
-    image: movies/sink_q4:latest
-    environment:
-      ID: 1
-      REPLICAS: 1
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    command: /credits_sink/credits_sink.go
+  # budget_reducer_1:
+  #   image: movies/reducer:latest
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 2
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_reducer.go
+  # budget_reducer_2:
+  #   image: movies/reducer:latest
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 2
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_reducer.go
+  # budget_sink_1:
+  #   image: movies/sink_q2:latest
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 1
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /budget_sink/budget_sink.go
+  # # sentiment_worker_1:
+  # #   image: movies/sentiment:latest
+  # #   environment:
+  # #     ID: 1
+  # #     REPLICAS: 2
+  # #   depends_on:
+  # #     rabbitmq:
+  # #       condition: service_healthy
+  # # sentiment_worker_2:
+  # #   image: movies/sentiment:latest
+  # #   environment:
+  # #     ID: 2
+  # #     REPLICAS: 2
+  # #   depends_on:
+  # #     rabbitmq:
+  # #       condition: service_healthy
+  # # sentiment_reducer_1:
+  # #   image: movies/sentiment_reducer:latest
+  # #   environment:
+  # #     ID: 1
+  # #     REPLICAS: 1
+  # #   depends_on:
+  # #     rabbitmq:
+  # #       condition: service_healthy
+  # #   command: /sentiment_reducer/sentiment_reducer.go
+  # # sentiment_sink_1:
+  # #   image: movies/sink_q5:latest
+  # #   environment:
+  # #     ID: 1
+  # #     REPLICAS: 1
+  # #   depends_on:
+  # #     rabbitmq:
+  # #       condition: service_healthy
+  # #   command: /sentiment_sink/sentiment_sink.go
+  # credits_joiner_1:
+  #   image: movies/credits_joiner:latest
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 2
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # credits_joiner_2:
+  #   image: movies/credits_joiner:latest
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 2
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # credits_receiver_1:
+  #   image: movies/credits_receiver:latest
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 2
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /credits_receiver/credits_receiver.go
+  # credits_receiver_2:
+  #   image: movies/credits_receiver:latest
+  #   environment:
+  #     ID: 2
+  #     REPLICAS: 2
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /credits_receiver/credits_receiver.go
+  # credits_sink_1:
+  #   image: movies/sink_q4:latest
+  #   environment:
+  #     ID: 1
+  #     REPLICAS: 1
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   command: /credits_sink/credits_sink.go
   moviesreceiver_resuscitator:
     image: movies/resuscitator:latest
     environment:
       ID: 1
       REPLICAS: 2
       SERVICE_TYPE: moviesreceiver
-      PORT: 8000
+      PORT: 4
     depends_on:
       rabbitmq:
         condition: service_healthy

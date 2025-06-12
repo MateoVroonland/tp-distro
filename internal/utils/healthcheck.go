@@ -12,14 +12,16 @@ import (
 
 type HealthCheckServer struct {
 	port     int
+	serviceType string
 	id       int
 	listener net.Listener
 	shutdown chan struct{}
 }
 
-func NewHealthCheckServer(port int, id int) *HealthCheckServer {
+func NewHealthCheckServer(port int, id int, serviceType string) *HealthCheckServer {
 	return &HealthCheckServer{
 		port:     port,
+		serviceType: serviceType,
 		id:       id,
 		shutdown: make(chan struct{}),
 	}
@@ -27,7 +29,7 @@ func NewHealthCheckServer(port int, id int) *HealthCheckServer {
 }
 
 func (h *HealthCheckServer) Start() {
-	healthCheckPort := fmt.Sprintf(":%d00%d", h.port, h.id)
+	healthCheckPort := fmt.Sprintf("%s:7000", h.serviceType)
 
 	listener, err := net.Listen("tcp", healthCheckPort)
 	if err != nil {

@@ -17,17 +17,19 @@ import (
 type Server struct {
 	conn         net.Listener
 	shuttingDown bool
-	serviceType  string 
+	serviceType  string
 }
 
 func NewServer(serviceType string) *Server {
 	return &Server{
-		serviceType: serviceType, 
+		serviceType: serviceType,
 	}
 }
 
 func (s *Server) Start() {
 	// wait for replicas to be ready
+
+	log.Printf("Waiting for replicas to be ready...")
 	time.Sleep(3 * time.Second)
 
 	sigChan := make(chan os.Signal, 1)
@@ -38,13 +40,16 @@ func (s *Server) Start() {
 		s.shutdown()
 	}()
 
+	log.Printf("Listening to request handler...")
 	conn, err := net.Listen("tcp", fmt.Sprintf("localhost:500%d", env.AppEnv.ID))
 	if err != nil {
 		log.Fatalf("Failed to listen to request handler: %v", err)
 	}
 	s.conn = conn
 
-	go s.listenToNodes()
+	s.listenToNodes()
+
+	log.Printf("Resuscitator started")
 }
 
 func (s *Server) shutdown() {
@@ -57,9 +62,10 @@ func (s *Server) shutdown() {
 }
 
 func (s *Server) listenToNodes() {
+	log.Printf("Listening to nodes...")
 	var wg sync.WaitGroup
 
-	for i := 0; i < env.AppEnv.REPLICAS; i++ {
+	for i := 1; i <= env.AppEnv.REPLICAS; i++ {
 		wg.Add(1)
 		go func(nodeID int) {
 			defer wg.Done()
@@ -76,7 +82,7 @@ func (s *Server) listenToNode(nodeID int) {
 			return
 		}
 
-		healthCheckPort := fmt.Sprintf("localhost:%d00%d", env.AppEnv.PORT, nodeID)
+		healthCheckPort := fmt.Sprintf("%s_%d:7000", env.AppEnv.SERVICE_TYPE, nodeID)
 		conn, err := net.DialTimeout("tcp", healthCheckPort, 5*time.Second)
 
 		if err != nil {
@@ -87,6 +93,7 @@ func (s *Server) listenToNode(nodeID int) {
 		}
 
 		_, err = conn.Write([]byte("PING\n"))
+		log.Printf("Sent health check to node %d", nodeID)
 		if err != nil {
 			log.Printf("Failed to send health check to node %d: %v", nodeID, err)
 			conn.Close()
@@ -98,6 +105,7 @@ func (s *Server) listenToNode(nodeID int) {
 		buffer := make([]byte, 1024)
 		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 		_, err = conn.Read(buffer)
+		log.Printf("Received health check response from node %d", nodeID)
 
 		if err != nil {
 			log.Printf("Node %d health check response failed: %v", nodeID, err)
@@ -141,26 +149,15 @@ func (s *Server) getServiceName(nodeID int) string {
 	}
 
 	// Docker service names follow the pattern: servicetype_nodeID
-	// NodeID is 0-based in the code but 1-based in service names
-	return fmt.Sprintf("%s_%d", s.serviceType, nodeID+1)
+	// NodeID is already 1-based from the calling loop
+	return fmt.Sprintf("%s_%d", s.serviceType, nodeID)
 }
 
 func (s *Server) restartDockerService(serviceName string) error {
 	workDir := "/app"
 
-	// First, try to stop the service
-	stopCmd := exec.Command("docker-compose", "stop", serviceName)
-	stopCmd.Dir = workDir
-	if err := stopCmd.Run(); err != nil {
-		log.Printf("Warning: Failed to stop service %s: %v", serviceName, err)
-		// Continue with restart even if stop fails
-	}
-
-	// Wait a moment for the service to fully stop
-	time.Sleep(2 * time.Second)
-
-	// Then restart the service
-	restartCmd := exec.Command("docker-compose", "up", "-d", serviceName)
+	// Use docker compose restart to restart only the specific service
+	restartCmd := exec.Command("docker", "compose", "restart", serviceName)
 	restartCmd.Dir = workDir
 
 	// Capture output for debugging
@@ -173,5 +170,3 @@ func (s *Server) restartDockerService(serviceName string) error {
 	log.Printf("Service %s restart output: %s", serviceName, string(output))
 	return nil
 }
-
-
