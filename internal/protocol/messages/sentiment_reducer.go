@@ -28,28 +28,28 @@ func (s *SentimentAnalysis) Deserialize(data []string) error {
 		return fmt.Errorf("invalid record format, expected at least 5 fields, got %d", len(data))
 	}
 
-	s.MovieID = data[SentimentMovieID]
-	s.Title = data[SentimentMovieTitle]
+	s.MovieID = data[SentimentWorkerMovieID]
+	s.Title = data[SentimentWorkerMovieTitle]
 
-	budget, err := strconv.ParseFloat(data[SentimentMovieBudget], 64)
+	budget, err := strconv.ParseFloat(data[SentimentWorkerMovieBudget], 64)
 	if err != nil {
 		return fmt.Errorf("failed to parse budget: %w", err)
 	}
 	s.Budget = budget
 
-	revenue, err := strconv.ParseFloat(data[SentimentMovieRevenue], 64)
+	revenue, err := strconv.ParseFloat(data[SentimentWorkerMovieRevenue], 64)
 	if err != nil {
 		return fmt.Errorf("failed to parse revenue: %w", err)
 	}
 	s.Revenue = revenue
-	s.Sentiment = data[SentimentLabel]
+	s.Sentiment = data[SentimentWorkerMovieSentiment]
 	s.Ratio = s.Revenue / s.Budget
 	s.RawData = make([]string, 5)
-	s.RawData[SentimentMovieID] = data[SentimentMovieID]
-	s.RawData[SentimentMovieTitle] = data[SentimentMovieTitle]
-	s.RawData[SentimentMovieBudget] = data[SentimentMovieBudget]
-	s.RawData[SentimentMovieRevenue] = data[SentimentMovieRevenue]
-	s.RawData[SentimentLabel] = data[SentimentLabel]
+	s.RawData[SentimentMovieID] = data[SentimentWorkerMovieID]
+	s.RawData[SentimentMovieTitle] = data[SentimentWorkerMovieTitle]
+	s.RawData[SentimentMovieBudget] = data[SentimentWorkerMovieBudget]
+	s.RawData[SentimentMovieRevenue] = data[SentimentWorkerMovieRevenue]
+	s.RawData[SentimentLabel] = data[SentimentWorkerMovieSentiment]
 
 	return nil
 }

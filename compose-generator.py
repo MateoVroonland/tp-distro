@@ -11,10 +11,8 @@ def get_env(key):
         raise ValueError(f"Environment variable {key} must be an integer")
 
 def generate_compose():
-    # Load environment variables from .env file
     load_dotenv()
 
-    # Get replica counts from environment variables
     movies_receiver_amount = get_env("MOVIES_RECEIVER_AMOUNT")
     credits_receiver_amount = get_env("CREDITS_RECEIVER_AMOUNT")
     ratings_receiver_amount = get_env("RATINGS_RECEIVER_AMOUNT")
@@ -99,7 +97,7 @@ def generate_compose():
     add_services("q3_sink", sentiment_sink_amount, "movies/sink_q3:latest")
     add_services("budget_reducer", budget_reducer_amount, "movies/reducer:latest", None, "/budget_reducer.go")
     add_services("budget_sink", budget_sink_amount, "movies/sink_q2:latest", None, "/budget_sink/budget_sink.go")
-    add_services("sentiment_worker", sentiment_worker_amount, "movies/sentiment:latest")
+    add_services("sentiment_worker", sentiment_worker_amount, "movies/sentiment:latest", None, "/sentiment/sentiment_worker.go")
     add_services("sentiment_reducer", sentiment_reducer_amount, "movies/sentiment_reducer:latest", None, "/sentiment_reducer/sentiment_reducer.go")
     add_services("sentiment_sink", sentiment_sink_amount, "movies/sink_q5:latest", None, "/sentiment_sink/sentiment_sink.go")
     add_services("credits_joiner", credits_joiner_amount, "movies/credits_joiner:latest")
