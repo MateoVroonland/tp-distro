@@ -32,6 +32,11 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	go healthCheckServer.Start()
+
+
+
 	receiver := receiver.NewRatingsReceiver(conn, rawRatingsConsumer)
 	receiver.ReceiveRatings()
 
