@@ -19,7 +19,7 @@ func SaveRatingsState(receiver *RatingsReceiver) error {
 	}
 
 	// Save state for each joiner producer
-	for clientId, producer := range receiver.joinerProducers {
+	for clientId, producer := range receiver.JoinerProducers {
 		state.JoinerProducers[clientId] = producer.GetState()
 	}
 

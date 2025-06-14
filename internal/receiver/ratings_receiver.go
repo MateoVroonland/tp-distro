@@ -17,11 +17,11 @@ import (
 type RatingsReceiver struct {
 	conn            *amqp.Connection
 	ratingsConsumer *utils.ConsumerQueue
-	joinerProducers map[string]*utils.ProducerQueue
+	JoinerProducers map[string]*utils.ProducerQueue
 }
 
 func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQueue) *RatingsReceiver {
-	return &RatingsReceiver{conn: conn, ratingsConsumer: ratingsConsumer, joinerProducers: make(map[string]*utils.ProducerQueue)}
+	return &RatingsReceiver{conn: conn, ratingsConsumer: ratingsConsumer, JoinerProducers: make(map[string]*utils.ProducerQueue)}
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
@@ -31,7 +31,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 		stringLine := string(msg.Body)
 
 		if msg.Body == "FINISHED" {
-			queue := r.joinerProducers[msg.ClientId]
+			queue := r.JoinerProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
 
 			// Save state when receiving FINISHED message
@@ -44,7 +44,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			continue
 		}
 		clientId := msg.ClientId
-		if _, ok := r.joinerProducers[clientId]; !ok {
+		if _, ok := r.JoinerProducers[clientId]; !ok {
 			producerName := fmt.Sprintf("ratings_joiner_client_%s", clientId)
 			producer, err := utils.NewProducerQueue(r.conn, producerName, env.AppEnv.RATINGS_JOINER_AMOUNT)
 			if err != nil {
@@ -52,7 +52,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 				msg.Nack(false)
 				continue
 			}
-			r.joinerProducers[clientId] = producer
+			r.JoinerProducers[clientId] = producer
 		}
 		ratingsConsumed++
 		reader := csv.NewReader(strings.NewReader(stringLine))
@@ -77,7 +77,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			continue
 		}
 
-		err = r.joinerProducers[clientId].Publish(serializedRating, clientId, strconv.Itoa(rating.MovieID))
+		err = r.JoinerProducers[clientId].Publish(serializedRating, clientId, strconv.Itoa(rating.MovieID))
 
 		if err != nil {
 			log.Printf("Error publishing rating: %s", err)

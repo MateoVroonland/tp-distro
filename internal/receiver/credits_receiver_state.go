@@ -19,7 +19,7 @@ func SaveCreditsState(receiver *CreditsReceiver) error {
 	}
 
 	// Save state for each client producer
-	for clientId, producer := range receiver.clientProducers {
+	for clientId, producer := range receiver.ClientProducers {
 		state.ClientProducers[clientId] = producer.GetState()
 	}
 

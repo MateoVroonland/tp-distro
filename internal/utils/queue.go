@@ -134,6 +134,7 @@ type Message struct {
 	delivery       amqp.Delivery
 	SequenceNumber int
 	ProducerId     string
+	Redelivered    bool
 }
 
 func (m *Message) Ack() {
@@ -175,6 +176,7 @@ func MessageFromDelivery(delivery amqp.Delivery) (*Message, error) {
 		delivery:       delivery,
 		SequenceNumber: int(sequenceNumber),
 		ProducerId:     producerId,
+		Redelivered:    delivery.Redelivered,
 	}, nil
 }
 

@@ -14,12 +14,12 @@ import (
 type BudgetReducer struct {
 	queue            *utils.ConsumerQueue
 	publishQueue     *utils.ProducerQueue
-	budgetPerCountry map[string]map[string]int
+	BudgetPerCountry map[string]map[string]int
 }
 
 func NewBudgetReducer(queue *utils.ConsumerQueue, publishQueue *utils.ProducerQueue) *BudgetReducer {
 
-	return &BudgetReducer{queue: queue, publishQueue: publishQueue, budgetPerCountry: make(map[string]map[string]int)}
+	return &BudgetReducer{queue: queue, publishQueue: publishQueue, BudgetPerCountry: make(map[string]map[string]int)}
 }
 
 func (r *BudgetReducer) Reduce() {
@@ -31,6 +31,14 @@ func (r *BudgetReducer) Reduce() {
 
 		if msg.Body == "FINISHED" {
 			r.SendResults(msg.ClientId)
+
+			delete(r.BudgetPerCountry, msg.ClientId)
+
+			err := SaveBudgetReducerState(r)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
+
 			msg.Ack()
 			continue
 		}
@@ -51,11 +59,17 @@ func (r *BudgetReducer) Reduce() {
 			continue
 		}
 
-		if _, ok := r.budgetPerCountry[msg.ClientId]; !ok {
-			r.budgetPerCountry[msg.ClientId] = make(map[string]int)
+		if _, ok := r.BudgetPerCountry[msg.ClientId]; !ok {
+			r.BudgetPerCountry[msg.ClientId] = make(map[string]int)
 		}
 
-		r.budgetPerCountry[msg.ClientId][movieBudget.Country] += movieBudget.Amount
+		r.BudgetPerCountry[msg.ClientId][movieBudget.Country] += movieBudget.Amount
+
+		err = SaveBudgetReducerState(r)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
+
 		msg.Ack()
 	}
 
@@ -64,9 +78,12 @@ func (r *BudgetReducer) Reduce() {
 }
 
 func (r *BudgetReducer) SendResults(clientId string) {
-	budgets := messages.ParseBudgetMap(r.budgetPerCountry[clientId])
+	budgets := messages.ParseBudgetMap(r.BudgetPerCountry[clientId])
 	sort.Slice(budgets, func(i, j int) bool {
-		return budgets[i].Amount > budgets[j].Amount
+		if budgets[i].Amount != budgets[j].Amount {
+			return budgets[i].Amount > budgets[j].Amount
+		}
+		return budgets[i].Country < budgets[j].Country
 	})
 
 	for _, budget := range budgets {

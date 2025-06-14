@@ -78,6 +78,8 @@ func main() {
 		q3.RestoreState(state.Q3Producer)
 		q4.RestoreState(state.Q4Producer)
 		q5.RestoreState(state.Q5Producer)
+		log.Println("State restored")
+		log.Printf("%+v", state)
 	}
 
 	receiver := receiver.NewMoviesReceiver(conn, q, q1, q2, q3, q4, q5)

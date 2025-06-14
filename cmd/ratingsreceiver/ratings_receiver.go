@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"log"
 	"os"
 
@@ -30,6 +31,7 @@ func main() {
 	}
 
 	stateFile, readErr := os.ReadFile("data/ratings_receiver_state.gob")
+	joinerProducers := make(map[string]*utils.ProducerQueue)
 	if os.IsNotExist(readErr) {
 		log.Println("State file does not exist, creating new state")
 	} else if readErr != nil {
@@ -42,8 +44,20 @@ func main() {
 		}
 
 		ratingsConsumer.RestoreState(state.RatingsConsumer)
+		for clientId, producerState := range state.JoinerProducers {
+			producerName := fmt.Sprintf("ratings_joiner_client_%s", clientId)
+			producer, err := utils.NewProducerQueue(conn, producerName, env.AppEnv.RATINGS_JOINER_AMOUNT)
+			if err != nil {
+				log.Fatalf("Failed to create producer: %v", err)
+			}
+			producer.RestoreState(producerState)
+			joinerProducers[clientId] = producer
+		}
+		log.Println("State restored")
+		log.Printf("%+v", state)
 	}
 
 	receiver := receiver.NewRatingsReceiver(conn, ratingsConsumer)
+	receiver.JoinerProducers = joinerProducers
 	receiver.ReceiveRatings()
 }

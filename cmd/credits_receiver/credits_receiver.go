@@ -31,6 +31,7 @@ func main() {
 	}
 
 	stateFile, readErr := os.ReadFile("data/credits_receiver_state.gob")
+	clientProducers := make(map[string]*utils.ProducerQueue)
 	if os.IsNotExist(readErr) {
 		log.Println("State file does not exist, creating new state")
 	} else if readErr != nil {
@@ -52,9 +53,13 @@ func main() {
 				continue
 			}
 			producer.RestoreState(producerState)
+			clientProducers[clientId] = producer
 		}
+		log.Println("State restored")
+		log.Printf("%+v", state)
 	}
 
 	receiver := receiver.NewCreditsReceiver(conn, rawCredtisConsumer)
+	receiver.ClientProducers = clientProducers
 	receiver.ReceiveCredits()
 }

@@ -17,11 +17,11 @@ import (
 type CreditsReceiver struct {
 	conn            *amqp.Connection
 	creditsConsumer *utils.ConsumerQueue
-	clientProducers map[string]*utils.ProducerQueue
+	ClientProducers map[string]*utils.ProducerQueue
 }
 
 func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.ConsumerQueue) *CreditsReceiver {
-	return &CreditsReceiver{conn: conn, creditsConsumer: creditsConsumer, clientProducers: make(map[string]*utils.ProducerQueue)}
+	return &CreditsReceiver{conn: conn, creditsConsumer: creditsConsumer, ClientProducers: make(map[string]*utils.ProducerQueue)}
 }
 
 func (r *CreditsReceiver) ReceiveCredits() {
@@ -33,7 +33,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 		stringLine := string(msg.Body)
 
 		if msg.Body == "FINISHED" {
-			queue := r.clientProducers[msg.ClientId]
+			queue := r.ClientProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
 
 			err := SaveCreditsState(r)
@@ -45,7 +45,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			continue
 		}
 
-		if _, ok := r.clientProducers[msg.ClientId]; !ok {
+		if _, ok := r.ClientProducers[msg.ClientId]; !ok {
 			producerName := fmt.Sprintf("credits_joiner_client_%s", msg.ClientId)
 			producer, err := utils.NewProducerQueue(r.conn, producerName, env.AppEnv.CREDITS_JOINER_AMOUNT)
 			if err != nil {
@@ -53,7 +53,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 				msg.Nack(false)
 				continue
 			}
-			r.clientProducers[msg.ClientId] = producer
+			r.ClientProducers[msg.ClientId] = producer
 			log.Printf("Created producer for client %s: %s", msg.ClientId, producerName)
 		}
 
@@ -80,7 +80,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			continue
 		}
 
-		clientProducer := r.clientProducers[msg.ClientId]
+		clientProducer := r.ClientProducers[msg.ClientId]
 		err = clientProducer.Publish(serializedCredits, msg.ClientId, strconv.Itoa(credits.MovieID))
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)
