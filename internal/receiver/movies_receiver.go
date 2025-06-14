@@ -26,11 +26,7 @@ func NewMoviesReceiver(conn *amqp.Connection, moviesConsumer *utils.ConsumerQueu
 }
 
 func (r *MoviesReceiver) ReceiveMovies() {
-	// r.MoviesConsumer.AddFinishSubscriber(r.Q1Producer, env.AppEnv.Q1_FILTER_AMOUNT)
-	// r.MoviesConsumer.AddFinishSubscriber(r.Q2Producer)
-	// r.MoviesConsumer.AddFinishSubscriber(r.Q3Producer)
-	// r.MoviesConsumer.AddFinishSubscriber(r.Q4Producer)
-	// r.MoviesConsumer.AddFinishSubscriber(r.Q5Producer)
+
 	i := map[string]int{}
 	for d := range r.MoviesConsumer.ConsumeInfinite() {
 		i[d.ClientId]++
@@ -38,6 +34,7 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			log.Printf("Received %d movies for client %s", i[d.ClientId], d.ClientId)
 		}
 
+		// aca que hacemos?????
 		if d.Body == "FINISHED" {
 			log.Printf("Received %d movies for client %s", i[d.ClientId], d.ClientId)
 			r.Q1Producer.PublishFinished(d.ClientId)
@@ -45,10 +42,15 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			r.Q3Producer.PublishFinished(d.ClientId)
 			r.Q4Producer.PublishFinished(d.ClientId)
 			r.Q5Producer.PublishFinished(d.ClientId)
+
+			err := SaveState(r)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
+
 			d.Ack()
 			continue
 		}
-		// 	stringLine := string(d.Body)
 
 		reader := csv.NewReader(strings.NewReader(d.Body))
 		reader.FieldsPerRecord = 24

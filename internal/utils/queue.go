@@ -226,7 +226,7 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 					if len(q.finishedReceived[message.ClientId]) == q.previousReplicas {
 						log.Printf("Received all messages for client %s", message.ClientId)
 						delete(q.finishedReceived, message.ClientId)
-						// delete(q.sequenceNumbers, message.ClientId) // TODO: check if no data will be lost, maybe do later or garbage collect?
+						delete(q.sequenceNumbers, message.ClientId) // TODO: check if no data will be lost, maybe do later or garbage collect?
 						if infinite {
 							finishedMessage := message
 							finishedMessage.Body = "FINISHED"
@@ -341,7 +341,7 @@ func (q *ProducerQueue) PublishFinished(clientId string) error {
 	for i := range q.nextReplicas {
 		q.publishWithParams([]byte("FINISHED:"+strconv.Itoa(env.AppEnv.ID)), strconv.Itoa(i+1), clientId, strconv.Itoa(env.AppEnv.ID))
 	}
-	// delete(q.sequenceNumbers, clientId) // TODO: check if no data will be lost, maybe do later or garbage collect?
+	delete(q.sequenceNumbers, clientId) // TODO: check if no data will be lost, maybe do later or garbage collect?
 	return nil
 }
 
@@ -420,6 +420,7 @@ func NewConsumerFanout(conn *amqp.Connection, exchangeName string) (*ConsumerQue
 		return nil, err
 	}
 
+	// tiene que dejar de ser anonima asi se reconecta a la misma cola
 	q, err := ch.QueueDeclare("", false, false, false, false, nil)
 	if err != nil {
 		return nil, err

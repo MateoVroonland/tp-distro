@@ -35,6 +35,12 @@ func (r *CreditsReceiver) ReceiveCredits() {
 		if msg.Body == "FINISHED" {
 			queue := r.clientProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
+
+			err := SaveCreditsState(r)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
+
 			msg.Ack()
 			continue
 		}
@@ -80,6 +86,12 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			log.Printf("Error publishing credits: %s", err)
 			continue
 		}
+
+		err = SaveCreditsState(r)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
+
 		msg.Ack()
 	}
 

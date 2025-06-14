@@ -25,7 +25,6 @@ func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQu
 }
 
 func (r *RatingsReceiver) ReceiveRatings() {
-
 	ratingsConsumed := 0
 
 	for msg := range r.ratingsConsumer.ConsumeInfinite() {
@@ -34,6 +33,13 @@ func (r *RatingsReceiver) ReceiveRatings() {
 		if msg.Body == "FINISHED" {
 			queue := r.joinerProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
+
+			// Save state when receiving FINISHED message
+			err := SaveRatingsState(r)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
+
 			msg.Ack()
 			continue
 		}
@@ -78,6 +84,13 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			msg.Nack(false)
 			continue
 		}
+
+		// Save state periodically (every 1000 ratings)
+		err = SaveRatingsState(r)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
+
 		msg.Ack()
 	}
 	log.Printf("Ratings consumed: %d", ratingsConsumed)

@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/receiver"
@@ -24,18 +24,26 @@ func main() {
 	}
 	defer conn.Close()
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM)
-
-	rawRatingsConsumer, err := utils.NewConsumerQueue(conn, "ratings", "ratings", 1)
+	ratingsConsumer, err := utils.NewConsumerQueue(conn, "ratings", "ratings", 1)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	receiver := receiver.NewRatingsReceiver(conn, rawRatingsConsumer)
-	receiver.ReceiveRatings()
+	stateFile, readErr := os.ReadFile("data/ratings_receiver_state.gob")
+	if os.IsNotExist(readErr) {
+		log.Println("State file does not exist, creating new state")
+	} else if readErr != nil {
+		log.Fatalf("Failed to read state: %v", readErr)
+	} else {
+		var state receiver.RatingsReceiverState
+		err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Fatalf("Failed to decode state: %v", err)
+		}
 
-	// log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-	// <-sigs
-	// log.Printf("Received SIGTERM signal, closing connection")
+		ratingsConsumer.RestoreState(state.RatingsConsumer)
+	}
+
+	receiver := receiver.NewRatingsReceiver(conn, ratingsConsumer)
+	receiver.ReceiveRatings()
 }
