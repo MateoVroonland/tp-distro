@@ -11,16 +11,14 @@ import (
 )
 
 type HealthCheckServer struct {
-	port     int
 	serviceType string
 	id       int
 	listener net.Listener
 	shutdown chan struct{}
 }
 
-func NewHealthCheckServer(port int, id int, serviceType string) *HealthCheckServer {
+func NewHealthCheckServer(id int, serviceType string) *HealthCheckServer {
 	return &HealthCheckServer{
-		port:     port,
 		serviceType: serviceType,
 		id:       id,
 		shutdown: make(chan struct{}),
