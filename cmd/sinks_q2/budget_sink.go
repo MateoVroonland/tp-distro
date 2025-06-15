@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"log"
+	"os"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/sinks"
@@ -31,7 +34,26 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
+	var state sinks.BudgetSinkState
+	stateFile, err := os.ReadFile("data/budget_sink_state.gob")
+
 	sink := sinks.NewBudgetSink(budgetSinkConsumer, resultsProducer)
+
+	if os.IsNotExist(err) {
+		log.Println("State file does not exist, creating new state")
+	} else if err != nil {
+		log.Fatalf("Failed to read state: %v", err)
+	} else {
+		err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Fatalf("Failed to decode state: %v", err)
+		}
+		budgetSinkConsumer.RestoreState(state.Queue)
+		resultsProducer.RestoreState(state.ResultsProducer)
+		log.Printf("State restored up to sequence number: %v", state.Queue.SequenceNumbers)
+		sink.BudgetPerCountry = state.BudgetPerCountry
+
+	}
 
 	sink.Sink()
 
