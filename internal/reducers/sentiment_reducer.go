@@ -12,7 +12,7 @@ import (
 type SentimentReducer struct {
 	queue        *utils.ConsumerQueue
 	publishQueue *utils.ProducerQueue
-	clientStats  map[string]map[string]SentimentStats
+	ClientStats  map[string]map[string]SentimentStats
 }
 
 type SentimentStats struct {
@@ -35,7 +35,7 @@ func NewSentimentReducer(queue *utils.ConsumerQueue, publishQueue *utils.Produce
 	return &SentimentReducer{
 		queue:        queue,
 		publishQueue: publishQueue,
-		clientStats:  make(map[string]map[string]SentimentStats),
+		ClientStats:  make(map[string]map[string]SentimentStats),
 	}
 }
 
@@ -54,12 +54,16 @@ func (r *SentimentReducer) Reduce() {
 			log.Printf("Received FINISHED message for client %s", clientId)
 			r.CalculateAverages(clientId)
 			r.SendResults(clientId)
+			err := SaveSentimentReducerState(r)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
 			msg.Ack()
 			continue
 		}
 
-		if _, ok := r.clientStats[clientId]; !ok {
-			r.clientStats[clientId] = map[string]SentimentStats{
+		if _, ok := r.ClientStats[clientId]; !ok {
+			r.ClientStats[clientId] = map[string]SentimentStats{
 				"POSITIVE": NewSentimentStats("POSITIVE"),
 				"NEGATIVE": NewSentimentStats("NEGATIVE"),
 			}
@@ -85,7 +89,7 @@ func (r *SentimentReducer) Reduce() {
 			continue
 		}
 
-		clientStats := r.clientStats[clientId]
+		clientStats := r.ClientStats[clientId]
 
 		if movieSentiment.Sentiment == "POSITIVE" {
 			stats := clientStats["POSITIVE"]
@@ -99,13 +103,17 @@ func (r *SentimentReducer) Reduce() {
 			clientStats["NEGATIVE"] = stats
 		}
 
-		r.clientStats[clientId] = clientStats
+		r.ClientStats[clientId] = clientStats
+		err = SaveSentimentReducerState(r)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
 		msg.Ack()
 	}
 }
 
 func (r *SentimentReducer) CalculateAverages(clientId string) {
-	clientStats := r.clientStats[clientId]
+	clientStats := r.ClientStats[clientId]
 
 	positiveStats := clientStats["POSITIVE"]
 	if positiveStats.TotalMovies > 0 {
@@ -119,7 +127,7 @@ func (r *SentimentReducer) CalculateAverages(clientId string) {
 		clientStats["NEGATIVE"] = negativeStats
 	}
 
-	r.clientStats[clientId] = clientStats
+	r.ClientStats[clientId] = clientStats
 
 	log.Printf("Client %s: Sentiment statistics calculated - Positive avg ratio: %.2f (%d movies), Negative avg ratio: %.2f (%d movies)",
 		clientId,
@@ -128,7 +136,7 @@ func (r *SentimentReducer) CalculateAverages(clientId string) {
 }
 
 func (r *SentimentReducer) SendResults(clientId string) {
-	clientStats := r.clientStats[clientId]
+	clientStats := r.ClientStats[clientId]
 	positiveStats := clientStats["POSITIVE"]
 	negativeStats := clientStats["NEGATIVE"]
 
