@@ -15,22 +15,22 @@ import (
 
 type CreditsJoiner struct {
 	conn             *amqp.Connection
-	newClientQueue   *utils.ConsumerQueue
+	newClientQueue   *utils.ConsumerFanout
 	moviesConsumers  map[string]*utils.ConsumerQueue
 	creditsConsumers map[string]*utils.ConsumerQueue
 	waitGroup        *sync.WaitGroup
 	clientsLock      *sync.Mutex
 }
 
-func NewCreditsJoiner(conn *amqp.Connection, newClientQueue *utils.ConsumerQueue) *CreditsJoiner {
+func NewCreditsJoiner(conn *amqp.Connection, newClientQueue *utils.ConsumerFanout) *CreditsJoiner {
 	return &CreditsJoiner{conn: conn, newClientQueue: newClientQueue, waitGroup: &sync.WaitGroup{}, clientsLock: &sync.Mutex{}, moviesConsumers: make(map[string]*utils.ConsumerQueue), creditsConsumers: make(map[string]*utils.ConsumerQueue)}
 }
 
 func (c *CreditsJoiner) JoinCredits(routingKey int) error {
 
-	defer c.newClientQueue.CloseChannel()
+	defer c.newClientQueue.Close()
 
-	for msg := range c.newClientQueue.ConsumeInfinite() {
+	for msg := range c.newClientQueue.Consume() {
 
 		log.Printf("Received new client %s", msg.ClientId)
 

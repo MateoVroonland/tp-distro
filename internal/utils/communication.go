@@ -37,11 +37,11 @@ func SendMessage(conn net.Conn, message []byte) error {
 	for totalWritten < len(completeMessage) {
 		n, err := conn.Write(completeMessage[totalWritten:])
 		if err != nil {
-			return fmt.Errorf("Error writing to connection: %v", err)
+			return fmt.Errorf("error writing to connection: %v", err)
 		}
 
 		if n == 0 {
-			return fmt.Errorf("Connection closed while writing")
+			return fmt.Errorf("connection closed while writing")
 		}
 
 		totalWritten += n

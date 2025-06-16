@@ -16,13 +16,13 @@ import (
 type FilterJoiner struct {
 	conn                      *amqp.Connection
 	filteredByCountryConsumer *utils.ConsumerQueue
-	newClientFanout           *utils.ProducerQueue
+	newClientFanout           *utils.ProducerFanout
 	clientsProducers          map[string]*utils.ProducerQueue
 	outputMessage             protocol.MovieToFilter
 	query                     string
 }
 
-func NewFilterJoiner(filteredByCountryConsumer *utils.ConsumerQueue, outputMessage protocol.MovieToFilter, newClientFanout *utils.ProducerQueue, query string, conn *amqp.Connection) *FilterJoiner {
+func NewFilterJoiner(filteredByCountryConsumer *utils.ConsumerQueue, outputMessage protocol.MovieToFilter, newClientFanout *utils.ProducerFanout, query string, conn *amqp.Connection) *FilterJoiner {
 	return &FilterJoiner{filteredByCountryConsumer: filteredByCountryConsumer, outputMessage: outputMessage, newClientFanout: newClientFanout, clientsProducers: make(map[string]*utils.ProducerQueue), conn: conn, query: query}
 }
 
