@@ -92,13 +92,17 @@ func (s *SentimentSink) Sink() {
 		clientId := msg.ClientId
 
 		if msg.Body == "FINISHED" {
-			log.Printf("Received FINISHED message for client %s", clientId)
-			s.SendClientResults(clientId)
-			delete(s.clientResults, clientId)
+			if _, ok := s.clientResults[clientId]; !ok {
+				log.Printf("No client results to send for client %s, skipping", clientId)
+			} else {
+				log.Printf("Received FINISHED message for client %s", clientId)
+				s.SendClientResults(clientId)
+				delete(s.clientResults, clientId)
 
-			err := SaveSentimentSinkState(s)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
+				err := SaveSentimentSinkState(s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
 			}
 			msg.Ack()
 			continue
