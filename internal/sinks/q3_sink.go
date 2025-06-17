@@ -13,6 +13,7 @@ import (
 type Q3Sink struct {
 	SinkConsumer    *utils.ConsumerQueue
 	ResultsProducer *utils.ProducerQueue
+	clientsResults  map[string]MinAndMaxMovie
 }
 
 type MinAndMaxMovie struct {
@@ -24,23 +25,28 @@ func NewQ3Sink(sinkConsumer *utils.ConsumerQueue, resultsProducer *utils.Produce
 	return &Q3Sink{
 		SinkConsumer:    sinkConsumer,
 		ResultsProducer: resultsProducer,
+		clientsResults:  make(map[string]MinAndMaxMovie),
 	}
 }
 
 func (s *Q3Sink) GetMaxAndMinMovies() {
-	// log.Printf("Getting max and min movies")
-
-	clientsResults := map[string]MinAndMaxMovie{}
-
-	// log.Printf("Consuming messages")
-
 	for msg := range s.SinkConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
-			log.Printf("Received FINISHED message")
-			s.SendClientIdResults(msg.ClientId, clientsResults[msg.ClientId])
+			if _, ok := s.clientsResults[msg.ClientId]; !ok {
+				log.Printf("No client results to send for client %s, skipping", msg.ClientId)
+			} else {
+				log.Printf("Received FINISHED message for client %s", msg.ClientId)
+				s.SendClientIdResults(msg.ClientId, s.clientsResults[msg.ClientId])
+				delete(s.clientsResults, msg.ClientId)
+
+				err := SaveQ3SinkState(s, s.clientsResults)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+			}
 			msg.Ack()
 			continue
 		}
@@ -60,7 +66,7 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 			msg.Nack(false)
 			continue
 		}
-		minAndMaxMovie, ok := clientsResults[msg.ClientId]
+		minAndMaxMovie, ok := s.clientsResults[msg.ClientId]
 		if !ok {
 			minAndMaxMovie = MinAndMaxMovie{}
 		}
@@ -71,11 +77,16 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		if !ok || movie.Rating < minAndMaxMovie.MinMovie.Rating || minAndMaxMovie.MinMovie.Rating == 0 {
 			minAndMaxMovie.MinMovie = movie
 		}
-		clientsResults[msg.ClientId] = minAndMaxMovie
-		log.Printf("Clients results: %v", clientsResults)
+		s.clientsResults[msg.ClientId] = minAndMaxMovie
+		log.Printf("Clients results: %v", s.clientsResults)
+
+		err = SaveQ3SinkState(s, s.clientsResults)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
+
 		msg.Ack()
 	}
-
 }
 
 func (s *Q3Sink) SendClientIdResults(clientId string, minAndMaxMovie MinAndMaxMovie) {
@@ -117,4 +128,8 @@ func (s *Q3Sink) SendClientIdResults(clientId string, minAndMaxMovie MinAndMaxMo
 		log.Printf("Failed to publish results: %v", err)
 		return
 	}
+}
+
+func (s *Q3Sink) SetClientsResults(results map[string]MinAndMaxMovie) {
+	s.clientsResults = results
 }
