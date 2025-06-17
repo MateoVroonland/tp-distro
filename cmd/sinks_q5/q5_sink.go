@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"log"
+	"os"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/sinks"
@@ -33,8 +36,26 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	log.Printf("Sentiment sink initialized - consuming from %d reducers", previousReplicas)
+	var state sinks.SentimentSinkState
+	stateFile, err := os.ReadFile("data/sentiment_sink_state.gob")
 
 	sink := sinks.NewSentimentSink(sinkConsumer, resultsProducer)
+
+	if os.IsNotExist(err) {
+		log.Println("State file does not exist, creating new state")
+	} else if err != nil {
+		log.Fatalf("Failed to read state: %v", err)
+	} else {
+		err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Fatalf("Failed to decode state: %v", err)
+		}
+		sinkConsumer.RestoreState(state.Queue)
+		resultsProducer.RestoreState(state.ResultsProducer)
+		log.Printf("State restored up to sequence number: %v", state.Queue.SequenceNumbers)
+		sink.SetClientResults(state.ClientResults)
+	}
+
+	log.Printf("Sentiment sink initialized - consuming from %d reducers", previousReplicas)
 	sink.Sink()
 }
