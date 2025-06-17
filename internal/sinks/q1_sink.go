@@ -24,6 +24,10 @@ func NewQ1Sink(filteredByYearConsumer *utils.ConsumerQueue, resultsProducer *uti
 	}
 }
 
+func (s *Q1Sink) SetClientResults(results map[string][]messages.Q1Row) {
+	s.clientResults = results
+}
+
 func (s *Q1Sink) SendClientIdResults(clientId string) {
 	log.Printf("Sending results for clientId: %s", clientId)
 	rows := s.clientResults[clientId]
@@ -49,6 +53,13 @@ func (s *Q1Sink) SendClientIdResults(clientId string) {
 	if err != nil {
 		log.Printf("Failed to publish results: %v", err)
 		return
+	}
+
+	delete(s.clientResults, clientId)
+
+	err = SaveQ1SinkState(s)
+	if err != nil {
+		log.Printf("Failed to save state: %v", err)
 	}
 }
 
@@ -85,6 +96,11 @@ func (s *Q1Sink) Reduce() {
 		}
 		row = append(row, *messages.NewQ1Row(movie.ID, movie.Title, movie.Genres))
 		s.clientResults[msg.ClientId] = row
+
+		err = SaveQ1SinkState(s)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
 
 		msg.Ack()
 	}
