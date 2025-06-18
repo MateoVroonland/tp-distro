@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"iter"
 	"log"
-	"math/rand/v2"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -156,7 +154,6 @@ func MessageFromDelivery(delivery amqp.Delivery) (*Message, error) {
 func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 	return func(yield func(Message) bool) {
 
-		timeSinceLastRequeue := time.Now()
 
 		for {
 			select {
@@ -166,13 +163,6 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 			case delivery := <-q.deliveryChannel:
 				message, err := MessageFromDelivery(delivery)
 				// test requeueing messages
-				probability := rand.Float64()
-				if probability < 0.001 && timeSinceLastRequeue.Before(time.Now().Add(-1*time.Second)) {
-					timeSinceLastRequeue = time.Now()
-					log.Printf("Requeuing message with probability %f", probability)
-					message.Nack(true)
-					continue
-				}
 				if err != nil {
 					log.Printf("Failed to parse message in delivery channel: %v", err)
 					log.Printf("delivery: %v", delivery)
