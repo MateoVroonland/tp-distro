@@ -30,13 +30,18 @@ func (r *BudgetReducer) Reduce() {
 	for msg := range r.queue.ConsumeInfinite() {
 
 		if msg.Body == "FINISHED" {
-			r.SendResults(msg.ClientId)
+			if _, ok := r.BudgetPerCountry[msg.ClientId]; !ok {
+				log.Printf("No budget per country to send for client %s, skipping", msg.ClientId)
+			} else {
+				log.Printf("Received FINISHED message for client %s", msg.ClientId)
+				r.SendResults(msg.ClientId)
 
-			delete(r.BudgetPerCountry, msg.ClientId)
+				delete(r.BudgetPerCountry, msg.ClientId)
 
-			err := SaveBudgetReducerState(r)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
+				err := SaveBudgetReducerState(r)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
 			}
 
 			msg.Ack()

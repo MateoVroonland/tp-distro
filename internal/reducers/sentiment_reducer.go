@@ -51,13 +51,20 @@ func (r *SentimentReducer) Reduce() {
 		clientId := msg.ClientId
 
 		if msg.Body == "FINISHED" {
-			log.Printf("Received FINISHED message for client %s", clientId)
-			r.CalculateAverages(clientId)
-			r.SendResults(clientId)
-			err := SaveSentimentReducerState(r)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
+			if _, ok := r.ClientStats[clientId]; !ok {
+				log.Printf("No client stats to send for client %s, skipping", clientId)
+			} else {
+				log.Printf("Received FINISHED message for client %s", clientId)
+				r.CalculateAverages(clientId)
+				r.SendResults(clientId)
+				delete(r.ClientStats, clientId)
+
+				err := SaveSentimentReducerState(r)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
 			}
+
 			msg.Ack()
 			continue
 		}
