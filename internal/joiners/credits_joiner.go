@@ -2,7 +2,9 @@ package joiners
 
 import (
 	"encoding/csv"
+	"encoding/gob"
 	"log"
+	"os"
 	"strings"
 	"sync"
 
@@ -19,16 +21,14 @@ type CreditsJoiner struct {
 	MoviesConsumers  map[string]*utils.ConsumerQueue
 	CreditsConsumers map[string]*utils.ConsumerQueue
 	waitGroup        *sync.WaitGroup
-	clientsLock      *sync.Mutex
+	clientsLock      *sync.RWMutex
 }
 
 func NewCreditsJoiner(conn *amqp.Connection, newClientQueue *utils.ConsumerFanout) *CreditsJoiner {
-	return &CreditsJoiner{conn: conn, newClientQueue: newClientQueue, waitGroup: &sync.WaitGroup{}, clientsLock: &sync.Mutex{}, MoviesConsumers: make(map[string]*utils.ConsumerQueue), CreditsConsumers: make(map[string]*utils.ConsumerQueue)}
+	return &CreditsJoiner{conn: conn, newClientQueue: newClientQueue, waitGroup: &sync.WaitGroup{}, clientsLock: &sync.RWMutex{}, MoviesConsumers: make(map[string]*utils.ConsumerQueue), CreditsConsumers: make(map[string]*utils.ConsumerQueue)}
 }
 
-func (c *CreditsJoiner) GetCurrentClients() ([]string, error) {
-	c.clientsLock.Lock()
-	defer c.clientsLock.Unlock()
+func (c *CreditsJoiner) getCurrentClientsUnsafe() []string {
 
 	clients := make([]string, 0, len(c.MoviesConsumers))
 	for clientId := range c.MoviesConsumers {
@@ -41,22 +41,31 @@ func (c *CreditsJoiner) GetCurrentClients() ([]string, error) {
 		}
 	}
 
-	return clients, nil
+	return clients
+
+}
+
+func (c *CreditsJoiner) GetCurrentClients() []string {
+	c.clientsLock.Lock()
+	defer c.clientsLock.Unlock()
+
+	return c.getCurrentClientsUnsafe()
 }
 
 func (c *CreditsJoiner) JoinCredits(routingKey int) error {
 
 	defer c.newClientQueue.Close()
 
-	currentClients, err := c.GetCurrentClients()
-
-	if err != nil {
-		return err
-	}
+	currentClients := c.GetCurrentClients()
 
 	for _, clientId := range currentClients {
+		clientCreditsJoiner, err := NewCreditsJoinerClient(c, clientId)
+		if err != nil {
+			log.Printf("Failed to create credits joiner client for client %s: %v", clientId, err)
+			continue
+		}
 		c.waitGroup.Add(1)
-		go c.JoinCreditsForClient(clientId)
+		go clientCreditsJoiner.JoinCreditsForClient()
 	}
 
 	for msg := range c.newClientQueue.Consume() {
@@ -86,7 +95,20 @@ func (c *CreditsJoiner) JoinCredits(routingKey int) error {
 			}
 			c.CreditsConsumers[msg.ClientId] = creditsConsumer
 			c.waitGroup.Add(1)
-			go c.JoinCreditsForClient(msg.ClientId)
+			clientCreditsJoiner, err := NewCreditsJoinerClient(c, msg.ClientId)
+			if err != nil {
+				log.Printf("Failed to create credits joiner client for client %s: %v", msg.ClientId, err)
+				msg.Nack(false)
+				c.clientsLock.Unlock()
+				delete(c.MoviesConsumers, msg.ClientId)
+				delete(c.CreditsConsumers, msg.ClientId)
+				continue
+			}
+
+			currentClients := c.getCurrentClientsUnsafe()
+			SaveCreditsJoinerState(currentClients)
+
+			go clientCreditsJoiner.JoinCreditsForClient()
 		}
 
 		c.clientsLock.Unlock()
@@ -99,40 +121,95 @@ func (c *CreditsJoiner) JoinCredits(routingKey int) error {
 	return nil
 }
 
-func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
-	log.Printf("Joining credits for client %s", clientId)
+type CreditsJoinerClient struct {
+	ClientId        string
+	MoviesConsumer  *utils.ConsumerQueue
+	CreditsConsumer *utils.ConsumerQueue
+	SinkProducer    *utils.ProducerQueue
+	MoviesIds       map[int]bool
+	creditsJoiner   *CreditsJoiner
+}
 
-	sinkProducer, err := utils.NewProducerQueue(c.conn, "sink_q4", env.AppEnv.CREDITS_SINK_AMOUNT)
+func NewCreditsJoinerClient(creditsJoiner *CreditsJoiner, clientId string) (*CreditsJoinerClient, error) {
+	sinkProducer, err := utils.NewProducerQueue(creditsJoiner.conn, "sink_q4", env.AppEnv.CREDITS_SINK_AMOUNT)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	defer sinkProducer.CloseChannel()
-	defer c.waitGroup.Done()
+	creditsJoiner.clientsLock.RLock()
+	moviesConsumer := creditsJoiner.MoviesConsumers[clientId]
+	creditsConsumer := creditsJoiner.CreditsConsumers[clientId]
+	creditsJoiner.clientsLock.RUnlock()
 
-	moviesConsumer := c.MoviesConsumers[clientId]
-	creditsConsumer := c.CreditsConsumers[clientId]
+	stateFile, fileErr := os.Open("data/credits_joiner_state_" + clientId + ".gob")
+	var state CreditsJoinerClientState
+	var moviesIds map[int]bool
 
-	defer creditsConsumer.CloseChannel()
+	if os.IsNotExist(fileErr) {
+		log.Printf("State file of credits joiner for client %s does not exist, starting from scratch", clientId)
+		moviesIds = make(map[int]bool)
+	} else if fileErr != nil {
+		log.Printf("Failed to open state file of credits joiner for client %s: %v", clientId, fileErr)
+		if moviesConsumer != nil {
+			moviesConsumer.CloseChannel()
+		}
+		return nil, fileErr
+	} else {
+		defer stateFile.Close()
+		dec := gob.NewDecoder(stateFile)
+		err := dec.Decode(&state)
+		if err != nil {
+			log.Printf("Failed to decode state file of credits joiner for client %s: %v", clientId, err)
+			if moviesConsumer != nil {
+				moviesConsumer.CloseChannel()
+			}
+			return nil, err
+		}
 
-	moviesIds := make(map[int]bool)
+		defer stateFile.Close()
 
-	i := 0
+		sinkProducer.RestoreState(state.SinkProducer)
+		creditsConsumer.RestoreState(state.CreditsConsumer)
+		moviesIds = state.MoviesIds
+	}
 	if moviesConsumer != nil {
-		c.fetchMovies(moviesConsumer, moviesIds, &i)
-		defer moviesConsumer.CloseChannel()
+		if fileErr != nil {
+			moviesConsumer.RestoreState(state.MoviesConsumer)
+		}
 	}
 
-	c.clientsLock.Lock()
-	delete(c.MoviesConsumers, clientId)
-	c.clientsLock.Unlock()
+	return &CreditsJoinerClient{
+		creditsJoiner:   creditsJoiner,
+		ClientId:        clientId,
+		MoviesConsumer:  moviesConsumer,
+		CreditsConsumer: creditsConsumer,
+		SinkProducer:    sinkProducer,
+		MoviesIds:       moviesIds,
+	}, nil
+}
 
-	log.Printf("Received %d movies for client %s", i, clientId)
+func (c *CreditsJoinerClient) JoinCreditsForClient() error {
+	log.Printf("Joining credits for client %s", c.ClientId)
+
+	defer c.SinkProducer.CloseChannel()
+	defer c.creditsJoiner.waitGroup.Done()
+
+	defer c.CreditsConsumer.CloseChannel()
+
+	if c.MoviesConsumer != nil {
+		c.fetchMovies()
+	}
+
+	c.creditsJoiner.clientsLock.Lock()
+	delete(c.creditsJoiner.MoviesConsumers, c.ClientId)
+	c.creditsJoiner.clientsLock.Unlock()
+
+	log.Printf("Received %d movies for client %s", len(c.MoviesIds), c.ClientId)
 
 	var credits []messages.Credits
 
 	j := 0
-	for msg := range creditsConsumer.Consume() {
+	for msg := range c.CreditsConsumer.Consume() {
 
 		stringLine := string(msg.Body)
 		j++
@@ -155,7 +232,7 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 			continue
 		}
 
-		if !moviesIds[credit.MovieID] {
+		if !c.MoviesIds[credit.MovieID] {
 			msg.Ack()
 			continue
 		}
@@ -168,9 +245,9 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 			msg.Nack(false)
 			continue
 		}
-		sinkProducer.Publish(payload, clientId, "")
+		c.SinkProducer.Publish(payload, c.ClientId, "")
 
-		err = SaveCreditsJoinerState(c)
+		// err = SaveCreditsJoinerPerClientState(moviesConsumer.GetState(), creditsConsumer.GetState(), moviesIds, clientId)
 		if err != nil {
 			log.Printf("Failed to save credits joiner state: %v", err)
 			msg.Nack(false)
@@ -179,21 +256,20 @@ func (c *CreditsJoiner) JoinCreditsForClient(clientId string) error {
 
 		msg.Ack()
 	}
-	creditsConsumer.DeleteQueue()
-	log.Printf("Saved %d credits for client %s", len(credits), clientId)
-	sinkProducer.PublishFinished(clientId)
+	c.CreditsConsumer.DeleteQueue()
+	log.Printf("Saved %d credits for client %s", len(credits), c.ClientId)
+	c.SinkProducer.PublishFinished(c.ClientId)
 
-	c.clientsLock.Lock()
-	delete(c.CreditsConsumers, clientId)
-	c.clientsLock.Unlock()
+	c.creditsJoiner.clientsLock.Lock()
+	delete(c.creditsJoiner.CreditsConsumers, c.ClientId)
+	c.creditsJoiner.clientsLock.Unlock()
 
 	return nil
 }
 
-func (c *CreditsJoiner) fetchMovies(moviesConsumer *utils.ConsumerQueue, moviesIds map[int]bool, i *int) {
-	for msg := range moviesConsumer.Consume() {
+func (c *CreditsJoinerClient) fetchMovies() {
+	for msg := range c.MoviesConsumer.Consume() {
 		stringLine := string(msg.Body)
-		*i++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 2
@@ -213,9 +289,9 @@ func (c *CreditsJoiner) fetchMovies(moviesConsumer *utils.ConsumerQueue, moviesI
 			continue
 		}
 
-		moviesIds[movie.ID] = true
+		c.MoviesIds[movie.ID] = true
 
-		err = SaveCreditsJoinerState(c)
+		// err = SaveCreditsJoinerPerClientState(moviesConsumer.GetState(), creditsConsumer.GetState(), moviesIds, clientId)
 		if err != nil {
 			log.Printf("Failed to save credits joiner state: %v", err)
 			msg.Nack(false)
@@ -224,5 +300,5 @@ func (c *CreditsJoiner) fetchMovies(moviesConsumer *utils.ConsumerQueue, moviesI
 
 		msg.Ack()
 	}
-	moviesConsumer.DeleteQueue()
+	c.MoviesConsumer.DeleteQueue()
 }
