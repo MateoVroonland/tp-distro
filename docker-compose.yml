@@ -284,6 +284,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 3
+      SERVICE_TYPE: resuscitator_1
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -296,6 +297,7 @@ services:
     environment:
       ID: 2
       REPLICAS: 3
+      SERVICE_TYPE: resuscitator_2
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -308,6 +310,7 @@ services:
     environment:
       ID: 3
       REPLICAS: 3
+      SERVICE_TYPE: resuscitator_3
     depends_on:
       rabbitmq:
         condition: service_healthy

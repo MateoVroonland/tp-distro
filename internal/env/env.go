@@ -16,8 +16,6 @@ type Env struct {
 	REPLICAS     int
 	SERVICE_TYPE string
 
-
-
 	// RECEIVERS
 	MOVIES_RECEIVER_AMOUNT  int
 	CREDITS_RECEIVER_AMOUNT int
