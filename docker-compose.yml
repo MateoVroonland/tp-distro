@@ -279,12 +279,35 @@ services:
       rabbitmq:
         condition: service_healthy
     command: /credits_sink/credits_sink.go
-  resuscitator:
+  resuscitator_1:
     image: movies/resuscitator:latest
     environment:
       ID: 1
-      REPLICAS: 2
-      SERVICE_TYPE: resuscitator
+      REPLICAS: 3
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/app/docker-compose.yml
+    privileged: true
+  resuscitator_2:
+    image: movies/resuscitator:latest
+    environment:
+      ID: 2
+      REPLICAS: 3
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/app/docker-compose.yml
+    privileged: true
+  resuscitator_3:
+    image: movies/resuscitator:latest
+    environment:
+      ID: 3
+      REPLICAS: 3
     depends_on:
       rabbitmq:
         condition: service_healthy

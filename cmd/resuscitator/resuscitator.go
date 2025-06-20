@@ -13,7 +13,10 @@ func main() {
 		log.Fatalf("Failed to load environment variables: %v", err)
 	}
 
-	log.Printf("Starting resuscitator to monitor all services in the distributed system...")
-	server := resuscitator.NewServer()
+	nodeID := env.AppEnv.ID
+	totalNodes := env.AppEnv.REPLICAS
+
+	log.Printf("Starting resuscitator node %d of %d to monitor all services in the distributed system...", nodeID, totalNodes)
+	server := resuscitator.NewServer(nodeID, totalNodes)
 	server.Start()
 }
