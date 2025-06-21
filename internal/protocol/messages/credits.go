@@ -4,7 +4,7 @@ import (
 	"strconv"
 )
 
-type Credits struct {
+type Credit struct {
 	MovieID int
 	Cast    string
 	RawData []string
@@ -15,7 +15,7 @@ const (
 	CreditsCastIndex    = 1
 )
 
-func (c *Credits) Deserialize(data []string) error {
+func (c *Credit) Deserialize(data []string) error {
 	var err error
 	c.MovieID, err = strconv.Atoi(data[RawCreditsMovieIDIndex])
 	if err != nil {
@@ -30,6 +30,6 @@ func (c *Credits) Deserialize(data []string) error {
 	return nil
 }
 
-func (c *Credits) GetRawData() []string {
+func (c *Credit) GetRawData() []string {
 	return c.RawData
 }
