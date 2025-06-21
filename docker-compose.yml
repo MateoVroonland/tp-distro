@@ -20,6 +20,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
+      SERVICE_TYPE: requesthandler
     image: movies/requesthandler:latest
     depends_on:
       rabbitmq:
@@ -31,6 +32,7 @@ services:
     image: movies/moviesreceiver:latest
     environment:
       ID: 1
+      SERVICE_TYPE: moviesreceiver_1
       REPLICAS: 2
     depends_on:
       rabbitmq:
@@ -39,6 +41,7 @@ services:
     image: movies/moviesreceiver:latest
     environment:
       ID: 2
+      SERVICE_TYPE: moviesreceiver_2
       REPLICAS: 2
     depends_on:
       rabbitmq:
@@ -48,6 +51,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
+      SERVICE_TYPE: filter_q1_1
       QUERY: 1
     depends_on:
       rabbitmq:
@@ -58,6 +62,7 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
+      SERVICE_TYPE: filter_q1_2
       QUERY: 1
     depends_on:
       rabbitmq:
@@ -68,6 +73,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
+      SERVICE_TYPE: filter_q3_1
       QUERY: 3
     depends_on:
       rabbitmq:
@@ -78,6 +84,7 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
+      SERVICE_TYPE: filter_q3_2
       QUERY: 3
     depends_on:
       rabbitmq:
@@ -88,6 +95,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
+      SERVICE_TYPE: filter_q4_1
       QUERY: 4
     depends_on:
       rabbitmq:
@@ -98,6 +106,7 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
+      SERVICE_TYPE: filter_q4_2
       QUERY: 4
     depends_on:
       rabbitmq:
@@ -108,6 +117,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
+      SERVICE_TYPE: ratingsreceiver_1
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -116,6 +126,7 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
+      SERVICE_TYPE: ratingsreceiver_2
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -124,6 +135,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
+      SERVICE_TYPE: ratingsjoiner_1
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -132,6 +144,7 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
+      SERVICE_TYPE: ratingsjoiner_2
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -140,6 +153,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
+      SERVICE_TYPE: q1_sink_1
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -149,6 +163,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
+      SERVICE_TYPE: q3_sink_1
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -157,6 +172,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
+      SERVICE_TYPE: budget_reducer_1
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -166,6 +182,7 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
+      SERVICE_TYPE: budget_reducer_2
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -175,6 +192,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
+      SERVICE_TYPE: budget_sink_1
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -218,6 +236,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
+      SERVICE_TYPE: credits_joiner_1
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -226,6 +245,7 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
+      SERVICE_TYPE: credits_joiner_2
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -234,6 +254,7 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
+      SERVICE_TYPE: credits_receiver_1
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -243,6 +264,7 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
+      SERVICE_TYPE: credits_receiver_2
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -252,10 +274,50 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
+      SERVICE_TYPE: credits_sink_1
     depends_on:
       rabbitmq:
         condition: service_healthy
     command: /credits_sink/credits_sink.go
+  resuscitator_1:
+    image: movies/resuscitator:latest
+    environment:
+      ID: 1
+      REPLICAS: 3
+      SERVICE_TYPE: resuscitator_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/app/docker-compose.yml
+    privileged: true
+  resuscitator_2:
+    image: movies/resuscitator:latest
+    environment:
+      ID: 2
+      REPLICAS: 3
+      SERVICE_TYPE: resuscitator_2
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/app/docker-compose.yml
+    privileged: true
+  resuscitator_3:
+    image: movies/resuscitator:latest
+    environment:
+      ID: 3
+      REPLICAS: 3
+      SERVICE_TYPE: resuscitator_3
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/app/docker-compose.yml
+    privileged: true
   client:
     image: movies/client:latest
     depends_on:

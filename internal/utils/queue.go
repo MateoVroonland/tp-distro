@@ -154,6 +154,7 @@ func MessageFromDelivery(delivery amqp.Delivery) (*Message, error) {
 func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 	return func(yield func(Message) bool) {
 
+
 		for {
 			select {
 			case <-q.signalChan:
@@ -161,6 +162,7 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 				return
 			case delivery := <-q.deliveryChannel:
 				message, err := MessageFromDelivery(delivery)
+				// test requeueing messages
 				if err != nil {
 					log.Printf("Failed to parse message in delivery channel: %v", err)
 					log.Printf("delivery: %v", delivery)
@@ -183,8 +185,6 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 					}
 
 					if message.SequenceNumber > expectedSequenceNumber {
-						log.Printf("Out of order message for client %s on queue %s, sequence number %d, expected %d, producer %s, requeuing...", message.ClientId, q.queueName, message.SequenceNumber, expectedSequenceNumber, message.ProducerId)
-						log.Printf("Message: %v", message.Body)
 						message.Nack(true)
 						continue
 					}
