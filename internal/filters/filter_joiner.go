@@ -26,6 +26,28 @@ func NewFilterJoiner(filteredByCountryConsumer *utils.ConsumerQueue, outputMessa
 	return &FilterJoiner{filteredByCountryConsumer: filteredByCountryConsumer, outputMessage: outputMessage, newClientFanout: newClientFanout, clientsProducers: make(map[string]*utils.ProducerQueue), conn: conn, query: query}
 }
 
+func (f *FilterJoiner) RestoreClientProducers(clientsProducersState map[string]utils.ProducerQueueState) error {
+	var replicas int
+	if f.query == "3" {
+		replicas = env.AppEnv.RATINGS_JOINER_AMOUNT
+	} else if f.query == "4" {
+		replicas = env.AppEnv.CREDITS_JOINER_AMOUNT
+	}
+
+	for clientId, producerState := range clientsProducersState {
+		producerName := fmt.Sprintf("filter_q%s_client_%s", f.query, clientId)
+		producer, err := utils.NewProducerQueue(f.conn, producerName, replicas)
+		if err != nil {
+			log.Printf("Failed to recreate producer for client %s: %v", clientId, err)
+			return err
+		}
+		producer.RestoreState(producerState)
+		f.clientsProducers[clientId] = producer
+		log.Printf("Restored producer for client %s: %s", clientId, producerName)
+	}
+	return nil
+}
+
 func (f *FilterJoiner) FilterAndPublish() error {
 	log.Printf("Filtering and publishing for query: %s", f.query)
 	var replicas int
@@ -45,6 +67,12 @@ func (f *FilterJoiner) FilterAndPublish() error {
 				continue
 			}
 			queue.PublishFinished(msg.ClientId)
+
+			err := SaveFilterJoinerState(f)
+			if err != nil {
+				log.Printf("Failed to save filter joiner state: %v", err)
+			}
+
 			msg.Ack()
 			continue
 		}
@@ -103,6 +131,12 @@ func (f *FilterJoiner) FilterAndPublish() error {
 				continue
 			}
 		}
+
+		err = SaveFilterJoinerState(f)
+		if err != nil {
+			log.Printf("Failed to save filter joiner state: %v", err)
+		}
+
 		msg.Ack()
 	}
 	return nil

@@ -90,7 +90,30 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}
+
+		var state filters.FilterJoinerState
+		stateFile, err := os.ReadFile("data/filter_joiner_state.gob")
+
 		filter := filters.NewFilterJoiner(filteredByCountryConsumer, outputMessage, newClientFanout, query, conn)
+
+		if os.IsNotExist(err) {
+			log.Println("State file does not exist, creating new state")
+		} else if err != nil {
+			log.Fatalf("Failed to read state: %v", err)
+		} else {
+			err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+			if err != nil {
+				log.Fatalf("Failed to decode state: %v", err)
+			}
+			filteredByCountryConsumer.RestoreState(state.FilteredByCountryConsumer)
+			log.Printf("State restored up to sequence number: %v", state.FilteredByCountryConsumer.SequenceNumbers)
+
+			err = filter.RestoreClientProducers(state.ClientsProducers)
+			if err != nil {
+				log.Fatalf("Failed to restore client producers: %v", err)
+			}
+		}
+
 		go filter.FilterAndPublish()
 	}
 
