@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
@@ -275,6 +276,7 @@ type ProducerQueue struct {
 	isFanout        bool
 	nextReplicas    int
 	sequenceNumbers map[string]map[string]int // clientId -> routingKey -> sequenceNumber
+	sequenceMutex   sync.RWMutex
 }
 
 type ProducerQueueState struct {
@@ -282,12 +284,16 @@ type ProducerQueueState struct {
 }
 
 func (q *ProducerQueue) GetState() ProducerQueueState {
+	q.sequenceMutex.RLock()
+	defer q.sequenceMutex.RUnlock()
 	return ProducerQueueState{
 		SequenceNumbers: q.sequenceNumbers,
 	}
 }
 
 func (q *ProducerQueue) RestoreState(state ProducerQueueState) {
+	q.sequenceMutex.Lock()
+	defer q.sequenceMutex.Unlock()
 	q.sequenceNumbers = state.SequenceNumbers
 }
 
@@ -326,6 +332,7 @@ func NewProducerQueue(conn *amqp.Connection, exchangeName string, nextReplicas i
 		isFanout:        false,
 		nextReplicas:    nextReplicas,
 		sequenceNumbers: make(map[string]map[string]int),
+		sequenceMutex:   sync.RWMutex{},
 	}, nil
 }
 
@@ -343,7 +350,9 @@ func (q *ProducerQueue) PublishFinished(clientId string) error {
 	for i := range q.nextReplicas {
 		q.publishWithParams([]byte("FINISHED:"+strconv.Itoa(env.AppEnv.ID)), strconv.Itoa(i+1), clientId, strconv.Itoa(env.AppEnv.ID))
 	}
+	q.sequenceMutex.Lock()
 	delete(q.sequenceNumbers, clientId) // TODO: check if no data will be lost, maybe do later or garbage collect?
+	q.sequenceMutex.Unlock()
 	return nil
 }
 
@@ -367,15 +376,18 @@ func (q *ProducerQueue) publishWithParams(body []byte, routingKey string, client
 		q.boundQueues[routingKey] = true
 	}
 
+	q.sequenceMutex.Lock()
 	if _, ok := q.sequenceNumbers[clientId]; !ok {
 		q.sequenceNumbers[clientId] = make(map[string]int)
 	}
 
 	q.sequenceNumbers[clientId][routingKey]++
+	sequenceNumber := q.sequenceNumbers[clientId][routingKey]
+	q.sequenceMutex.Unlock()
 
 	headers := amqp.Table{
 		"clientId":       clientId,
-		"sequenceNumber": q.sequenceNumbers[clientId][routingKey],
+		"sequenceNumber": sequenceNumber,
 		"producerId":     producerId,
 	}
 
