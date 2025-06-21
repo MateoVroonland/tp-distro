@@ -18,69 +18,34 @@ import (
 type CreditsJoiner struct {
 	conn           *amqp.Connection
 	newClientQueue *utils.ConsumerFanout
-	clientsJoiners map[string]bool
+	ClientsJoiners map[string]bool
 	waitGroup      *sync.WaitGroup
 	clientsLock    *sync.RWMutex
 }
 
 func NewCreditsJoiner(conn *amqp.Connection, newClientQueue *utils.ConsumerFanout) *CreditsJoiner {
-	return &CreditsJoiner{conn: conn, newClientQueue: newClientQueue, waitGroup: &sync.WaitGroup{}, clientsLock: &sync.RWMutex{}, clientsJoiners: make(map[string]bool)}
-}
-
-func (c *CreditsJoiner) GetCurrentClients() []string {
-	c.clientsLock.RLock()
-	defer c.clientsLock.RUnlock()
-
-	clients := make([]string, 0, len(c.clientsJoiners))
-	for clientId := range c.clientsJoiners {
-		clients = append(clients, clientId)
-	}
-
-	return clients
+	return &CreditsJoiner{conn: conn, newClientQueue: newClientQueue, waitGroup: &sync.WaitGroup{}, clientsLock: &sync.RWMutex{}, ClientsJoiners: make(map[string]bool)}
 }
 
 func (c *CreditsJoiner) removeClient(clientId string) {
 	c.clientsLock.Lock()
 	defer c.clientsLock.Unlock()
 
-	delete(c.clientsJoiners, clientId)
+	delete(c.ClientsJoiners, clientId)
 }
 
 func (c *CreditsJoiner) JoinCredits(routingKey int) error {
 
-	stateFile, err := os.Open("data/credits_joiner_state.gob")
-
-	var currentClients []string
-	if os.IsNotExist(err) {
-		log.Printf("State file does not exist, starting from scratch")
-		currentClients = make([]string, 0)
-
-	} else if err != nil {
-		log.Printf("Failed to open state file: %v", err)
-		return err
-	} else {
-		var state CreditsJoinerState
-		dec := gob.NewDecoder(stateFile)
-		err = dec.Decode(&state)
-		if err != nil {
-			log.Printf("Failed to decode state file: %v", err)
-			return err
-		}
-
-		currentClients = state.CurrentClients
-		defer stateFile.Close()
-
-	}
-
 	defer c.newClientQueue.Close()
 
-	for _, clientId := range currentClients {
+	for clientId := range c.ClientsJoiners {
 		clientCreditsJoiner, err := NewCreditsJoinerClient(c, clientId)
 		if err != nil {
 			log.Printf("Failed to create credits joiner client for client %s: %v", clientId, err)
 			continue
 		}
 		c.waitGroup.Add(1)
+		log.Printf("Restored joiner for client %s", clientId)
 		go clientCreditsJoiner.JoinCreditsForClient()
 	}
 
@@ -89,8 +54,8 @@ func (c *CreditsJoiner) JoinCredits(routingKey int) error {
 		log.Printf("Received new client %s", msg.ClientId)
 
 		c.clientsLock.Lock()
-		if _, ok := c.clientsJoiners[msg.ClientId]; !ok {
-
+		if _, ok := c.ClientsJoiners[msg.ClientId]; !ok {
+			log.Printf("Creating credits joiner client for client %s", msg.ClientId)
 			clientCreditsJoiner, err := NewCreditsJoinerClient(c, msg.ClientId)
 			if err != nil {
 				log.Printf("Failed to create credits joiner client for client %s: %v", msg.ClientId, err)
@@ -99,12 +64,18 @@ func (c *CreditsJoiner) JoinCredits(routingKey int) error {
 				continue
 			}
 
-			c.clientsJoiners[msg.ClientId] = true
+			c.ClientsJoiners[msg.ClientId] = true
 
 			c.waitGroup.Add(1)
 			go clientCreditsJoiner.JoinCreditsForClient()
 
-			SaveCreditsJoinerState(c)
+			err = SaveCreditsJoinerState(c)
+			if err != nil {
+				log.Printf("Failed to save credits joiner state: %v", err)
+			} else {
+				log.Printf("Saved credits joiner state for client %s", msg.ClientId)
+			}
+
 		}
 
 		c.clientsLock.Unlock()
@@ -177,11 +148,7 @@ func NewCreditsJoinerClient(creditsJoiner *CreditsJoiner, clientId string) (*Cre
 		creditsConsumer.RestoreState(state.CreditsConsumer)
 		moviesIds = state.MoviesIds
 		finishedFetchingMovies = state.FinishedFetchingMovies
-	}
-	if moviesConsumer != nil {
-		if fileErr != nil {
-			moviesConsumer.RestoreState(state.MoviesConsumer)
-		}
+		moviesConsumer.RestoreState(state.MoviesConsumer)
 	}
 
 	return &CreditsJoinerClient{
@@ -287,6 +254,11 @@ func (c *CreditsJoinerClient) fetchCredits() {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Credit: %s", stringLine)
+			err = SaveCreditsJoinerPerClientState(c)
+			if err != nil {
+				log.Printf("Failed to save credits joiner state: %v", err)
+			}
+
 			msg.Nack(false)
 			continue
 		}
@@ -295,11 +267,20 @@ func (c *CreditsJoinerClient) fetchCredits() {
 		err = credit.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize credits: %v", err)
+			err = SaveCreditsJoinerPerClientState(c)
+			if err != nil {
+				log.Printf("Failed to save credits joiner state: %v", err)
+			}
+
 			msg.Nack(false)
 			continue
 		}
 
 		if !c.MoviesIds[credit.MovieID] {
+			err = SaveCreditsJoinerPerClientState(c)
+			if err != nil {
+				log.Printf("Failed to save credits joiner state: %v", err)
+			}
 			msg.Ack()
 			continue
 		}
@@ -308,6 +289,11 @@ func (c *CreditsJoinerClient) fetchCredits() {
 		if err != nil {
 			log.Printf("Failed to serialize credits: %v", record)
 			log.Printf("json.Marshal: %v", err)
+			err = SaveCreditsJoinerPerClientState(c)
+			if err != nil {
+				log.Printf("Failed to save credits joiner state: %v", err)
+
+			}
 			msg.Nack(false)
 			continue
 		}
@@ -316,8 +302,6 @@ func (c *CreditsJoinerClient) fetchCredits() {
 		err = SaveCreditsJoinerPerClientState(c)
 		if err != nil {
 			log.Printf("Failed to save credits joiner state: %v", err)
-			msg.Nack(false)
-			continue
 		}
 
 		msg.Ack()

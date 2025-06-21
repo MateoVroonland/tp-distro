@@ -44,14 +44,13 @@ func SaveCreditsJoinerPerClientState(
 }
 
 type CreditsJoinerState struct {
-	CurrentClients []string
+	CurrentClients map[string]bool
 }
 
 func SaveCreditsJoinerState(c *CreditsJoiner) error {
-	currentClients := c.GetCurrentClients()
 
 	state := CreditsJoinerState{
-		CurrentClients: currentClients,
+		CurrentClients: c.ClientsJoiners,
 	}
 
 	var buff bytes.Buffer
