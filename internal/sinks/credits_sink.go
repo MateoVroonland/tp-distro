@@ -16,11 +16,15 @@ import (
 type CreditsSink struct {
 	sinkConsumer    *utils.ConsumerQueue
 	resultsProducer *utils.ProducerQueue
+	actors          map[string]map[string]int
 }
 
 func NewCreditsSink(queue *utils.ConsumerQueue, resultsProducer *utils.ProducerQueue) *CreditsSink {
-
-	return &CreditsSink{sinkConsumer: queue, resultsProducer: resultsProducer}
+	return &CreditsSink{
+		sinkConsumer:    queue,
+		resultsProducer: resultsProducer,
+		actors:          make(map[string]map[string]int),
+	}
 }
 
 type NameAmountTuple struct {
@@ -29,16 +33,24 @@ type NameAmountTuple struct {
 }
 
 func (s *CreditsSink) Sink() {
-	actors := make(map[string]map[string]int)
-
 	i := 0
 	for msg := range s.sinkConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
-			log.Printf("Received FINISHED message")
-			s.SendClientIdResults(msg.ClientId, actors[msg.ClientId])
+			if _, ok := s.actors[msg.ClientId]; !ok {
+				log.Printf("No actors to send for client %s, skipping", msg.ClientId)
+			} else {
+				log.Printf("Received FINISHED message for client %s", msg.ClientId)
+				s.SendClientIdResults(msg.ClientId, s.actors[msg.ClientId])
+				delete(s.actors, msg.ClientId)
+
+				err := SaveCreditsSinkState(s, s.actors)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+			}
 			msg.Ack()
 			continue
 		}
@@ -60,20 +72,24 @@ func (s *CreditsSink) Sink() {
 			continue
 		}
 
-		if _, ok := actors[msg.ClientId]; !ok {
+		if _, ok := s.actors[msg.ClientId]; !ok {
 			log.Printf("Creating new map for clientId: %s", msg.ClientId)
-			actors[msg.ClientId] = make(map[string]int)
+			s.actors[msg.ClientId] = make(map[string]int)
 		}
 
 		for _, actor := range credits.Cast {
-			actors[msg.ClientId][actor]++
+			s.actors[msg.ClientId][actor]++
+		}
+
+		err = SaveCreditsSinkState(s, s.actors)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
 		}
 
 		msg.Ack()
 	}
 
 	log.Printf("Processed credits: %d", i)
-
 }
 
 func (s *CreditsSink) SendClientIdResults(clientId string, actors map[string]int) {
@@ -115,4 +131,8 @@ func (s *CreditsSink) SendClientIdResults(clientId string, actors map[string]int
 		log.Printf("Failed to publish results: %v", err)
 		return
 	}
+}
+
+func (s *CreditsSink) SetActors(actors map[string]map[string]int) {
+	s.actors = actors
 }
