@@ -7,36 +7,40 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
 )
 
 type HealthCheckServer struct {
 	serviceType string
-	id       int
-	listener net.Listener
-	shutdown chan struct{}
+	id          int
+	conn        *net.UDPConn
+	shutdown    chan struct{}
 }
 
 func NewHealthCheckServer(id int, serviceType string) *HealthCheckServer {
 	return &HealthCheckServer{
 		serviceType: serviceType,
-		id:       id,
-		shutdown: make(chan struct{}),
+		id:          id,
+		shutdown:    make(chan struct{}),
 	}
 
 }
 
 func (h *HealthCheckServer) Start() {
-	healthCheckPort := fmt.Sprintf("%s:7000", h.serviceType)
+	healthCheckAddr := fmt.Sprintf(":%d", 7000)
 
-	listener, err := net.Listen("tcp", healthCheckPort)
+	addr, err := net.ResolveUDPAddr("udp", healthCheckAddr)
 	if err != nil {
-		log.Printf("Failed to start health check server on port %s: %v", healthCheckPort, err)
+		log.Printf("Failed to resolve UDP address %s: %v", healthCheckAddr, err)
 		return
 	}
-	h.listener = listener
 
-	log.Printf("Health check server started on port %s", healthCheckPort)
+	h.conn, err = net.ListenUDP("udp", addr)
+	if err != nil {
+		log.Printf("Failed to start UDP health check server on %s: %v", healthCheckAddr, err)
+		return
+	}
+
+	log.Printf("UDP health check server started on port 7000")
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
@@ -46,55 +50,48 @@ func (h *HealthCheckServer) Start() {
 		h.stop()
 	}()
 
+	h.handleUDPMessages()
+}
+
+func (h *HealthCheckServer) handleUDPMessages() {
+	buffer := make([]byte, 1024)
+
 	for {
 		select {
 		case <-h.shutdown:
 			return
 		default:
-			conn, err := listener.Accept()
+			n, addr, err := h.conn.ReadFromUDP(buffer)
 			if err != nil {
 				select {
 				case <-h.shutdown:
 					return
 				default:
-					log.Printf("Error accepting health check connection: %v", err)
+					log.Printf("Error reading UDP health check request: %v", err)
 					continue
 				}
 			}
 
-			go h.handleConnection(conn)
+			message := string(buffer[:n])
+
+			if message == "PING" {
+				_, err = h.conn.WriteToUDP([]byte("PONG"), addr)
+				if err != nil {
+					log.Printf("Error writing UDP health check response: %v", err)
+					continue
+				}
+				log.Printf("Responded to UDP health check ping from %s", addr.String())
+			} else {
+				log.Printf("Unknown UDP health check message from %s: %s", addr.String(), message)
+			}
 		}
-	}
-}
-
-func (h *HealthCheckServer) handleConnection(conn net.Conn) {
-	defer conn.Close()
-
-	buffer := make([]byte, 1024)
-	n, err := conn.Read(buffer)
-	if err != nil {
-		log.Printf("Error reading health check request: %v", err)
-		return
-	}
-
-	message := string(buffer[:n])
-
-	if message == "PING\n" || message == "PING" {
-		_, err = conn.Write([]byte("PONG\n"))
-		if err != nil {
-			log.Printf("Error writing health check response: %v", err)
-			return
-		}
-		log.Printf("Responded to health check ping")
-	} else {
-		log.Printf("Unknown health check message: %s", message)
 	}
 }
 
 func (h *HealthCheckServer) stop() {
 	close(h.shutdown)
-	if h.listener != nil {
-		h.listener.Close()
+	if h.conn != nil {
+		h.conn.Close()
 	}
-	log.Printf("Health check server stopped")
+	log.Printf("UDP health check server stopped")
 }

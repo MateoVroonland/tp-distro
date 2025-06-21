@@ -1,7 +1,6 @@
 package resuscitator
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -17,142 +16,14 @@ import (
 
 // Message types for bully algorithm
 const (
-	ELECTION    = "ELECTION"
-	OK          = "OK"
-	COORDINATOR = "COORDINATOR"
-	HEARTBEAT   = "HEARTBEAT"
+	ELECTION    = "E"
+	OK          = "K"
+	COORDINATOR = "C"
+	HEARTBEAT   = "H"
+	ACK         = "A"
 )
 
-// PeerConnection holds a persistent bidirectional connection with a peer
-type PeerConnection struct {
-	conn       net.Conn
-	peerID     int
-	addr       string
-	isHealthy  bool
-	writeMutex sync.Mutex
-	readMutex  sync.Mutex
-}
-
-// Connection holds a persistent connection with metadata (for services)
-type Connection struct {
-	conn      net.Conn
-	addr      string
-	lastUsed  time.Time
-	isHealthy bool
-	mutex     sync.RWMutex
-}
-
-// ConnectionManager manages persistent connections
-type ConnectionManager struct {
-	connections map[string]*Connection
-	mutex       sync.RWMutex
-}
-
-func NewConnectionManager() *ConnectionManager {
-	return &ConnectionManager{
-		connections: make(map[string]*Connection),
-	}
-}
-
-func (cm *ConnectionManager) getConnection(addr string) (*Connection, error) {
-	cm.mutex.RLock()
-	conn, exists := cm.connections[addr]
-	cm.mutex.RUnlock()
-
-	if exists && conn.isHealthy {
-		conn.mutex.Lock()
-		conn.lastUsed = time.Now()
-		conn.mutex.Unlock()
-		return conn, nil
-	}
-
-	// Create new connection
-	return cm.createConnection(addr)
-}
-
-func (cm *ConnectionManager) createConnection(addr string) (*Connection, error) {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
-
-	// Double-check after acquiring lock
-	if conn, exists := cm.connections[addr]; exists && conn.isHealthy {
-		return conn, nil
-	}
-
-	// Create new TCP connection with keep-alive
-	tcpConn, err := net.DialTimeout("tcp", addr, 5*time.Second)
-	if err != nil {
-		return nil, err
-	}
-
-	// Enable keep-alive
-	if tcpConn, ok := tcpConn.(*net.TCPConn); ok {
-		tcpConn.SetKeepAlive(true)
-		tcpConn.SetKeepAlivePeriod(30 * time.Second)
-	}
-
-	conn := &Connection{
-		conn:      tcpConn,
-		addr:      addr,
-		lastUsed:  time.Now(),
-		isHealthy: true,
-	}
-
-	cm.connections[addr] = conn
-	log.Printf("Created persistent connection to %s", addr)
-	return conn, nil
-}
-
-func (cm *ConnectionManager) markUnhealthy(addr string) {
-	cm.mutex.RLock()
-	conn, exists := cm.connections[addr]
-	cm.mutex.RUnlock()
-
-	if exists {
-		conn.mutex.Lock()
-		conn.isHealthy = false
-		if conn.conn != nil {
-			conn.conn.Close()
-		}
-		conn.mutex.Unlock()
-	}
-}
-
-func (cm *ConnectionManager) closeAll() {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
-
-	for _, conn := range cm.connections {
-		if conn.conn != nil {
-			conn.conn.Close()
-		}
-	}
-	cm.connections = make(map[string]*Connection)
-}
-
-// Cleanup old unhealthy connections
-func (cm *ConnectionManager) cleanup() {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
-
-	for addr, conn := range cm.connections {
-		conn.mutex.RLock()
-		isOld := time.Since(conn.lastUsed) > 5*time.Minute
-		isUnhealthy := !conn.isHealthy
-		conn.mutex.RUnlock()
-
-		if isOld || isUnhealthy {
-			if conn.conn != nil {
-				conn.conn.Close()
-			}
-			delete(cm.connections, addr)
-			log.Printf("Cleaned up connection to %s", addr)
-		}
-	}
-}
-
 type Server struct {
-	conn               net.Listener
 	shuttingDown       bool
 	services           []string
 	nodeID             int
@@ -164,10 +35,8 @@ type Server struct {
 	electionMutex      sync.Mutex
 	shutdownChan       chan struct{}
 
-	// Connection management
-	connManager   *ConnectionManager      // For service health checks
-	peerConns     map[int]*PeerConnection // For peer-to-peer communication
-	peerConnMutex sync.RWMutex
+	// UDP listener for peer communication
+	udpConn *net.UDPConn
 
 	// Heartbeat management
 	heartbeatCancel chan struct{}
@@ -212,9 +81,6 @@ func NewServer(nodeID int, totalNodes int) *Server {
 		electionInProgress:   false,
 		leaderLastSeen:       time.Now(),
 		shutdownChan:         make(chan struct{}),
-		connManager:          NewConnectionManager(),
-		peerConns:            make(map[int]*PeerConnection),
-		peerConnMutex:        sync.RWMutex{},
 		heartbeatCancel:      nil,
 		heartbeatMutex:       sync.Mutex{},
 		leadershipChangeChan: make(chan bool, 1), // Buffered channel to avoid blocking
@@ -222,15 +88,12 @@ func NewServer(nodeID int, totalNodes int) *Server {
 }
 
 func (s *Server) Start() {
-	// Start connection cleanup routine
-	go s.connectionCleanupRoutine()
-
 	// Wait for services to be ready
 	log.Printf("Node %d: Waiting for services to be ready...", s.nodeID)
 	time.Sleep(5 * time.Second)
 
-	// Establish persistent connections with all peers
-	s.establishPeerConnections()
+	// Start UDP listener for peer communication
+	s.startUDPListener()
 
 	// Start election process
 	go s.startElection()
@@ -273,135 +136,65 @@ func (s *Server) Start() {
 	}
 }
 
-func (s *Server) establishPeerConnections() {
-	log.Printf("Node %d: Establishing persistent connections with all peers...", s.nodeID)
-
-	// We only establish connections to peers with higher IDs to avoid duplicates
-	// Each pair of nodes will have exactly one bidirectional connection
-	for i := s.nodeID + 1; i <= s.totalNodes; i++ {
-		peerAddr := fmt.Sprintf("resuscitator_%d:8000", i)
-		go s.connectToPeer(i, peerAddr)
-	}
-
-	// Also listen for incoming connections from peers with lower IDs
-	go s.startPeerListener()
-
-	// Give connections time to establish
-	time.Sleep(3 * time.Second)
-	log.Printf("Node %d: Peer connections established", s.nodeID)
-}
-
-func (s *Server) connectToPeer(peerID int, addr string) {
-	maxRetries := 5
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
-		if err != nil {
-			log.Printf("Node %d: Failed to connect to peer %d (attempt %d/%d): %v", s.nodeID, peerID, attempt, maxRetries, err)
-			time.Sleep(time.Duration(attempt) * time.Second)
-			continue
-		}
-
-		// Send HELLO message to identify ourselves
-		helloMsg := fmt.Sprintf("HELLO_%d\n", s.nodeID)
-		conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		if _, err := conn.Write([]byte(helloMsg)); err != nil {
-			log.Printf("Node %d: Failed to send HELLO to peer %d: %v", s.nodeID, peerID, err)
-			conn.Close()
-			continue
-		}
-
-		// Wait for HELLO_ACK response
-		reader := bufio.NewReader(conn)
-		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			log.Printf("Node %d: Failed to read HELLO_ACK from peer %d: %v", s.nodeID, peerID, err)
-			conn.Close()
-			continue
-		}
-
-		response = strings.TrimSpace(response)
-		expectedAck := fmt.Sprintf("HELLO_ACK_%d", peerID)
-		if response != expectedAck {
-			log.Printf("Node %d: Invalid HELLO_ACK from peer %d: %s", s.nodeID, peerID, response)
-			conn.Close()
-			continue
-		}
-
-		// Enable TCP keep-alive
-		if tcpConn, ok := conn.(*net.TCPConn); ok {
-			tcpConn.SetKeepAlive(true)
-			tcpConn.SetKeepAlivePeriod(30 * time.Second)
-		}
-
-		peerConn := &PeerConnection{
-			conn:      conn,
-			peerID:    peerID,
-			addr:      addr,
-			isHealthy: true,
-		}
-
-		s.peerConnMutex.Lock()
-		s.peerConns[peerID] = peerConn
-		s.peerConnMutex.Unlock()
-
-		log.Printf("Node %d: Established connection to peer %d at %s", s.nodeID, peerID, addr)
-
-		// Start reading from this connection
-		go s.handlePeerMessages(peerConn)
+func (s *Server) startUDPListener() {
+	addr, err := net.ResolveUDPAddr("udp", ":8000")
+	if err != nil {
+		log.Printf("Node %d: Failed to resolve UDP address: %v", s.nodeID, err)
 		return
 	}
 
-	log.Printf("Node %d: Failed to connect to peer %d after %d attempts", s.nodeID, peerID, maxRetries)
+	s.udpConn, err = net.ListenUDP("udp", addr)
+
+	if err != nil {
+		log.Printf("Node %d: Failed to start UDP listener: %v", s.nodeID, err)
+		return
+	}
+
+	log.Printf("Node %d: UDP listener started on port 8000", s.nodeID)
+
+	go s.handleUDPMessages()
 }
 
-func (s *Server) handlePeerMessages(peerConn *PeerConnection) {
-	defer func() {
-		peerConn.conn.Close()
-		s.peerConnMutex.Lock()
-		peerConn.isHealthy = false
-		s.peerConnMutex.Unlock()
-		log.Printf("Node %d: Connection to peer %d closed", s.nodeID, peerConn.peerID)
-	}()
-
-	reader := bufio.NewReader(peerConn.conn)
+func (s *Server) handleUDPMessages() {
+	buffer := make([]byte, 1024)
 
 	for {
 		select {
 		case <-s.shutdownChan:
 			return
 		default:
-			// Set read timeout - shorter timeout for faster failure detection
-			peerConn.conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-
-			message, err := reader.ReadString('\n')
-			if err != nil {
-				if err.Error() == "EOF" {
-					log.Printf("Node %d: Peer %d disconnected", s.nodeID, peerConn.peerID)
-				} else {
-					log.Printf("Node %d: Failed to read from peer %d: %v", s.nodeID, peerConn.peerID, err)
-				}
+			if s.udpConn == nil {
 				return
 			}
 
-			message = strings.TrimSpace(message)
-			s.processPeerMessage(message, peerConn)
+			s.udpConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+			n, addr, err := s.udpConn.ReadFromUDP(buffer)
+			if err != nil {
+				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+					continue // Timeout is expected, continue listening
+				}
+				log.Printf("Node %d: Error reading UDP message: %v", s.nodeID, err)
+				continue
+			}
+
+			message := string(buffer[:n])
+			s.processPeerMessage(message, addr)
 		}
 	}
 }
 
-func (s *Server) processPeerMessage(message string, peerConn *PeerConnection) {
+func (s *Server) processPeerMessage(message string, addr *net.UDPAddr) {
 	// Parse message format: TYPE_ID
 	parts := strings.Split(message, "_")
 	if len(parts) != 2 {
-		log.Printf("Node %d: Invalid message format from peer %d: %s", s.nodeID, peerConn.peerID, message)
+		log.Printf("Node %d: Invalid message format from %s: %s", s.nodeID, addr.String(), message)
 		return
 	}
 
 	msgType := parts[0]
 	nodeID, err := strconv.Atoi(parts[1])
 	if err != nil {
-		log.Printf("Node %d: Invalid node ID in message from peer %d: %s", s.nodeID, peerConn.peerID, message)
+		log.Printf("Node %d: Invalid node ID in message from %s: %s", s.nodeID, addr.String(), message)
 		return
 	}
 
@@ -409,7 +202,7 @@ func (s *Server) processPeerMessage(message string, peerConn *PeerConnection) {
 
 	switch msgType {
 	case ELECTION:
-		s.handleElectionMessagePersistent(peerConn, nodeID)
+		s.handleElectionMessage(nodeID)
 	case OK:
 		s.handleOKMessage(nodeID)
 	case COORDINATOR:
@@ -419,139 +212,37 @@ func (s *Server) processPeerMessage(message string, peerConn *PeerConnection) {
 	}
 }
 
-func (s *Server) connectionCleanupRoutine() {
-	ticker := time.NewTicker(2 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-s.shutdownChan:
-			return
-		case <-ticker.C:
-			s.connManager.cleanup()
-		}
-	}
-}
-
-func (s *Server) startPeerListener() {
-	listener, err := net.Listen("tcp", ":8000")
-	if err != nil {
-		log.Printf("Node %d: Failed to start peer listener: %v", s.nodeID, err)
-		return
-	}
-	defer listener.Close()
-
-	log.Printf("Node %d: Peer listener started on port 8000", s.nodeID)
-
-	for {
-		select {
-		case <-s.shutdownChan:
-			return
-		default:
-			conn, err := listener.Accept()
-			if err != nil {
-				select {
-				case <-s.shutdownChan:
-					return
-				default:
-					log.Printf("Node %d: Failed to accept peer connection: %v", s.nodeID, err)
-					continue
-				}
-			}
-			go s.handleIncomingPeerConnection(conn)
-		}
-	}
-}
-
-
-func (s *Server) handleIncomingPeerConnection(conn net.Conn) {
-	defer conn.Close()
-
-	// First, read a HELLO message to identify the peer
-	reader := bufio.NewReader(conn)
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-
-	helloMsg, err := reader.ReadString('\n')
-	if err != nil {
-		log.Printf("Node %d: Failed to read HELLO from incoming peer: %v", s.nodeID, err)
-		return
-	}
-
-	helloMsg = strings.TrimSpace(helloMsg)
-	if !strings.HasPrefix(helloMsg, "HELLO_") {
-		log.Printf("Node %d: Invalid HELLO message from incoming peer: %s", s.nodeID, helloMsg)
-		return
-	}
-
-	peerIDStr := strings.TrimPrefix(helloMsg, "HELLO_")
-	peerID, err := strconv.Atoi(peerIDStr)
-	if err != nil {
-		log.Printf("Node %d: Invalid peer ID in HELLO: %s", s.nodeID, peerIDStr)
-		return
-	}
-
-	// Only accept connections from peers with lower IDs
-	if peerID >= s.nodeID {
-		log.Printf("Node %d: Rejecting connection from peer %d (should connect in reverse)", s.nodeID, peerID)
-		return
-	}
-
-	// Send HELLO response
-	response := fmt.Sprintf("HELLO_ACK_%d\n", s.nodeID)
-	conn.Write([]byte(response))
-
-	// Enable TCP keep-alive
-	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		tcpConn.SetKeepAlive(true)
-		tcpConn.SetKeepAlivePeriod(30 * time.Second)
-	}
-
-	// Create peer connection and register it
-	peerConn := &PeerConnection{
-		conn:      conn,
-		peerID:    peerID,
-		addr:      conn.RemoteAddr().String(),
-		isHealthy: true,
-	}
-
-	s.peerConnMutex.Lock()
-	s.peerConns[peerID] = peerConn
-	s.peerConnMutex.Unlock()
-
-	log.Printf("Node %d: Accepted connection from peer %d", s.nodeID, peerID)
-
-	// Start reading messages from this connection
-	s.handlePeerMessages(peerConn)
-}
-
-func (s *Server) handleElectionMessagePersistent(peerConn *PeerConnection, senderNodeID int) {
+func (s *Server) handleElectionMessage(senderNodeID int) {
 	// Always respond with OK if we have higher ID
 	if s.nodeID > senderNodeID {
-		response := fmt.Sprintf("%s_%d\n", OK, s.nodeID)
-		s.sendToPeer(peerConn.peerID, response)
+		response := fmt.Sprintf("%s_%d", OK, s.nodeID)
+		s.sendUDPToPeer(senderNodeID, response)
 
 		// Start our own election if not already in progress
 		go s.startElection()
 	}
 }
 
-func (s *Server) sendToPeer(peerID int, message string) error {
-	s.peerConnMutex.RLock()
-	peerConn, exists := s.peerConns[peerID]
-	s.peerConnMutex.RUnlock()
+func (s *Server) sendUDPToPeer(peerID int, message string) error {
+	peerAddr := fmt.Sprintf("resuscitator_%d:8000", peerID)
 
-	if !exists || !peerConn.isHealthy {
-		return fmt.Errorf("no healthy connection to peer %d", peerID)
+	addr, err := net.ResolveUDPAddr("udp", peerAddr)
+	if err != nil {
+		log.Printf("Node %d: Failed to resolve peer address %s: %v", s.nodeID, peerAddr, err)
+		return err
 	}
 
-	peerConn.writeMutex.Lock()
-	defer peerConn.writeMutex.Unlock()
-
-	peerConn.conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
-	_, err := peerConn.conn.Write([]byte(message))
+	conn, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
-		log.Printf("Node %d: Failed to send message to peer %d: %v", s.nodeID, peerID, err)
-		peerConn.isHealthy = false
+		log.Printf("Node %d: Failed to create UDP connection to peer %d: %v", s.nodeID, peerID, err)
+		return err
+	}
+	defer conn.Close()
+
+	conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
+	_, err = conn.Write([]byte(message))
+	if err != nil {
+		log.Printf("Node %d: Failed to send UDP message to peer %d: %v", s.nodeID, peerID, err)
 		return err
 	}
 
@@ -645,7 +336,7 @@ func (s *Server) startElection() {
 		wg.Add(1)
 		go func(targetPeerID int) {
 			defer wg.Done()
-			if s.sendElectionMessagePersistent(targetPeerID) {
+			if s.sendElectionMessage(targetPeerID) {
 				okReceived = true
 			}
 		}(peerID)
@@ -673,18 +364,17 @@ func (s *Server) startElection() {
 	}
 }
 
-
-func (s *Server) sendElectionMessagePersistent(peerID int) bool {
-	message := fmt.Sprintf("%s_%d\n", ELECTION, s.nodeID)
-	err := s.sendToPeer(peerID, message)
+func (s *Server) sendElectionMessage(peerID int) bool {
+	message := fmt.Sprintf("%s_%d", ELECTION, s.nodeID)
+	err := s.sendUDPToPeer(peerID, message)
 	if err != nil {
 		log.Printf("Node %d: Failed to send ELECTION to peer %d: %v", s.nodeID, peerID, err)
 		return false
 	}
 
-	// For persistent connections, we don't wait for OK response here
-	// The response will be handled by the message reader goroutine
-	// We'll use a simple timeout approach - assume OK will come through normal message flow
+	// For UDP, we wait a short time for potential OK response
+	// This is handled by the UDP message listener
+	time.Sleep(500 * time.Millisecond)
 	return true
 }
 
@@ -696,9 +386,11 @@ func (s *Server) becomeLeader() {
 
 	log.Printf("Node %d: I am the new leader!", s.nodeID)
 
-	// Send COORDINATOR message to all lower nodes
-	for i := 1; i < s.nodeID; i++ {
-		go s.sendCoordinatorMessagePersistent(i)
+	// Send COORDINATOR message to all other nodes
+	for i := 1; i <= s.totalNodes; i++ {
+		if i != s.nodeID {
+			go s.sendCoordinatorMessage(i)
+		}
 	}
 
 	// Start sending heartbeats
@@ -738,9 +430,9 @@ func (s *Server) stopHeartbeats() {
 	}
 }
 
-func (s *Server) sendCoordinatorMessagePersistent(peerID int) {
-	message := fmt.Sprintf("%s_%d\n", COORDINATOR, s.nodeID)
-	err := s.sendToPeer(peerID, message)
+func (s *Server) sendCoordinatorMessage(peerID int) {
+	message := fmt.Sprintf("%s_%d", COORDINATOR, s.nodeID)
+	err := s.sendUDPToPeer(peerID, message)
 	if err != nil {
 		log.Printf("Node %d: Failed to send COORDINATOR to peer %d: %v", s.nodeID, peerID, err)
 	}
@@ -779,55 +471,22 @@ func (s *Server) sendHeartbeats(cancel chan struct{}) {
 			// Send heartbeat to all peer nodes
 			for i := 1; i <= s.totalNodes; i++ {
 				if i != s.nodeID {
-					go s.sendHeartbeatPersistent(i)
+					go s.sendHeartbeat(i)
 				}
 			}
 		}
 	}
 }
 
-func (s *Server) sendHeartbeatPersistent(peerID int) {
-	message := fmt.Sprintf("%s_%d\n", HEARTBEAT, s.nodeID)
-	err := s.sendToPeer(peerID, message)
+func (s *Server) sendHeartbeat(peerID int) {
+	message := fmt.Sprintf("%s_%d", HEARTBEAT, s.nodeID)
+	err := s.sendUDPToPeer(peerID, message)
 	if err != nil {
-		// Try to reconnect once
-		s.attemptReconnectToPeer(peerID)
-
-		// Try sending again after reconnection attempt
-		err = s.sendToPeer(peerID, message)
-		if err != nil {
-			// Only log final failures occasionally to avoid spam
-			if s.nodeID == 3 { // Only log from leader
-				log.Printf("Node %d: Failed to send heartbeat to peer %d after reconnect: %v", s.nodeID, peerID, err)
-			}
+		// UDP is fire-and-forget, just log occasional failures
+		if s.nodeID == 1 { // Only log from node 1 to reduce spam
+			log.Printf("Node %d: Failed to send heartbeat to peer %d: %v", s.nodeID, peerID, err)
 		}
-		return
 	}
-}
-
-func (s *Server) attemptReconnectToPeer(peerID int) {
-	// Only attempt reconnection if we should connect to this peer (higher ID)
-	if peerID <= s.nodeID {
-		return
-	}
-
-	s.peerConnMutex.Lock()
-	existingConn, exists := s.peerConns[peerID]
-	if exists && existingConn != nil {
-		// Mark as unhealthy and close existing connection
-		existingConn.isHealthy = false
-		if existingConn.conn != nil {
-			existingConn.conn.Close()
-		}
-		delete(s.peerConns, peerID)
-	}
-	s.peerConnMutex.Unlock()
-
-	// Attempt single reconnection
-	peerAddr := fmt.Sprintf("resuscitator_%d:8000", peerID)
-	log.Printf("Node %d: Attempting to reconnect to peer %d", s.nodeID, peerID)
-
-	go s.connectToPeer(peerID, peerAddr)
 }
 
 func (s *Server) monitorLeader() {
@@ -859,23 +518,10 @@ func (s *Server) shutdown() {
 	// Stop heartbeats
 	s.stopHeartbeats()
 
-	// Close all service connections
-	s.connManager.closeAll()
-
-	// Close all peer connections
-	s.peerConnMutex.Lock()
-	for peerID, peerConn := range s.peerConns {
-		if peerConn.conn != nil {
-			peerConn.conn.Close()
-		}
-		log.Printf("Node %d: Closed connection to peer %d", s.nodeID, peerID)
-	}
-	s.peerConns = make(map[int]*PeerConnection)
-	s.peerConnMutex.Unlock()
-
-	if s.conn != nil {
-		s.conn.Close()
-		s.conn = nil
+	// Close UDP connection
+	if s.udpConn != nil {
+		s.udpConn.Close()
+		s.udpConn = nil
 	}
 }
 
@@ -920,7 +566,7 @@ func (s *Server) monitorService(serviceName string, cancel <-chan struct{}) {
 				return
 			}
 
-			// Perform health check using persistent connection
+			// Perform health check using UDP
 			if !s.performHealthCheck(serviceName) {
 				s.resurrectService(serviceName)
 				// Wait longer after resurrection attempt
@@ -932,34 +578,42 @@ func (s *Server) monitorService(serviceName string, cancel <-chan struct{}) {
 
 func (s *Server) performHealthCheck(serviceName string) bool {
 	serviceAddr := fmt.Sprintf("%s:7000", serviceName)
-	conn, err := s.connManager.getConnection(serviceAddr)
+
+	// Create a new UDP connection for each health check
+	conn, err := net.DialTimeout("udp", serviceAddr, 3*time.Second)
 	if err != nil {
-		log.Printf("Node %d: Service %s health check failed (connection): %v", s.nodeID, serviceName, err)
+		log.Printf("Node %d: Service %s health check failed (UDP connection): %v", s.nodeID, serviceName, err)
 		return false
 	}
-
-	conn.mutex.Lock()
-	defer conn.mutex.Unlock()
+	defer conn.Close()
 
 	// Set timeouts for the health check
-	conn.conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
-	conn.conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 
-	if _, err := conn.conn.Write([]byte("PING\n")); err != nil {
-		log.Printf("Node %d: Failed to send health check to service %s: %v", s.nodeID, serviceName, err)
-		s.connManager.markUnhealthy(serviceAddr)
+	// Send PING message via UDP
+	if _, err := conn.Write([]byte("PING")); err != nil {
+		log.Printf("Node %d: Failed to send UDP health check to service %s: %v", s.nodeID, serviceName, err)
 		return false
 	}
 
+	// Read response
 	buffer := make([]byte, 1024)
-	_, err = conn.conn.Read(buffer)
+	n, err := conn.Read(buffer)
 	if err != nil {
-		log.Printf("Node %d: Service %s health check response failed: %v", s.nodeID, serviceName, err)
-		s.connManager.markUnhealthy(serviceAddr)
+		log.Printf("Node %d: Service %s UDP health check response failed: %v", s.nodeID, serviceName, err)
 		return false
 	}
 
-	log.Printf("Node %d: Service %s is healthy (persistent connection)", s.nodeID, serviceName)
+	// Verify response content
+	response := string(buffer[:n])
+	expectedResponse := "PONG"
+	if response != expectedResponse {
+		log.Printf("Node %d: Service %s sent invalid response: expected '%s', got '%s'", s.nodeID, serviceName, expectedResponse, response)
+		return false
+	}
+
+	log.Printf("Node %d: Service %s is healthy (UDP)", s.nodeID, serviceName)
 	return true
 }
 
@@ -973,10 +627,6 @@ func (s *Server) resurrectService(serviceName string) {
 		return
 	}
 	log.Printf("Node %d: Successfully restarted service %s via docker-compose", s.nodeID, serviceName)
-
-	// Mark the service connection as unhealthy so it gets recreated
-	serviceAddr := fmt.Sprintf("%s:7000", serviceName)
-	s.connManager.markUnhealthy(serviceAddr)
 
 	log.Printf("Node %d: Waiting for service %s to become ready...", s.nodeID, serviceName)
 	time.Sleep(15 * time.Second)
