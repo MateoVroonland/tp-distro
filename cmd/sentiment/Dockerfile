@@ -1,15 +1,19 @@
-FROM python:3.11-slim
+FROM golang:latest AS builder
 
 WORKDIR /app
 
-COPY cmd/sentiment/requirements-mac.txt /app/
-RUN pip install --no-cache-dir -r requirements-mac.txt
+COPY go.mod go.sum ./
+RUN go mod download
 
-COPY internal/utils/queue.py /app/internal/utils/
-COPY internal/sentiment/sentiment_worker.py /app/internal/sentiment/
-COPY cmd/sentiment/sentiment_worker.py /app/
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o /main ./cmd/sentiment/sentiment_worker.go
+
+ENTRYPOINT ["/main"]
+
+FROM scratch
+
+COPY --from=builder /main /main
 COPY .env /app/.env
 
-ENV PYTHONPATH="/app"
-
-CMD ["python", "/app/sentiment_worker.py"]
+ENTRYPOINT ["/main"]
