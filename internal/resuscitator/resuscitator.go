@@ -34,20 +34,13 @@ type Server struct {
 	mutex              sync.RWMutex
 	electionMutex      sync.Mutex
 	shutdownChan       chan struct{}
-
-	// UDP listener for peer communication
 	udpConn *net.UDPConn
-
-	// Heartbeat management
 	heartbeatCancel chan struct{}
 	heartbeatMutex  sync.Mutex
-
-	// Leadership change notifications
-	leadershipChangeChan chan bool
+		leadershipChangeChan chan bool
 }
 
 func NewServer(nodeID int, totalNodes int) *Server {
-	// Lista de todos los servicios que necesitan monitoreo
 	services := []string{
 		"moviesreceiver_1",
 		"moviesreceiver_2",
@@ -83,22 +76,18 @@ func NewServer(nodeID int, totalNodes int) *Server {
 		shutdownChan:         make(chan struct{}),
 		heartbeatCancel:      nil,
 		heartbeatMutex:       sync.Mutex{},
-		leadershipChangeChan: make(chan bool, 1), // Buffered channel to avoid blocking
+		leadershipChangeChan: make(chan bool, 1), 
 	}
 }
 
 func (s *Server) Start() {
-	// Wait for services to be ready
 	log.Printf("Node %d: Waiting for services to be ready...", s.nodeID)
 	time.Sleep(5 * time.Second)
 
-	// Start UDP listener for peer communication
 	s.startUDPListener()
 
-	// Start election process
 	go s.startElection()
 
-	// Start leader monitoring (for non-leaders)
 	go s.monitorLeader()
 
 	sigChan := make(chan os.Signal, 1)
@@ -111,7 +100,6 @@ func (s *Server) Start() {
 
 	log.Printf("Node %d: Resuscitator started", s.nodeID)
 
-	// Main loop that waits for shutdown or leadership changes
 	var serviceMonitorCancel chan struct{}
 
 	for {
@@ -171,7 +159,7 @@ func (s *Server) handleUDPMessages() {
 			n, addr, err := s.udpConn.ReadFromUDP(buffer)
 			if err != nil {
 				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-					continue // Timeout is expected, continue listening
+					continue
 				}
 				log.Printf("Node %d: Error reading UDP message: %v", s.nodeID, err)
 				continue
@@ -250,7 +238,6 @@ func (s *Server) sendUDPToPeer(peerID int, message string) error {
 }
 
 func (s *Server) handleOKMessage(senderNodeID int) {
-	// Someone with higher ID responded, so we wait for coordinator message
 	log.Printf("Node %d: Received OK from higher node %d, waiting for coordinator", s.nodeID, senderNodeID)
 }
 
@@ -265,7 +252,6 @@ func (s *Server) handleCoordinatorMessage(leaderNodeID int) {
 	if s.isLeader && !wasLeader {
 		log.Printf("Node %d: I am the new leader!", s.nodeID)
 		s.startHeartbeats()
-		// Notify about leadership change
 		select {
 		case s.leadershipChangeChan <- true:
 		default:
@@ -274,7 +260,6 @@ func (s *Server) handleCoordinatorMessage(leaderNodeID int) {
 	} else if !s.isLeader && wasLeader {
 		log.Printf("Node %d: Node %d is the new leader, I lost leadership", s.nodeID, leaderNodeID)
 		s.stopHeartbeats()
-		// Notify about leadership loss
 		select {
 		case s.leadershipChangeChan <- false:
 		default:
@@ -303,9 +288,8 @@ func (s *Server) startElection() {
 	s.electionInProgress = true
 	log.Printf("Node %d: Starting election", s.nodeID)
 
-	// First, check if there's already a leader by listening for heartbeats
 	log.Printf("Node %d: Checking for existing leader before declaring myself...", s.nodeID)
-	time.Sleep(3 * time.Second) // Wait for potential heartbeats
+	time.Sleep(3 * time.Second)
 
 	s.mutex.RLock()
 	recentHeartbeat := time.Since(s.leaderLastSeen) < 8*time.Second
@@ -353,7 +337,6 @@ func (s *Server) startElection() {
 			time.Sleep(5 * time.Second)
 			s.mutex.Lock()
 			if s.electionInProgress {
-				// No coordinator message received, restart election
 				s.electionInProgress = false
 				s.mutex.Unlock()
 				go s.startElection()
@@ -393,14 +376,11 @@ func (s *Server) becomeLeader() {
 		}
 	}
 
-	// Start sending heartbeats
 	s.startHeartbeats()
 
-	// Notify about becoming leader
 	select {
 	case s.leadershipChangeChan <- true:
 	default:
-		// Channel is full, skip notification
 	}
 }
 
@@ -413,7 +393,6 @@ func (s *Server) startHeartbeats() {
 		close(s.heartbeatCancel)
 	}
 
-	// Create new cancel channel
 	s.heartbeatCancel = make(chan struct{})
 
 	// Start new heartbeat goroutine
@@ -463,7 +442,6 @@ func (s *Server) sendHeartbeats(cancel chan struct{}) {
 			}
 
 			heartbeatCount++
-			// Log every 10th heartbeat (every 30 seconds) to reduce spam
 			if heartbeatCount%10 == 0 {
 				log.Printf("Node %d: Sending heartbeats (round %d)", s.nodeID, heartbeatCount)
 			}
@@ -482,8 +460,7 @@ func (s *Server) sendHeartbeat(peerID int) {
 	message := fmt.Sprintf("%s_%d", HEARTBEAT, s.nodeID)
 	err := s.sendUDPToPeer(peerID, message)
 	if err != nil {
-		// UDP is fire-and-forget, just log occasional failures
-		if s.nodeID == 1 { // Only log from node 1 to reduce spam
+		if s.nodeID == 1 {
 			log.Printf("Node %d: Failed to send heartbeat to peer %d: %v", s.nodeID, peerID, err)
 		}
 	}
@@ -518,7 +495,6 @@ func (s *Server) shutdown() {
 	// Stop heartbeats
 	s.stopHeartbeats()
 
-	// Close UDP connection
 	if s.udpConn != nil {
 		s.udpConn.Close()
 		s.udpConn = nil
