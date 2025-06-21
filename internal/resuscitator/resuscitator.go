@@ -172,6 +172,9 @@ type Server struct {
 	// Heartbeat management
 	heartbeatCancel chan struct{}
 	heartbeatMutex  sync.Mutex
+
+	// Leadership change notifications
+	leadershipChangeChan chan bool
 }
 
 func NewServer(nodeID int, totalNodes int) *Server {
@@ -202,18 +205,19 @@ func NewServer(nodeID int, totalNodes int) *Server {
 	}
 
 	return &Server{
-		services:           services,
-		nodeID:             nodeID,
-		totalNodes:         totalNodes,
-		isLeader:           false,
-		electionInProgress: false,
-		leaderLastSeen:     time.Now(),
-		shutdownChan:       make(chan struct{}),
-		connManager:        NewConnectionManager(),
-		peerConns:          make(map[int]*PeerConnection),
-		peerConnMutex:      sync.RWMutex{},
-		heartbeatCancel:    nil,
-		heartbeatMutex:     sync.Mutex{},
+		services:             services,
+		nodeID:               nodeID,
+		totalNodes:           totalNodes,
+		isLeader:             false,
+		electionInProgress:   false,
+		leaderLastSeen:       time.Now(),
+		shutdownChan:         make(chan struct{}),
+		connManager:          NewConnectionManager(),
+		peerConns:            make(map[int]*PeerConnection),
+		peerConnMutex:        sync.RWMutex{},
+		heartbeatCancel:      nil,
+		heartbeatMutex:       sync.Mutex{},
+		leadershipChangeChan: make(chan bool, 1), // Buffered channel to avoid blocking
 	}
 }
 
@@ -244,10 +248,7 @@ func (s *Server) Start() {
 
 	log.Printf("Node %d: Resuscitator started", s.nodeID)
 
-	// Simple main loop that waits for shutdown or checks leadership
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
+	// Main loop that waits for shutdown or leadership changes
 	var serviceMonitorCancel chan struct{}
 
 	for {
@@ -258,11 +259,7 @@ func (s *Server) Start() {
 				close(serviceMonitorCancel)
 			}
 			return
-		case <-ticker.C:
-			s.mutex.RLock()
-			isLeader := s.isLeader
-			s.mutex.RUnlock()
-
+		case isLeader := <-s.leadershipChangeChan:
 			if isLeader && serviceMonitorCancel == nil {
 				log.Printf("Node %d: Became leader, starting service monitoring", s.nodeID)
 				serviceMonitorCancel = make(chan struct{})
@@ -466,46 +463,6 @@ func (s *Server) startPeerListener() {
 	}
 }
 
-func (s *Server) handlePeerConnection(conn net.Conn) {
-	defer conn.Close()
-
-	// Read the message as a simple string
-	reader := bufio.NewReader(conn)
-	message, err := reader.ReadString('\n')
-	if err != nil {
-		log.Printf("Node %d: Failed to read message: %v", s.nodeID, err)
-		return
-	}
-
-	message = strings.TrimSpace(message)
-
-	// Parse message format: TYPE_ID
-	parts := strings.Split(message, "_")
-	if len(parts) != 2 {
-		log.Printf("Node %d: Invalid message format: %s", s.nodeID, message)
-		return
-	}
-
-	msgType := parts[0]
-	nodeID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		log.Printf("Node %d: Invalid node ID in message: %s", s.nodeID, message)
-		return
-	}
-
-	log.Printf("Node %d: Received %s message from node %d", s.nodeID, msgType, nodeID)
-
-	switch msgType {
-	case ELECTION:
-		s.handleElectionMessage(conn, nodeID)
-	case OK:
-		s.handleOKMessage(nodeID)
-	case COORDINATOR:
-		s.handleCoordinatorMessage(nodeID)
-	case HEARTBEAT:
-		s.handleHeartbeatMessage(nodeID)
-	}
-}
 
 func (s *Server) handleIncomingPeerConnection(conn net.Conn) {
 	defer conn.Close()
@@ -567,17 +524,6 @@ func (s *Server) handleIncomingPeerConnection(conn net.Conn) {
 	s.handlePeerMessages(peerConn)
 }
 
-func (s *Server) handleElectionMessage(conn net.Conn, senderNodeID int) {
-	// Always respond with OK if we have higher ID
-	if s.nodeID > senderNodeID {
-		response := fmt.Sprintf("%s_%d\n", OK, s.nodeID)
-		conn.Write([]byte(response))
-
-		// Start our own election if not already in progress
-		go s.startElection()
-	}
-}
-
 func (s *Server) handleElectionMessagePersistent(peerConn *PeerConnection, senderNodeID int) {
 	// Always respond with OK if we have higher ID
 	if s.nodeID > senderNodeID {
@@ -628,9 +574,21 @@ func (s *Server) handleCoordinatorMessage(leaderNodeID int) {
 	if s.isLeader && !wasLeader {
 		log.Printf("Node %d: I am the new leader!", s.nodeID)
 		s.startHeartbeats()
+		// Notify about leadership change
+		select {
+		case s.leadershipChangeChan <- true:
+		default:
+			// Channel is full, skip notification
+		}
 	} else if !s.isLeader && wasLeader {
 		log.Printf("Node %d: Node %d is the new leader, I lost leadership", s.nodeID, leaderNodeID)
 		s.stopHeartbeats()
+		// Notify about leadership loss
+		select {
+		case s.leadershipChangeChan <- false:
+		default:
+			// Channel is full, skip notification
+		}
 	} else if !s.isLeader {
 		log.Printf("Node %d: Node %d is the new leader", s.nodeID, leaderNodeID)
 	}
@@ -715,34 +673,6 @@ func (s *Server) startElection() {
 	}
 }
 
-func (s *Server) sendElectionMessage(peerAddr string) bool {
-	conn, err := net.DialTimeout("tcp", peerAddr, 2*time.Second)
-	if err != nil {
-		return false
-	}
-	defer conn.Close()
-
-	message := fmt.Sprintf("%s_%d\n", ELECTION, s.nodeID)
-	if _, err := conn.Write([]byte(message)); err != nil {
-		return false
-	}
-
-	// Wait for OK response
-	reader := bufio.NewReader(conn)
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	response, err := reader.ReadString('\n')
-	if err != nil {
-		return false
-	}
-
-	response = strings.TrimSpace(response)
-	parts := strings.Split(response, "_")
-	if len(parts) != 2 {
-		return false
-	}
-
-	return parts[0] == OK
-}
 
 func (s *Server) sendElectionMessagePersistent(peerID int) bool {
 	message := fmt.Sprintf("%s_%d\n", ELECTION, s.nodeID)
@@ -773,6 +703,13 @@ func (s *Server) becomeLeader() {
 
 	// Start sending heartbeats
 	s.startHeartbeats()
+
+	// Notify about becoming leader
+	select {
+	case s.leadershipChangeChan <- true:
+	default:
+		// Channel is full, skip notification
+	}
 }
 
 func (s *Server) startHeartbeats() {
@@ -799,17 +736,6 @@ func (s *Server) stopHeartbeats() {
 		close(s.heartbeatCancel)
 		s.heartbeatCancel = nil
 	}
-}
-
-func (s *Server) sendCoordinatorMessage(peerAddr string) {
-	conn, err := net.DialTimeout("tcp", peerAddr, 2*time.Second)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	message := fmt.Sprintf("%s_%d\n", COORDINATOR, s.nodeID)
-	conn.Write([]byte(message))
 }
 
 func (s *Server) sendCoordinatorMessagePersistent(peerID int) {
@@ -860,28 +786,6 @@ func (s *Server) sendHeartbeats(cancel chan struct{}) {
 	}
 }
 
-func (s *Server) sendHeartbeat(peerAddr string) {
-	conn, err := s.connManager.getConnection(peerAddr)
-	if err != nil {
-		log.Printf("Node %d: Failed to get connection to %s: %v", s.nodeID, peerAddr, err)
-		return
-	}
-
-	conn.mutex.Lock()
-	defer conn.mutex.Unlock()
-
-	message := fmt.Sprintf("%s_%d\n", HEARTBEAT, s.nodeID)
-	conn.conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
-
-	if _, err := conn.conn.Write([]byte(message)); err != nil {
-		log.Printf("Node %d: Failed to send heartbeat to %s: %v", s.nodeID, peerAddr, err)
-		s.connManager.markUnhealthy(peerAddr)
-		return
-	}
-
-	log.Printf("Node %d: Sent heartbeat to %s via persistent connection", s.nodeID, peerAddr)
-}
-
 func (s *Server) sendHeartbeatPersistent(peerID int) {
 	message := fmt.Sprintf("%s_%d\n", HEARTBEAT, s.nodeID)
 	err := s.sendToPeer(peerID, message)
@@ -899,12 +803,6 @@ func (s *Server) sendHeartbeatPersistent(peerID int) {
 		}
 		return
 	}
-
-	// Success logging only occasionally for debugging (every 10th heartbeat)
-	// This is commented out to reduce log spam - uncomment for debugging
-	// if s.nodeID == 3 {
-	//     log.Printf("Node %d: Sent heartbeat to peer %d via persistent connection", s.nodeID, peerID)
-	// }
 }
 
 func (s *Server) attemptReconnectToPeer(peerID int) {
