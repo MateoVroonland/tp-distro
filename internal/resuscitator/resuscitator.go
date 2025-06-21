@@ -24,20 +24,22 @@ const (
 )
 
 type Server struct {
-	shuttingDown       bool
-	services           []string
-	nodeID             int
-	totalNodes         int
-	isLeader           bool
-	electionInProgress bool
-	leaderLastSeen     time.Time
-	mutex              sync.RWMutex
-	electionMutex      sync.Mutex
-	shutdownChan       chan struct{}
-	udpConn *net.UDPConn
-	heartbeatCancel chan struct{}
-	heartbeatMutex  sync.Mutex
-		leadershipChangeChan chan bool
+	shuttingDown         bool
+	services             []string
+	nodeID               int
+	totalNodes           int
+	isLeader             bool
+	electionInProgress   bool
+	leaderLastSeen       time.Time
+	mutex                sync.RWMutex
+	electionMutex        sync.Mutex
+	shutdownChan         chan struct{}
+	udpConn              *net.UDPConn
+	heartbeatCancel      chan struct{}
+	heartbeatMutex       sync.Mutex
+	leadershipChangeChan chan bool
+	heartbeatACKs        map[int]chan bool
+	ackMutex             sync.Mutex
 }
 
 func NewServer(nodeID int, totalNodes int) *Server {
@@ -76,7 +78,9 @@ func NewServer(nodeID int, totalNodes int) *Server {
 		shutdownChan:         make(chan struct{}),
 		heartbeatCancel:      nil,
 		heartbeatMutex:       sync.Mutex{},
-		leadershipChangeChan: make(chan bool, 1), 
+		leadershipChangeChan: make(chan bool, 1),
+		heartbeatACKs:        make(map[int]chan bool),
+		ackMutex:             sync.Mutex{},
 	}
 }
 
@@ -197,6 +201,8 @@ func (s *Server) processPeerMessage(message string, addr *net.UDPAddr) {
 		s.handleCoordinatorMessage(nodeID)
 	case HEARTBEAT:
 		s.handleHeartbeatMessage(nodeID)
+	case ACK:
+		s.handleACKMessage(nodeID)
 	}
 }
 
@@ -275,6 +281,27 @@ func (s *Server) handleHeartbeatMessage(leaderNodeID int) {
 	s.leaderLastSeen = time.Now()
 	log.Printf("Node %d: Received heartbeat from leader %d", s.nodeID, leaderNodeID)
 	s.mutex.Unlock()
+
+	// Send ACK response back to leader
+	response := fmt.Sprintf("%s_%d", ACK, s.nodeID)
+	err := s.sendUDPToPeer(leaderNodeID, response)
+	if err != nil {
+		log.Printf("Node %d: Failed to send ACK to leader %d: %v", s.nodeID, leaderNodeID, err)
+	}
+}
+
+func (s *Server) handleACKMessage(senderNodeID int) {
+	s.ackMutex.Lock()
+	defer s.ackMutex.Unlock()
+
+	if ackChan, exists := s.heartbeatACKs[senderNodeID]; exists {
+		select {
+		case ackChan <- true:
+			log.Printf("Node %d: Received ACK from node %d", s.nodeID, senderNodeID)
+		default:
+			// Channel is full or closed, ignore
+		}
+	}
 }
 
 func (s *Server) startElection() {
@@ -457,13 +484,41 @@ func (s *Server) sendHeartbeats(cancel chan struct{}) {
 }
 
 func (s *Server) sendHeartbeat(peerID int) {
+	// Create ACK channel for this peer
+	s.ackMutex.Lock()
+	ackChan := make(chan bool, 1)
+	s.heartbeatACKs[peerID] = ackChan
+	s.ackMutex.Unlock()
+
+	// Send heartbeat message
 	message := fmt.Sprintf("%s_%d", HEARTBEAT, s.nodeID)
 	err := s.sendUDPToPeer(peerID, message)
 	if err != nil {
 		if s.nodeID == 1 {
 			log.Printf("Node %d: Failed to send heartbeat to peer %d: %v", s.nodeID, peerID, err)
 		}
+		// Clean up the ACK channel
+		s.ackMutex.Lock()
+		delete(s.heartbeatACKs, peerID)
+		s.ackMutex.Unlock()
+		return
 	}
+
+	// Wait for ACK response with timeout
+	select {
+	case <-ackChan:
+		// ACK received, peer is alive
+		log.Printf("Node %d: Peer %d is alive (ACK received)", s.nodeID, peerID)
+	case <-time.After(5 * time.Second):
+		// No ACK received, try to revive peer
+		log.Printf("Node %d: Peer %d did not respond to heartbeat, attempting to revive", s.nodeID, peerID)
+		go s.resurrectResuscitatorNode(peerID)
+	}
+
+	// Clean up the ACK channel
+	s.ackMutex.Lock()
+	delete(s.heartbeatACKs, peerID)
+	s.ackMutex.Unlock()
 }
 
 func (s *Server) monitorLeader() {
@@ -624,4 +679,20 @@ func (s *Server) restartDockerService(serviceName string) error {
 
 	log.Printf("Node %d: Service %s restart output: %s", s.nodeID, serviceName, string(output))
 	return nil
+}
+
+func (s *Server) resurrectResuscitatorNode(peerID int) {
+	serviceName := fmt.Sprintf("resuscitator_%d", peerID)
+	log.Printf("Node %d: Attempting to resurrect resuscitator node: %s", s.nodeID, serviceName)
+
+	if err := s.restartDockerService(serviceName); err != nil {
+		log.Printf("Node %d: Failed to restart resuscitator node %s: %v", s.nodeID, serviceName, err)
+		return
+	}
+
+	log.Printf("Node %d: Successfully restarted resuscitator node %s", s.nodeID, serviceName)
+
+	// Wait for the resuscitator node to become ready
+	log.Printf("Node %d: Waiting for resuscitator node %s to become ready...", s.nodeID, serviceName)
+	time.Sleep(15 * time.Second)
 }
