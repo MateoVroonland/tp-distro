@@ -102,6 +102,10 @@ func NewSuicide(probability float64, timesToDie int) *Suicide {
 		alreadyDied = 0
 	}
 
+	if alreadyDied >= timesToDie {
+		log.Printf("All %d times to die reached, not suiciding anymore", timesToDie)
+	}
+
 	return &Suicide{
 		Probability: probability,
 		TimesToDie:  timesToDie,
@@ -137,6 +141,7 @@ func NewSuicide(probability float64, timesToDie int) *Suicide {
 func (s *Suicide) CommitSuicide() {
 	if rand.Float64() < s.Probability && s.TimesDied < s.TimesToDie {
 		s.TimesDied++
+		log.Printf("SUICIDING FOR %d TIME", s.TimesDied)
 		AtomicallyWriteFile("data/already_died.txt", []byte(strconv.Itoa(s.TimesDied)))
 		os.Exit(1)
 	}

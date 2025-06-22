@@ -30,6 +30,7 @@ def generate_compose():
     sentiment_worker_amount = get_env("SENTIMENT_WORKER_AMOUNT")
     sentiment_sink_amount = get_env("SENTIMENT_SINK_AMOUNT")
     clients_amount = get_env("CLIENTS_AMOUNT")
+    resuscitator_amount = get_env("RESUSCITATOR_AMOUNT")
 
     compose = {
         "name": "movies-analysis",
@@ -54,7 +55,8 @@ def generate_compose():
             "requesthandler": {
                 "environment": {
                     "ID": 1,
-                    "REPLICAS": 1
+                    "REPLICAS": 1,
+                    "SERVICE_TYPE": "requesthandler"
                 },
                 "image": "movies/requesthandler:latest",
                 "depends_on": {
@@ -77,11 +79,12 @@ def generate_compose():
 
     def add_services(prefix, amount, image, extra_env=None, command=None):
         for i in range(1, amount + 1):
-            env = {"ID": i, "REPLICAS": amount}
+            env = {"ID": i, "REPLICAS": amount, "SERVICE_TYPE": prefix}
             if extra_env:
                 env.update(extra_env)
             service_name = f"{prefix}_{i}"
             compose["services"][service_name] = {
+                "container_name": service_name,
                 "image": image,
                 "environment": env,
                 "depends_on": {
@@ -101,6 +104,40 @@ def generate_compose():
             if volume_name not in compose["volumes"]:
                 compose["volumes"][volume_name] = {}
 
+
+#  resuscitator_1:
+#     image: movies/resuscitator:latest
+#     environment:
+#       ID: 1
+#       REPLICAS: 3
+#       SERVICE_TYPE: resuscitator_1
+#     depends_on:
+#       rabbitmq:
+#         condition: service_healthy
+#     volumes:
+#       - /var/run/docker.sock:/var/run/docker.sock
+#       - ./docker-compose.yml:/app/docker-compose.yml
+    def add_resuscitators(amount):
+        for i in range(1, amount + 1):
+            env = {"ID": i, "REPLICAS": amount, "SERVICE_TYPE": "resuscitator"}
+            service_name = f"resuscitator_{i}"
+            compose["services"][service_name] = {
+                "container_name": service_name,
+                "image": "movies/resuscitator:latest",
+                "environment": env,
+                "depends_on": {
+                    "rabbitmq": {
+                        "condition": "service_healthy"
+                    }
+                },
+                "volumes": [
+                    "/var/run/docker.sock:/var/run/docker.sock",
+                    "./docker-compose.yml:/app/docker-compose.yml"
+                ]
+            }
+            
+
+
     add_services("moviesreceiver", movies_receiver_amount, "movies/moviesreceiver:latest")
     add_services("filter_q1", q1_filter_amount, "movies/filter:latest", {"QUERY": 1}, "/filter/filter.go")
     add_services("filter_q3", q3_filter_amount, "movies/filter:latest", {"QUERY": 3}, "/filter/filter.go")
@@ -117,7 +154,8 @@ def generate_compose():
     add_services("credits_joiner", credits_joiner_amount, "movies/credits_joiner:latest")
     add_services("credits_receiver", credits_receiver_amount, "movies/credits_receiver:latest", None, "/credits_receiver/credits_receiver.go")
     add_services("credits_sink", credits_sink_amount, "movies/sink_q4:latest", None, "/credits_sink/credits_sink.go")
-
+    add_resuscitators(resuscitator_amount)
+    
     compose["services"]["client"] = {
         "image": "movies/client:latest",
         "depends_on": ["requesthandler"],

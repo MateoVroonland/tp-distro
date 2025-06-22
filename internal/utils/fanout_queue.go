@@ -80,7 +80,7 @@ func (q *ConsumerFanout) Consume() iter.Seq[FanoutMessage] {
 
 type ProducerFanout struct {
 	ch           *amqp.Channel
-	boundQueues  map[string]bool
+	boundQueues  map[int]bool
 	exchangeName string
 }
 
@@ -106,32 +106,35 @@ func NewProducerFanout(conn *amqp.Connection, exchangeName string) (*ProducerFan
 	return &ProducerFanout{
 		ch:           ch,
 		exchangeName: exchangeName,
-		boundQueues:  make(map[string]bool),
+		boundQueues:  make(map[int]bool),
 	}, nil
 }
 
-func (q *ProducerFanout) Publish(body []byte, clientId string, routingKey string) error {
-	return q.publishWithParams(body, routingKey, clientId, strconv.Itoa(env.AppEnv.ID))
+func (q *ProducerFanout) Publish(body []byte, clientId string, consumersAmount int) error {
+	return q.publishWithParams(body, clientId, strconv.Itoa(env.AppEnv.ID), consumersAmount)
 }
 
-func (q *ProducerFanout) publishWithParams(body []byte, routingKey string, clientId string, producerId string) error {
-	if !q.boundQueues[routingKey] {
-		name := fmt.Sprintf("%s_%s", q.exchangeName, routingKey)
-		_, err := q.ch.QueueDeclare(name, false, false, false, false, nil)
-		if err != nil {
-			return err
+func (q *ProducerFanout) publishWithParams(body []byte, clientId string, producerId string, consumersAmount int) error {
+
+	for i := 1; i <= consumersAmount; i++ {
+		if !q.boundQueues[i] {
+			name := fmt.Sprintf("fanout_%s_%d", q.exchangeName, i)
+			queue, err := q.ch.QueueDeclare(name, false, false, false, false, nil)
+			if err != nil {
+				return err
+			}
+			err = q.ch.QueueBind(
+				queue.Name,
+				"",
+				q.exchangeName,
+				false,
+				nil,
+			)
+			if err != nil {
+				return err
+			}
+			q.boundQueues[i] = true
 		}
-		err = q.ch.QueueBind(
-			name,
-			routingKey,
-			q.exchangeName,
-			false,
-			nil,
-		)
-		if err != nil {
-			return err
-		}
-		q.boundQueues[routingKey] = true
 	}
 
 	headers := amqp.Table{
@@ -141,7 +144,7 @@ func (q *ProducerFanout) publishWithParams(body []byte, routingKey string, clien
 
 	err := q.ch.Publish(
 		q.exchangeName, // exchange
-		routingKey,     // routing key
+		"",             // routing key
 		true,           // mandatory
 		false,          // immediate
 		amqp.Publishing{

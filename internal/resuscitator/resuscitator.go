@@ -24,20 +24,20 @@ const (
 )
 
 type Server struct {
-	shuttingDown       bool
-	services           []string
-	nodeID             int
-	totalNodes         int
-	isLeader           bool
-	electionInProgress bool
-	leaderLastSeen     time.Time
-	mutex              sync.RWMutex
-	electionMutex      sync.Mutex
-	shutdownChan       chan struct{}
-	udpConn *net.UDPConn
-	heartbeatCancel chan struct{}
-	heartbeatMutex  sync.Mutex
-		leadershipChangeChan chan bool
+	shuttingDown         bool
+	services             []string
+	nodeID               int
+	totalNodes           int
+	isLeader             bool
+	electionInProgress   bool
+	leaderLastSeen       time.Time
+	mutex                sync.RWMutex
+	electionMutex        sync.Mutex
+	shutdownChan         chan struct{}
+	udpConn              *net.UDPConn
+	heartbeatCancel      chan struct{}
+	heartbeatMutex       sync.Mutex
+	leadershipChangeChan chan bool
 }
 
 func NewServer(nodeID int, totalNodes int) *Server {
@@ -76,7 +76,7 @@ func NewServer(nodeID int, totalNodes int) *Server {
 		shutdownChan:         make(chan struct{}),
 		heartbeatCancel:      nil,
 		heartbeatMutex:       sync.Mutex{},
-		leadershipChangeChan: make(chan bool, 1), 
+		leadershipChangeChan: make(chan bool, 1),
 	}
 }
 
@@ -542,10 +542,17 @@ func (s *Server) monitorService(serviceName string, cancel <-chan struct{}) {
 				return
 			}
 
-			// Perform health check using UDP
-			if !s.performHealthCheck(serviceName) {
+			var attemptsLeft = 3
+			for attemptsLeft > 0 {
+				if s.performHealthCheck(serviceName) {
+					break
+				}
+				time.Sleep(1 * time.Second)
+				attemptsLeft--
+			}
+
+			if attemptsLeft == 0 {
 				s.resurrectService(serviceName)
-				// Wait longer after resurrection attempt
 				time.Sleep(10 * time.Second)
 			}
 		}

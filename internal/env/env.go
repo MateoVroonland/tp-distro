@@ -42,6 +42,9 @@ type Env struct {
 
 	// PYTHON WORKERS
 	SENTIMENT_WORKER_AMOUNT int
+
+	// RESUSCITATORS
+	RESUSCITATOR_AMOUNT int
 }
 
 var (
