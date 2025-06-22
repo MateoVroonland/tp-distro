@@ -99,7 +99,7 @@ func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 	}
 
 	ch.Qos(
-		700,   // prefetch count
+		5000,  // prefetch count
 		0,     // prefetch size
 		false, // global
 	)
@@ -213,7 +213,6 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 
 					if message.SequenceNumber > expectedSequenceNumber {
 						log.Printf("Out of order message for client %s on queue %s, sequence number %d, expected %d, producer %s, requeuing...", message.ClientId, q.queueName, message.SequenceNumber, expectedSequenceNumber, message.ProducerId)
-						log.Printf("Message: %v", message.Body)
 						message.Nack(true)
 						continue
 					}

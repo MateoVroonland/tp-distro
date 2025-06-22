@@ -4,12 +4,17 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
 type CreditsReceiverState struct {
 	CreditsConsumer utils.ConsumerQueueState
 	ClientProducers map[string]utils.ProducerQueueState
+}
+
+func NewCreditsReceiverState() *state_saver.StateSaver[*CreditsReceiver] {
+	return state_saver.NewStateSaver(SaveCreditsState)
 }
 
 func SaveCreditsState(receiver *CreditsReceiver) error {

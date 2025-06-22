@@ -27,6 +27,8 @@ func NewMoviesReceiver(conn *amqp.Connection, moviesConsumer *utils.ConsumerQueu
 
 func (r *MoviesReceiver) ReceiveMovies() {
 
+	stateSaver := NewMoviesReceiverState()
+
 	i := map[string]int{}
 	for d := range r.MoviesConsumer.ConsumeInfinite() {
 		i[d.ClientId]++
@@ -43,12 +45,19 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			r.Q4Producer.PublishFinished(d.ClientId)
 			r.Q5Producer.PublishFinished(d.ClientId)
 
-			err := SaveState(r)
+			err := stateSaver.SaveStateAck(&d, r)
 			if err != nil {
 				log.Printf("Failed to save state: %v", err)
 			}
 
-			d.Ack()
+			flushed, err := stateSaver.ForceFlush()
+			if err != nil {
+				log.Printf("Failed to flush state: %v", err)
+			} else if flushed {
+				log.Printf("Flushed final state for client %s", d.ClientId)
+			}
+
+			// d.Ack()
 			continue
 		}
 
@@ -57,20 +66,21 @@ func (r *MoviesReceiver) ReceiveMovies() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			d.Nack(false)
+			stateSaver.SaveStateNack(&d, r, false)
 			continue
 		}
 
 		movie := &messages.Movie{}
 		if err := movie.Deserialize(record); err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			d.Nack(false)
+			stateSaver.SaveStateNack(&d, r, false)
+
 			continue
 		}
 		serializedMovie, err := protocol.Serialize(movie)
 		if err != nil {
 			log.Printf("Failed to serialize movie: %v", err)
-			d.Nack(false)
+			stateSaver.SaveStateNack(&d, r, false)
 			continue
 		}
 
@@ -108,11 +118,11 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			}
 		}
 
-		err = SaveState(r)
+		err = stateSaver.SaveStateAck(&d, r)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		d.Ack()
+		// d.Ack()
 	}
 }

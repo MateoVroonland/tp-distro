@@ -8,26 +8,24 @@ import (
 )
 
 type CreditsJoinerClientState struct {
-	MoviesConsumer  utils.ConsumerQueueState
-	CreditsConsumer utils.ConsumerQueueState
-	SinkProducer    utils.ProducerQueueState
-	MoviesIds       map[int]bool
-	ClientId        string
+	MoviesConsumer         utils.ConsumerQueueState
+	CreditsConsumer        utils.ConsumerQueueState
+	SinkProducer           utils.ProducerQueueState
+	MoviesIds              map[int]bool
+	ClientId               string
+	FinishedFetchingMovies bool
 }
 
 func SaveCreditsJoinerPerClientState(
-	moviesConsumer utils.ConsumerQueueState,
-	creditsConsumer utils.ConsumerQueueState,
-	sinkProducer utils.ProducerQueueState,
-	moviesIds map[int]bool,
-	clientId string,
+	c *CreditsJoinerClient,
 ) error {
 	state := CreditsJoinerClientState{
-		MoviesConsumer:  moviesConsumer,
-		CreditsConsumer: creditsConsumer,
-		SinkProducer:    sinkProducer,
-		MoviesIds:       moviesIds,
-		ClientId:        clientId,
+		MoviesConsumer:         c.MoviesConsumer.GetState(),
+		CreditsConsumer:        c.CreditsConsumer.GetState(),
+		SinkProducer:           c.SinkProducer.GetState(),
+		MoviesIds:              c.MoviesIds,
+		ClientId:               c.ClientId,
+		FinishedFetchingMovies: c.FinishedFetchingMovies,
 	}
 
 	var buff bytes.Buffer
@@ -38,7 +36,7 @@ func SaveCreditsJoinerPerClientState(
 		return err
 	}
 
-	err = utils.AtomicallyWriteFile("data/credits_joiner_state_"+clientId+".gob", buff.Bytes())
+	err = utils.AtomicallyWriteFile("data/credits_joiner_state_"+c.ClientId+".gob", buff.Bytes())
 	if err != nil {
 		return err
 	}
@@ -46,12 +44,13 @@ func SaveCreditsJoinerPerClientState(
 }
 
 type CreditsJoinerState struct {
-	CurrentClients []string
+	CurrentClients map[string]bool
 }
 
-func SaveCreditsJoinerState(currentClients []string) error {
+func SaveCreditsJoinerState(c *CreditsJoiner) error {
+
 	state := CreditsJoinerState{
-		CurrentClients: currentClients,
+		CurrentClients: c.ClientsJoiners,
 	}
 
 	var buff bytes.Buffer

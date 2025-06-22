@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -11,6 +12,10 @@ type BudgetSinkState struct {
 	BudgetPerCountry map[string]map[string]int // clientId -> country -> amount
 	Queue            utils.ConsumerQueueState
 	ResultsProducer  utils.ProducerQueueState
+}
+
+func NewBudgetSinkState() *state_saver.StateSaver[*BudgetSink] {
+	return state_saver.NewStateSaver(SaveBudgetSinkState)
 }
 
 func SaveBudgetSinkState(s *BudgetSink) error {

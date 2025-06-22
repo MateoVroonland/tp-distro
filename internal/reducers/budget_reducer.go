@@ -23,6 +23,7 @@ func NewBudgetReducer(queue *utils.ConsumerQueue, publishQueue *utils.ProducerQu
 }
 
 func (r *BudgetReducer) Reduce() {
+	stateSaver := NewBudgetReducerState()
 	i := 0
 	defer r.queue.CloseChannel()
 	defer r.publishQueue.CloseChannel()
@@ -38,13 +39,20 @@ func (r *BudgetReducer) Reduce() {
 
 				delete(r.BudgetPerCountry, msg.ClientId)
 
-				err := SaveBudgetReducerState(r)
+				err := stateSaver.SaveStateAck(&msg, r)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
+
+				flushed, err := stateSaver.ForceFlush()
+				if err != nil {
+					log.Printf("Failed to flush state: %v", err)
+				} else if flushed {
+					log.Printf("Flushed final state for client %s", msg.ClientId)
+				}
 			}
 
-			msg.Ack()
+			// msg.Ack()
 			continue
 		}
 
@@ -70,12 +78,12 @@ func (r *BudgetReducer) Reduce() {
 
 		r.BudgetPerCountry[msg.ClientId][movieBudget.Country] += movieBudget.Amount
 
-		err = SaveBudgetReducerState(r)
+		err = stateSaver.SaveStateAck(&msg, r)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		msg.Ack()
+		// msg.Ack()
 	}
 
 	log.Printf("Total movies processed: %d", i)

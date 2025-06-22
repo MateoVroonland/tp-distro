@@ -43,25 +43,9 @@ func main() {
 			log.Fatalf("Failed to decode state file: %v", err)
 		}
 
-		for clientId, moviesConsumerState := range state.MoviesConsumers {
-			moviesConsumer, err := utils.NewConsumerQueue(conn, "filter_q4_client_"+clientId, "filter_q4_client_"+clientId, env.AppEnv.MOVIES_RECEIVER_AMOUNT)
-			if err != nil {
-				log.Fatalf("Failed to create movies consumer: %v", err)
-			}
-			moviesConsumer.RestoreState(moviesConsumerState)
+		creditsJoiner.ClientsJoiners = state.CurrentClients
 
-			creditsJoiner.MoviesConsumers[clientId] = moviesConsumer
-		}
-
-		for clientId, creditsConsumerState := range state.CreditsConsumers {
-			creditsConsumer, err := utils.NewConsumerQueue(conn, "credits_joiner_client_"+clientId, "credits_joiner_client_"+clientId, env.AppEnv.CREDITS_RECEIVER_AMOUNT)
-			if err != nil {
-				log.Fatalf("Failed to create credits consumer: %v", err)
-			}
-			creditsConsumer.RestoreState(creditsConsumerState)
-
-			creditsJoiner.CreditsConsumers[clientId] = creditsConsumer
-		}
+		log.Printf("Restored state for joiner %v with clients: %v ", env.AppEnv.ID, state.CurrentClients)
 	}
 
 	creditsJoiner.JoinCredits(env.AppEnv.ID)
