@@ -56,7 +56,7 @@ func (s *BudgetSink) Sink() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
@@ -64,7 +64,7 @@ func (s *BudgetSink) Sink() {
 		err = movieBudget.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 

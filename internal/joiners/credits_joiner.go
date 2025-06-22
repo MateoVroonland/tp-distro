@@ -182,16 +182,19 @@ func (c *CreditsJoinerClient) JoinCreditsForClient() error {
 }
 
 func (c *CreditsJoinerClient) fetchMovies() {
+	stateSaver := NewCreditsJoinerPerClientState()
+
 	for msg := range c.MoviesConsumer.ConsumeInfinite() {
 		stringLine := string(msg.Body)
 
 		if stringLine == "FINISHED" {
 			c.FinishedFetchingMovies = true
-			err := SaveCreditsJoinerPerClientState(c)
+			err := stateSaver.SaveStateAck(&msg, c)
 			if err != nil {
 				log.Printf("Failed to save credits joiner state: %v", err)
 			}
-			msg.Ack()
+			// msg.Ack()
+			stateSaver.ForceFlush()
 			c.MoviesConsumer.DeleteQueue() // TODO: implement garbage collection
 			break
 		}
@@ -202,7 +205,7 @@ func (c *CreditsJoinerClient) fetchMovies() {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Movie: %s", stringLine)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, c, false)
 			continue
 		}
 
@@ -210,7 +213,7 @@ func (c *CreditsJoinerClient) fetchMovies() {
 		err = movie.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, c, false)
 			continue
 		}
 
@@ -219,16 +222,17 @@ func (c *CreditsJoinerClient) fetchMovies() {
 		err = SaveCreditsJoinerPerClientState(c)
 		if err != nil {
 			log.Printf("Failed to save credits joiner state: %v", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, c, false)
 			continue
 		}
 
-		msg.Ack()
+		// msg.Ack()
 	}
 
 }
 
 func (c *CreditsJoinerClient) fetchCredits() {
+	stateSaver := NewCreditsJoinerPerClientState()
 
 	for msg := range c.CreditsConsumer.ConsumeInfinite() {
 
@@ -238,11 +242,12 @@ func (c *CreditsJoinerClient) fetchCredits() {
 			c.creditsJoiner.removeClient(c.ClientId)
 			c.SinkProducer.PublishFinished(c.ClientId)
 
-			err := SaveCreditsJoinerPerClientState(c)
+			err := stateSaver.SaveStateAck(&msg, c)
 			if err != nil {
 				log.Printf("Failed to save credits joiner state: %v", err)
 			}
-			msg.Ack()
+			stateSaver.ForceFlush()
+			// msg.Ack()
 			c.CreditsConsumer.DeleteQueue()
 
 			break
@@ -254,12 +259,9 @@ func (c *CreditsJoinerClient) fetchCredits() {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Credit: %s", stringLine)
-			err = SaveCreditsJoinerPerClientState(c)
-			if err != nil {
-				log.Printf("Failed to save credits joiner state: %v", err)
-			}
+			stateSaver.SaveStateNack(&msg, c, false)
 
-			msg.Nack(false)
+			// msg.Nack(false)
 			continue
 		}
 
@@ -267,21 +269,18 @@ func (c *CreditsJoinerClient) fetchCredits() {
 		err = credit.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize credits: %v", err)
-			err = SaveCreditsJoinerPerClientState(c)
-			if err != nil {
-				log.Printf("Failed to save credits joiner state: %v", err)
-			}
+			stateSaver.SaveStateNack(&msg, c, false)
 
-			msg.Nack(false)
+			// msg.Nack(false)
 			continue
 		}
 
 		if !c.MoviesIds[credit.MovieID] {
-			err = SaveCreditsJoinerPerClientState(c)
+			err = stateSaver.SaveStateAck(&msg, c)
 			if err != nil {
 				log.Printf("Failed to save credits joiner state: %v", err)
 			}
-			msg.Ack()
+			// msg.Ack()
 			continue
 		}
 
@@ -289,21 +288,18 @@ func (c *CreditsJoinerClient) fetchCredits() {
 		if err != nil {
 			log.Printf("Failed to serialize credits: %v", record)
 			log.Printf("json.Marshal: %v", err)
-			err = SaveCreditsJoinerPerClientState(c)
-			if err != nil {
-				log.Printf("Failed to save credits joiner state: %v", err)
+			stateSaver.SaveStateNack(&msg, c, false)
 
-			}
-			msg.Nack(false)
+			// msg.Nack(false)
 			continue
 		}
 		c.SinkProducer.Publish(payload, c.ClientId, "")
 
-		err = SaveCreditsJoinerPerClientState(c)
+		err = stateSaver.SaveStateAck(&msg, c)
 		if err != nil {
 			log.Printf("Failed to save credits joiner state: %v", err)
 		}
 
-		msg.Ack()
+		// msg.Ack()
 	}
 }

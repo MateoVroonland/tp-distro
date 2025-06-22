@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -14,6 +15,10 @@ type CreditsJoinerClientState struct {
 	MoviesIds              map[int]bool
 	ClientId               string
 	FinishedFetchingMovies bool
+}
+
+func NewCreditsJoinerPerClientState() *state_saver.StateSaver[*CreditsJoinerClient] {
+	return state_saver.NewStateSaver(SaveCreditsJoinerPerClientState)
 }
 
 func SaveCreditsJoinerPerClientState(
