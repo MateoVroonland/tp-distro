@@ -26,6 +26,7 @@ func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.ConsumerQu
 
 func (r *CreditsReceiver) ReceiveCredits() {
 
+	stateSaver := NewCreditsReceiverState()
 	i := 0
 
 	for msg := range r.creditsConsumer.ConsumeInfinite() {
@@ -36,12 +37,19 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			queue := r.ClientProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
 
-			err := SaveCreditsState(r)
+			err := stateSaver.SaveStateAck(&msg, r)
 			if err != nil {
 				log.Printf("Failed to save state: %v", err)
 			}
 
-			msg.Ack()
+			flushed, err := stateSaver.ForceFlush()
+			if err != nil {
+				log.Printf("Failed to flush state: %v", err)
+			} else if flushed {
+				log.Printf("Flushed final state for client %s", msg.ClientId)
+			}
+
+			// msg.Ack()
 			continue
 		}
 
@@ -50,7 +58,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			producer, err := utils.NewProducerQueue(r.conn, producerName, env.AppEnv.CREDITS_JOINER_AMOUNT)
 			if err != nil {
 				log.Printf("Failed to create producer for client %s: %v", msg.ClientId, err)
-				msg.Nack(false)
+				stateSaver.SaveStateNack(&msg, r, false)
 				continue
 			}
 			r.ClientProducers[msg.ClientId] = producer
@@ -64,19 +72,20 @@ func (r *CreditsReceiver) ReceiveCredits() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Error reading record: %s", err)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
 		credits := &messages.RawCredits{}
 		if err := credits.Deserialize(record); err != nil {
 			log.Printf("Error deserializing credits: %s", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 		serializedCredits, err := protocol.Serialize(credits)
 		if err != nil {
 			log.Printf("Error serializing credits: %s", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
@@ -84,15 +93,16 @@ func (r *CreditsReceiver) ReceiveCredits() {
 		err = clientProducer.Publish(serializedCredits, msg.ClientId, strconv.Itoa(credits.MovieID))
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
-		err = SaveCreditsState(r)
+		err = stateSaver.SaveStateAck(&msg, r)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		msg.Ack()
+		// msg.Ack()
 	}
 
 	log.Printf("Received %d credits", i)

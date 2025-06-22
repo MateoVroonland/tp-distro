@@ -98,7 +98,7 @@ func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 	}
 
 	ch.Qos(
-		700,   // prefetch count
+		5000,  // prefetch count
 		0,     // prefetch size
 		false, // global
 	)

@@ -4,12 +4,17 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
 type RatingsReceiverState struct {
 	RatingsConsumer utils.ConsumerQueueState
 	JoinerProducers map[string]utils.ProducerQueueState
+}
+
+func NewRatingsReceiverState() *state_saver.StateSaver[*RatingsReceiver] {
+	return state_saver.NewStateSaver(SaveRatingsState)
 }
 
 func SaveRatingsState(receiver *RatingsReceiver) error {

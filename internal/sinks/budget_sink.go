@@ -23,6 +23,7 @@ func NewBudgetSink(queue *utils.ConsumerQueue, resultsProducer *utils.ProducerQu
 }
 
 func (s *BudgetSink) Sink() {
+	stateSaver := NewBudgetSinkState()
 	for msg := range s.queue.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
@@ -35,12 +36,19 @@ func (s *BudgetSink) Sink() {
 				s.SendResults(s.BudgetPerCountry[msg.ClientId], msg.ClientId)
 				delete(s.BudgetPerCountry, msg.ClientId)
 
-				err := SaveBudgetSinkState(s)
+				err := stateSaver.SaveStateAck(&msg, s)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
+
+				flushed, err := stateSaver.ForceFlush()
+				if err != nil {
+					log.Printf("Failed to flush state: %v", err)
+				} else if flushed {
+					log.Printf("Flushed final state for client %s", msg.ClientId)
+				}
 			}
-			msg.Ack()
+			// msg.Ack()
 			continue
 		}
 
@@ -66,12 +74,12 @@ func (s *BudgetSink) Sink() {
 
 		s.BudgetPerCountry[msg.ClientId][movieBudget.Country] += movieBudget.Amount
 
-		err = SaveBudgetSinkState(s)
+		err = stateSaver.SaveStateAck(&msg, s)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		msg.Ack()
+		// msg.Ack()
 	}
 
 }

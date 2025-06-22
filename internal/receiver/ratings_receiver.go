@@ -26,6 +26,7 @@ func NewRatingsReceiver(conn *amqp.Connection, ratingsConsumer *utils.ConsumerQu
 
 func (r *RatingsReceiver) ReceiveRatings() {
 	ratingsConsumed := 0
+	stateSaver := NewRatingsReceiverState()
 
 	for msg := range r.ratingsConsumer.ConsumeInfinite() {
 		stringLine := string(msg.Body)
@@ -35,12 +36,18 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			queue.PublishFinished(msg.ClientId)
 
 			// Save state when receiving FINISHED message
-			err := SaveRatingsState(r)
+			err := stateSaver.SaveStateAck(&msg, r)
 			if err != nil {
 				log.Printf("Failed to save state: %v", err)
 			}
 
-			msg.Ack()
+			flushed, err := stateSaver.ForceFlush()
+			if err != nil {
+				log.Printf("Failed to flush state: %v", err)
+			} else if flushed {
+				log.Printf("Flushed final state for client %s", msg.ClientId)
+			}
+			// msg.Ack()
 			continue
 		}
 		clientId := msg.ClientId
@@ -49,7 +56,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			producer, err := utils.NewProducerQueue(r.conn, producerName, env.AppEnv.RATINGS_JOINER_AMOUNT)
 			if err != nil {
 				log.Printf("Failed to create producer for client %s: %v", clientId, err)
-				msg.Nack(false)
+				stateSaver.SaveStateNack(&msg, r, false)
 				continue
 			}
 			r.JoinerProducers[clientId] = producer
@@ -60,20 +67,20 @@ func (r *RatingsReceiver) ReceiveRatings() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Error reading record: %s", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
 		rating := &messages.RawRatings{}
 		if err := rating.Deserialize(record); err != nil {
 			log.Printf("Error deserializing rating: %s", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 		serializedRating, err := protocol.Serialize(rating)
 		if err != nil {
 			log.Printf("Error serializing rating: %s", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
@@ -81,17 +88,17 @@ func (r *RatingsReceiver) ReceiveRatings() {
 
 		if err != nil {
 			log.Printf("Error publishing rating: %s", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
 		// Save state periodically (every 1000 ratings)
-		err = SaveRatingsState(r)
+		err = stateSaver.SaveStateAck(&msg, r)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		msg.Ack()
+		// msg.Ack()
 	}
 	log.Printf("Ratings consumed: %d", ratingsConsumed)
 }

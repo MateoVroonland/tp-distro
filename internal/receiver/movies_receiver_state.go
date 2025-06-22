@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -16,7 +17,11 @@ type MoviesReceiverState struct {
 	Q5Producer     utils.ProducerQueueState
 }
 
-func SaveState(receiver *MoviesReceiver) error {
+func NewMoviesReceiverState() *state_saver.StateSaver[*MoviesReceiver] {
+	return state_saver.NewStateSaver(SaveMoviesState)
+}
+
+func SaveMoviesState(receiver *MoviesReceiver) error {
 	state := MoviesReceiverState{
 		MoviesConsumer: receiver.MoviesConsumer.GetState(),
 		Q1Producer:     receiver.Q1Producer.GetState(),
