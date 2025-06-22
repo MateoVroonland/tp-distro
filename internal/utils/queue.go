@@ -191,6 +191,7 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 				return
 			case delivery := <-q.deliveryChannel:
 				message, err := MessageFromDelivery(delivery)
+				// test requeueing messages
 				if err != nil {
 					log.Printf("Failed to parse message in delivery channel: %v", err)
 					log.Printf("delivery: %v", delivery)

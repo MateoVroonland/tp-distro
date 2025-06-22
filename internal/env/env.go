@@ -12,8 +12,9 @@ import (
 // Config holds the application's configuration values.
 type Env struct {
 	// NODE INFO
-	ID       int
-	REPLICAS int
+	ID           int
+	REPLICAS     int
+	SERVICE_TYPE string
 
 	// RECEIVERS
 	MOVIES_RECEIVER_AMOUNT  int

@@ -38,6 +38,10 @@ func main() {
 
 	var state sinks.SentimentSinkState
 	stateFile, err := os.ReadFile("data/sentiment_sink_state.gob")
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	go healthCheckServer.Start()
+
+	log.Printf("Sentiment sink initialized - consuming from %d reducers", previousReplicas)
 
 	sink := sinks.NewSentimentSink(sinkConsumer, resultsProducer)
 

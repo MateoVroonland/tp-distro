@@ -81,6 +81,8 @@ func main() {
 		log.Println("State restored")
 		log.Printf("%+v", state)
 	}
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	go healthCheckServer.Start()
 
 	receiver := receiver.NewMoviesReceiver(conn, q, q1, q2, q3, q4, q5)
 

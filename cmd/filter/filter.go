@@ -31,6 +31,9 @@ func main() {
 
 	query := os.Getenv("QUERY")
 
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	go healthCheckServer.Start()
+
 	if query != "1" && query != "3" && query != "4" {
 		log.Fatalf("QUERY must be set to 1, 3 or 4")
 	}

@@ -36,6 +36,8 @@ func main() {
 
 	var state sinks.CreditsSinkState
 	stateFile, err := os.ReadFile("data/credits_sink_state.gob")
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	go healthCheckServer.Start()
 
 	sink := sinks.NewCreditsSink(sinkConsumer, resultsProducer)
 

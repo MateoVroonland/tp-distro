@@ -36,6 +36,10 @@ func main() {
 
 	var state sinks.Q1SinkState
 	stateFile, err := os.ReadFile("data/q1_sink_state.gob")
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	go healthCheckServer.Start()
+
+	log.Printf("Q1 sink initialized")
 
 	sink := sinks.NewQ1Sink(filteredByYearConsumer, resultsProducer)
 

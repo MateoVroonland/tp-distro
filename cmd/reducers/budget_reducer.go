@@ -54,5 +54,8 @@ func main() {
 		reducer.BudgetPerCountry = state.BudgetPerCountry
 	}
 
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	go healthCheckServer.Start()
+
 	reducer.Reduce()
 }
