@@ -23,7 +23,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
 	newClientQueue, err := utils.NewConsumerFanout(conn, "new_client_fanout_q3")

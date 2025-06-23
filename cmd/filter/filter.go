@@ -29,7 +29,7 @@ func main() {
 
 	query := os.Getenv("QUERY")
 
-	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
 	if query != "1" && query != "3" && query != "4" {
