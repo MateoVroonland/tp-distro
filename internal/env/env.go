@@ -44,7 +44,7 @@ type Env struct {
 	SENTIMENT_WORKER_AMOUNT int
 
 	// RESUSCITATORS
-	RESUSCITATOR_AMOUNT int
+	// RESUSCITATOR_AMOUNT int
 }
 
 var (

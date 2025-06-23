@@ -34,7 +34,15 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := SaveQ3SinkState(s, s.clientsResults)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
+
 			if _, ok := s.clientsResults[msg.ClientId]; !ok {
 				log.Printf("No client results to send for client %s, skipping", msg.ClientId)
 			} else {
