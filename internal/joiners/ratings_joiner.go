@@ -303,7 +303,6 @@ func (r *RatingsJoinerClient) fetchRatings() {
 
 		if movieTitle, ok := r.MoviesIds[rating.MovieID]; ok {
 			res := fmt.Sprintf("%d,%s,%f", rating.MovieID, movieTitle, rating.Rating)
-			log.Printf("Publishing rating: %s", res)
 			r.SinkProducer.Publish([]byte(res), r.ClientId, "")
 		}
 

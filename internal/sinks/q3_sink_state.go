@@ -8,12 +8,12 @@ import (
 )
 
 type Q3SinkState struct {
-	ClientsResults  map[string]MovieRatingCumulative
+	ClientsResults  map[string]map[int]MovieRatingCumulative
 	SinkConsumer    utils.ConsumerQueueState
 	ResultsProducer utils.ProducerQueueState
 }
 
-func SaveQ3SinkState(s *Q3Sink, clientsResults map[string]MovieRatingCumulative) error {
+func SaveQ3SinkState(s *Q3Sink, clientsResults map[string]map[int]MovieRatingCumulative) error {
 	state := Q3SinkState{
 		ClientsResults:  clientsResults,
 		SinkConsumer:    s.SinkConsumer.GetState(),
