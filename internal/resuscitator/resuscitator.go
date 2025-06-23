@@ -520,7 +520,7 @@ func (s *Server) monitorAllServices(cancel <-chan struct{}) {
 func (s *Server) monitorService(serviceName string, cancel <-chan struct{}) {
 	log.Printf("Node %d: Starting monitoring for service: %s", s.nodeID, serviceName)
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -547,7 +547,7 @@ func (s *Server) monitorService(serviceName string, cancel <-chan struct{}) {
 				if s.performHealthCheck(serviceName) {
 					break
 				}
-				time.Sleep(1 * time.Second)
+				time.Sleep(500 * time.Millisecond)
 				attemptsLeft--
 			}
 

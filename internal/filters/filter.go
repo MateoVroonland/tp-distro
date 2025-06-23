@@ -24,7 +24,15 @@ func (f *Filter) FilterAndPublish() error {
 
 	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
 
-		if msg.Body == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := SaveFilterState(f)
+				if err != nil {
+					log.Printf("Failed to save filter state: %v", err)
+				}
+				continue
+			}
+
 			log.Printf("Received finished message for client %s", msg.ClientId)
 			f.filteredByYearProducer.PublishFinished(msg.ClientId)
 			err := SaveFilterState(f)

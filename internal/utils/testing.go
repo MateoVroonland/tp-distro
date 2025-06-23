@@ -51,12 +51,15 @@ type Suicide struct {
 	// This value is persisted across restarts and automatically loaded
 	// from the state file.
 	TimesDied int
+
+	// Name is the name of the suicide instance.
+	Name string
 }
 
 // NewSuicide creates and initializes a new Suicide instance for fault tolerance testing.
 //
 // The function automatically creates or reads the persistent state file
-// "data/already_died.txt" to track termination count across process restarts.
+// "data/name.txt" to track termination count across process restarts.
 // If the file doesn't exist, it's created with an initial count of 0.
 //
 // Parameters:
@@ -69,7 +72,7 @@ type Suicide struct {
 // Panics:
 //   - If the state file cannot be created, opened, or read
 //   - If the state file contains invalid data
-func NewSuicide(probability float64, timesToDie int) *Suicide {
+func NewSuicideWithName(probability float64, timesToDie int, name string) *Suicide {
 	if probability < 0.0 || probability > 1.0 {
 		log.Fatalf("Probability must be between 0.0 and 1.0, got: %f", probability)
 	}
@@ -77,14 +80,14 @@ func NewSuicide(probability float64, timesToDie int) *Suicide {
 		log.Fatalf("TimesToDie must be non-negative, got: %d", timesToDie)
 	}
 
-	_, err := os.Stat("data/already_died.txt")
+	_, err := os.Stat("data/" + name + ".txt")
 	if os.IsNotExist(err) {
-		AtomicallyWriteFile("data/already_died.txt", []byte("0"))
+		AtomicallyWriteFile("data/"+name+".txt", []byte("0"))
 	} else if err != nil {
 		log.Printf("Failed to check already died file: %v", err)
 	}
 
-	alreadyDiedFile, err := os.Open("data/already_died.txt")
+	alreadyDiedFile, err := os.Open("data/" + name + ".txt")
 	if err != nil {
 		log.Printf("Failed to open already died file: %v", err)
 	}
@@ -110,7 +113,18 @@ func NewSuicide(probability float64, timesToDie int) *Suicide {
 		Probability: probability,
 		TimesToDie:  timesToDie,
 		TimesDied:   alreadyDied,
+		Name:        name,
 	}
+}
+
+// NewSuicide creates a new Suicide instance with the default name "suicide".
+// This is a convenience function that calls NewSuicideWithName with the default name.
+//
+// Parameters:
+//   - probability: Termination probability per call (0.0 to 1.0)
+//   - timesToDie: Maximum number of terminations before disabling
+func NewSuicide(probability float64, timesToDie int) *Suicide {
+	return NewSuicideWithName(probability, timesToDie, "suicide")
 }
 
 // CommitSuicide attempts to terminate the current process based on the configured
@@ -142,7 +156,12 @@ func (s *Suicide) CommitSuicide() {
 	if rand.Float64() < s.Probability && s.TimesDied < s.TimesToDie {
 		s.TimesDied++
 		log.Printf("SUICIDING FOR %d TIME", s.TimesDied)
-		AtomicallyWriteFile("data/already_died.txt", []byte(strconv.Itoa(s.TimesDied)))
+		AtomicallyWriteFile("data/"+s.Name+".txt", []byte(strconv.Itoa(s.TimesDied)))
 		os.Exit(1)
 	}
+}
+
+func SuicideOnce(name string) {
+	suicide := NewSuicideWithName(1, 1, name)
+	suicide.CommitSuicide()
 }

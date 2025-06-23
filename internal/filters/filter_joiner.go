@@ -61,7 +61,16 @@ func (f *FilterJoiner) FilterAndPublish() error {
 
 	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
 
-		if msg.Body == "FINISHED" {
+		if msg.IsFinished {
+
+			if !msg.IsLastFinished {
+				err := SaveFilterJoinerState(f)
+				if err != nil {
+					log.Printf("Failed to save filter joiner state: %v", err)
+				}
+				continue
+			}
+
 			queue, ok := f.clientsProducers[msg.ClientId]
 			if !ok {
 				log.Printf("No producer for client %s", msg.ClientId)

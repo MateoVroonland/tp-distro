@@ -91,7 +91,15 @@ func (s *SentimentSink) Sink() {
 	for msg := range s.sinkConsumer.ConsumeInfinite() {
 		clientId := msg.ClientId
 
-		if msg.Body == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := SaveSentimentSinkState(s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
+
 			if _, ok := s.clientResults[clientId]; !ok {
 				log.Printf("No client results to send for client %s, skipping", clientId)
 			} else {

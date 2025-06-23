@@ -33,7 +33,15 @@ func (r *CreditsReceiver) ReceiveCredits() {
 
 		stringLine := string(msg.Body)
 
-		if msg.Body == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := stateSaver.SaveStateAck(&msg, r)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
+
 			queue := r.ClientProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
 

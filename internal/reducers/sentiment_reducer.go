@@ -50,7 +50,15 @@ func (r *SentimentReducer) Reduce() {
 	for msg := range r.queue.ConsumeInfinite() {
 		clientId := msg.ClientId
 
-		if msg.Body == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := SaveSentimentReducerState(r)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
+
 			if _, ok := r.ClientStats[clientId]; !ok {
 				log.Printf("No client stats to send for client %s, skipping", clientId)
 			} else {

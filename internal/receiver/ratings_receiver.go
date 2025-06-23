@@ -31,7 +31,15 @@ func (r *RatingsReceiver) ReceiveRatings() {
 	for msg := range r.ratingsConsumer.ConsumeInfinite() {
 		stringLine := string(msg.Body)
 
-		if msg.Body == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := stateSaver.SaveStateAck(&msg, r)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
+
 			queue := r.JoinerProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
 

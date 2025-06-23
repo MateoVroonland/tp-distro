@@ -149,6 +149,13 @@ func NewCreditsJoinerClient(creditsJoiner *CreditsJoiner, clientId string) (*Cre
 		moviesIds = state.MoviesIds
 		finishedFetchingMovies = state.FinishedFetchingMovies
 		moviesConsumer.RestoreState(state.MoviesConsumer)
+
+		if finishedFetchingMovies {
+			log.Printf("Finished fetching movies for client %s upon restart", clientId)
+			moviesConsumer.CloseChannel()
+			moviesConsumer.DeleteQueue()
+
+		}
 	}
 
 	return &CreditsJoinerClient{
@@ -234,9 +241,16 @@ func (c *CreditsJoinerClient) fetchCredits() {
 
 	for msg := range c.CreditsConsumer.ConsumeInfinite() {
 
-		stringLine := string(msg.Body)
+		if msg.IsFinished {
 
-		if stringLine == "FINISHED" {
+			if !msg.IsLastFinished {
+				err := stateSaver.SaveStateAck(&msg, c)
+				if err != nil {
+					log.Printf("Failed to save credits joiner state: %v", err)
+				}
+				continue
+			}
+
 			c.creditsJoiner.removeClient(c.ClientId)
 			c.SinkProducer.PublishFinished(c.ClientId)
 
@@ -248,7 +262,10 @@ func (c *CreditsJoinerClient) fetchCredits() {
 			c.CreditsConsumer.DeleteQueue()
 
 			break
+
 		}
+
+		stringLine := string(msg.Body)
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 2
@@ -256,7 +273,6 @@ func (c *CreditsJoinerClient) fetchCredits() {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Credit: %s", stringLine)
-			stateSaver.SaveStateNack(&msg, c, false)
 
 			continue
 		}
@@ -285,6 +301,7 @@ func (c *CreditsJoinerClient) fetchCredits() {
 			stateSaver.SaveStateNack(&msg, c, false)
 			continue
 		}
+
 		c.SinkProducer.Publish(payload, c.ClientId, "")
 
 		err = stateSaver.SaveStateAck(&msg, c)

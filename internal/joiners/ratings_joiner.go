@@ -90,7 +90,7 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 	moviesIds := make(map[int]string)
 
 	i := 0
-	for msg := range moviesConsumer.Consume() {
+	for msg := range moviesConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
@@ -124,7 +124,7 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 	ratings := make(map[int]float64)
 	ratingsCount := make(map[int]int)
 	j := 0
-	for msg := range ratingsConsumer.Consume() {
+	for msg := range ratingsConsumer.ConsumeInfinite() {
 		stringLine := string(msg.Body)
 		j++
 

@@ -60,7 +60,15 @@ func (s *Q1Sink) Reduce() {
 	// log.Printf("Q1 sink consuming messages")
 
 	for msg := range s.filteredByYearConsumer.ConsumeInfinite() {
-		if msg.Body == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := SaveQ1SinkState(s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
+
 			if _, ok := s.clientResults[msg.ClientId]; !ok {
 				log.Printf("No client results to send for client %s, skipping", msg.ClientId)
 			} else {

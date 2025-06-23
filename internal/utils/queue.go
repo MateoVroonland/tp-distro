@@ -23,18 +23,20 @@ type ConsumerQueue struct {
 	previousReplicas int
 	finishedReceived map[string]map[string]bool
 	sequenceNumbers  map[string]map[string]int // clientId -> producerId -> sequenceNumber
-	isFanout         bool
+	finishedClients  map[string]bool
 }
 
 type ConsumerQueueState struct {
 	FinishedReceived map[string]map[string]bool
 	SequenceNumbers  map[string]map[string]int // clientId -> producerId -> sequenceNumber
+	FinishedClients  map[string]bool
 }
 
 func (q *ConsumerQueue) GetState() ConsumerQueueState {
 	return ConsumerQueueState{
 		FinishedReceived: q.finishedReceived,
 		SequenceNumbers:  q.sequenceNumbers,
+		FinishedClients:  q.finishedClients,
 	}
 }
 
@@ -48,6 +50,7 @@ func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 func (q *ConsumerQueue) RestoreState(state ConsumerQueueState) {
 	q.finishedReceived = state.FinishedReceived
 	q.sequenceNumbers = state.SequenceNumbers
+	q.finishedClients = state.FinishedClients
 }
 
 // func NewConsumerQueueFromState(conn *amqp.Connection, queueName string, exchangeName string, previousReplicas int, state ConsumerQueueState) (*ConsumerQueue, error) {
@@ -125,17 +128,20 @@ func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		finishedReceived: make(map[string]map[string]bool),
 		previousReplicas: previousReplicas,
 		sequenceNumbers:  make(map[string]map[string]int),
-		isFanout:         false,
+		finishedClients:  make(map[string]bool),
 	}, nil
 }
 
 type Message struct {
-	Body           string
-	ClientId       string
-	delivery       amqp.Delivery
-	SequenceNumber int
-	ProducerId     string
-	Redelivered    bool
+	redeliveryCount int
+	Body            string
+	ClientId        string
+	delivery        amqp.Delivery
+	SequenceNumber  int
+	ProducerId      string
+	Redelivered     bool
+	IsFinished      bool
+	IsLastFinished  bool
 }
 
 func (m *Message) Ack() {
@@ -143,6 +149,7 @@ func (m *Message) Ack() {
 }
 
 func (m *Message) Nack(requeue bool) {
+	m.delivery.Headers["redeliveryCount"] = m.redeliveryCount + 1
 	m.delivery.Nack(false, requeue)
 }
 
@@ -171,17 +178,27 @@ func MessageFromDelivery(delivery amqp.Delivery) (*Message, error) {
 		return nil, fmt.Errorf("producerId of invalid type, producerIdRaw: %s", producerIdRaw)
 	}
 
+	redeliveryCountRaw := delivery.Headers["redeliveryCount"]
+	redeliveryCount, ok := redeliveryCountRaw.(int32)
+	if !ok {
+		redeliveryCount = 0
+	} else {
+		log.Printf("redeliveryCount: %d", redeliveryCount)
+	}
+
 	return &Message{
-		Body:           string(delivery.Body),
-		ClientId:       clientId,
-		delivery:       delivery,
-		SequenceNumber: int(sequenceNumber),
-		ProducerId:     producerId,
-		Redelivered:    delivery.Redelivered,
+		redeliveryCount: int(redeliveryCount),
+		Body:            string(delivery.Body),
+		ClientId:        clientId,
+		delivery:        delivery,
+		SequenceNumber:  int(sequenceNumber),
+		ProducerId:      producerId,
+		Redelivered:     delivery.Redelivered,
+		IsFinished:      strings.HasPrefix(string(delivery.Body), "FINISHED:"),
 	}, nil
 }
 
-func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
+func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
 	return func(yield func(Message) bool) {
 
 		for {
@@ -191,7 +208,6 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 				return
 			case delivery := <-q.deliveryChannel:
 				message, err := MessageFromDelivery(delivery)
-				// test requeueing messages
 				if err != nil {
 					log.Printf("Failed to parse message in delivery channel: %v", err)
 					log.Printf("delivery: %v", delivery)
@@ -199,52 +215,45 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 					continue
 				}
 
-				if !q.isFanout {
-					if _, ok := q.sequenceNumbers[message.ClientId]; !ok {
-						q.sequenceNumbers[message.ClientId] = make(map[string]int)
-					}
-
-					expectedSequenceNumber := q.sequenceNumbers[message.ClientId][message.ProducerId] + 1
-
-					if message.SequenceNumber < expectedSequenceNumber {
-						log.Printf("Duplicate message for client %s on queue %s, sequence number %d, expected %d, producer %s, ignoring...", message.ClientId, q.queueName, message.SequenceNumber, expectedSequenceNumber, message.ProducerId)
-						message.Nack(false)
-						continue
-					}
-
-					if message.SequenceNumber > expectedSequenceNumber {
-						log.Printf("Out of order message for client %s on queue %s, sequence number %d, expected %d, producer %s, requeuing...", message.ClientId, q.queueName, message.SequenceNumber, expectedSequenceNumber, message.ProducerId)
-						message.Nack(true)
-						continue
-					}
-
-					q.sequenceNumbers[message.ClientId][message.ProducerId]++
+				if q.finishedClients[message.ClientId] {
+					log.Printf("Finished client %s, ignoring message", message.ClientId)
+					message.Ack()
+					continue
 				}
+
+				if _, ok := q.sequenceNumbers[message.ClientId]; !ok {
+					q.sequenceNumbers[message.ClientId] = make(map[string]int)
+				}
+
+				expectedSequenceNumber := q.sequenceNumbers[message.ClientId][message.ProducerId] + 1
+
+				if message.SequenceNumber < expectedSequenceNumber {
+					log.Printf("Duplicate message for client %s on queue %s, sequence number %d, expected %d, producer %s, ignoring...", message.ClientId, q.queueName, message.SequenceNumber, expectedSequenceNumber, message.ProducerId)
+					message.Nack(false)
+					continue
+				}
+
+				if message.SequenceNumber > expectedSequenceNumber {
+					log.Printf("Out of order message for client %s on queue %s, sequence number %d, expected %d, producer %s, requeuing...", message.ClientId, q.queueName, message.SequenceNumber, expectedSequenceNumber, message.ProducerId)
+					message.Nack(true)
+					continue
+				}
+
+				q.sequenceNumbers[message.ClientId][message.ProducerId]++
 
 				if _, ok := q.finishedReceived[message.ClientId]; !ok {
 					q.finishedReceived[message.ClientId] = make(map[string]bool)
 				}
-				if strings.HasPrefix(message.Body, "FINISHED:") {
+				if message.IsFinished {
 					q.finishedReceived[message.ClientId][message.Body] = true
 					if len(q.finishedReceived[message.ClientId]) == q.previousReplicas {
 						log.Printf("Received all messages for client %s", message.ClientId)
 						delete(q.finishedReceived, message.ClientId)
 						delete(q.sequenceNumbers, message.ClientId) // TODO: check if no data will be lost, maybe do later or garbage collect?
-						if infinite {
-							finishedMessage := message
-							finishedMessage.Body = "FINISHED"
-							if !yield(*finishedMessage) {
-								log.Printf("Exiting early consumer loop")
-								return
-							}
-							continue
-						}
-						message.Ack()
-						return
-
-					} else {
-						message.Ack()
-						continue
+						q.finishedClients[message.ClientId] = true
+						finishedMessage := message
+						finishedMessage.Body = "FINISHED"
+						message.IsLastFinished = true
 					}
 				}
 
@@ -255,14 +264,6 @@ func (q *ConsumerQueue) consume(infinite bool) iter.Seq[Message] {
 			}
 		}
 	}
-}
-
-func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
-	return q.consume(true)
-}
-
-func (q *ConsumerQueue) Consume() iter.Seq[Message] {
-	return q.consume(false)
 }
 
 func (q *ConsumerQueue) CloseChannel() error {
