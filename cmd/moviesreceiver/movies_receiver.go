@@ -56,7 +56,7 @@ func main() {
 	}
 	defer q5.CloseChannel()
 
-	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
 	receiver := receiver.NewMoviesReceiver(conn, q, q1, q2, q3, q4, q5)

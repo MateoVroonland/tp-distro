@@ -10,15 +10,13 @@ import (
 )
 
 type HealthCheckServer struct {
-	serviceType string
 	id          int
 	conn        *net.UDPConn
 	shutdown    chan struct{}
 }
 
-func NewHealthCheckServer(id int, serviceType string) *HealthCheckServer {
+func NewHealthCheckServer(id int) *HealthCheckServer {
 	return &HealthCheckServer{
-		serviceType: serviceType,
 		id:          id,
 		shutdown:    make(chan struct{}),
 	}
