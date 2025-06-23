@@ -194,7 +194,14 @@ func (c *CreditsJoinerClient) fetchMovies() {
 	for msg := range c.MoviesConsumer.ConsumeInfinite() {
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := stateSaver.SaveStateAck(&msg, c)
+				if err != nil {
+					log.Printf("Failed to save credits joiner state: %v", err)
+				}
+				continue
+			}
 			c.FinishedFetchingMovies = true
 			err := stateSaver.SaveStateAck(&msg, c)
 			if err != nil {

@@ -42,7 +42,6 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 				}
 				continue
 			}
-
 			if _, ok := s.clientsResults[msg.ClientId]; !ok {
 				log.Printf("No client results to send for client %s, skipping", msg.ClientId)
 			} else {

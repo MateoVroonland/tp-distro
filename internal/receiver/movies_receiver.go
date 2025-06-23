@@ -37,7 +37,14 @@ func (r *MoviesReceiver) ReceiveMovies() {
 		}
 
 		// aca que hacemos?????
-		if d.Body == "FINISHED" {
+		if d.IsFinished {
+			if !d.IsLastFinished {
+				err := stateSaver.SaveStateAck(&d, r)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
 			log.Printf("Received %d movies for client %s", i[d.ClientId], d.ClientId)
 			r.Q1Producer.PublishFinished(d.ClientId)
 			r.Q2Producer.PublishFinished(d.ClientId)

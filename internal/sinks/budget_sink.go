@@ -28,7 +28,14 @@ func (s *BudgetSink) Sink() {
 
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := stateSaver.SaveStateAck(&msg, s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
 			if _, ok := s.BudgetPerCountry[msg.ClientId]; !ok {
 				log.Printf("No budget per country to send for client %s, skipping", msg.ClientId)
 			} else {

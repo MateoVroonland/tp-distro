@@ -38,7 +38,14 @@ func (s *CreditsSink) Sink() {
 
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := SaveCreditsSinkState(s, s.actors)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
 			if _, ok := s.actors[msg.ClientId]; !ok {
 				log.Printf("No actors to send for client %s, skipping", msg.ClientId)
 			} else {
