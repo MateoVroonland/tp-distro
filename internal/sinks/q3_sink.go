@@ -13,19 +13,21 @@ import (
 type Q3Sink struct {
 	SinkConsumer    *utils.ConsumerQueue
 	ResultsProducer *utils.ProducerQueue
-	clientsResults  map[string]MinAndMaxMovie
+	clientsResults  map[string]MovieRatingCumulative
 }
 
-type MinAndMaxMovie struct {
-	MinMovie messages.MovieRating
-	MaxMovie messages.MovieRating
+type MovieRatingCumulative struct {
+	MovieID     int
+	Title       string
+	TotalRating float64
+	Count       int
 }
 
 func NewQ3Sink(sinkConsumer *utils.ConsumerQueue, resultsProducer *utils.ProducerQueue) *Q3Sink {
 	return &Q3Sink{
 		SinkConsumer:    sinkConsumer,
 		ResultsProducer: resultsProducer,
-		clientsResults:  make(map[string]MinAndMaxMovie),
+		clientsResults:  make(map[string]MovieRatingCumulative),
 	}
 }
 
@@ -46,6 +48,7 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 				log.Printf("No client results to send for client %s, skipping", msg.ClientId)
 			} else {
 				log.Printf("Received FINISHED message for client %s", msg.ClientId)
+
 				s.SendClientIdResults(msg.ClientId, s.clientsResults[msg.ClientId])
 				delete(s.clientsResults, msg.ClientId)
 
@@ -58,6 +61,7 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 			continue
 		}
 
+		var movie messages.MovieRating
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		record, err := reader.Read()
 		if err != nil {
@@ -66,26 +70,26 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 			continue
 		}
 
-		var movie messages.MovieRating
 		err = movie.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
 			msg.Nack(false)
 			continue
 		}
-		minAndMaxMovie, ok := s.clientsResults[msg.ClientId]
-		if !ok {
-			minAndMaxMovie = MinAndMaxMovie{}
-		}
 
-		if !ok || movie.Rating > minAndMaxMovie.MaxMovie.Rating {
-			minAndMaxMovie.MaxMovie = movie
+		if _, ok := s.clientsResults[msg.ClientId]; !ok {
+			s.clientsResults[msg.ClientId] = MovieRatingCumulative{
+				MovieID:     movie.MovieID,
+				Title:       movie.Title,
+				TotalRating: movie.Rating,
+				Count:       1,
+			}
+		} else {
+			current := s.clientsResults[msg.ClientId]
+			current.TotalRating += movie.Rating
+			current.Count++
+			s.clientsResults[msg.ClientId] = current
 		}
-		if !ok || movie.Rating < minAndMaxMovie.MinMovie.Rating || minAndMaxMovie.MinMovie.Rating == 0 {
-			minAndMaxMovie.MinMovie = movie
-		}
-		s.clientsResults[msg.ClientId] = minAndMaxMovie
-		log.Printf("Clients results: %v", s.clientsResults)
 
 		err = SaveQ3SinkState(s, s.clientsResults)
 		if err != nil {
@@ -96,20 +100,44 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 	}
 }
 
-func (s *Q3Sink) SendClientIdResults(clientId string, minAndMaxMovie MinAndMaxMovie) {
-	minMovie := minAndMaxMovie.MinMovie
-	maxMovie := minAndMaxMovie.MaxMovie
+func (s *Q3Sink) SetClientsResults(clientsResults map[string]MovieRatingCumulative) {
+	s.clientsResults = clientsResults
+}
+
+func (s *Q3Sink) FindMinAndMaxAverageRatingMovies() (MovieRatingCumulative, MovieRatingCumulative) {
+	var minMovie MovieRatingCumulative
+	var maxMovie MovieRatingCumulative
+	first := true
+	for _, movieRatingCumulative := range s.clientsResults {
+		if first {
+			minMovie = movieRatingCumulative
+			maxMovie = movieRatingCumulative
+			first = false
+			continue
+		}
+		if movieRatingCumulative.TotalRating < minMovie.TotalRating {
+			minMovie = movieRatingCumulative
+		}
+		if movieRatingCumulative.TotalRating > maxMovie.TotalRating {
+			maxMovie = movieRatingCumulative
+		}
+	}
+	return minMovie, maxMovie
+}
+
+func (s *Q3Sink) SendClientIdResults(clientId string, movieRatingCumulative MovieRatingCumulative) {
+	minMovie, maxMovie := s.FindMinAndMaxAverageRatingMovies()
 	log.Printf("Getting results")
 	results := []messages.Q3Row{
 		{
 			MovieID: maxMovie.MovieID,
 			Title:   maxMovie.Title,
-			Rating:  maxMovie.Rating,
+			Rating:  maxMovie.TotalRating / float64(maxMovie.Count),
 		},
 		{
 			MovieID: minMovie.MovieID,
 			Title:   minMovie.Title,
-			Rating:  minMovie.Rating,
+			Rating:  minMovie.TotalRating / float64(minMovie.Count),
 		},
 	}
 	resultsBytes, err := json.Marshal(results)
@@ -135,8 +163,4 @@ func (s *Q3Sink) SendClientIdResults(clientId string, minAndMaxMovie MinAndMaxMo
 		log.Printf("Failed to publish results: %v", err)
 		return
 	}
-}
-
-func (s *Q3Sink) SetClientsResults(results map[string]MinAndMaxMovie) {
-	s.clientsResults = results
 }

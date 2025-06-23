@@ -100,8 +100,6 @@ type RatingsJoinerClient struct {
 	RatingsConsumer        *utils.ConsumerQueue
 	SinkProducer           *utils.ProducerQueue
 	MoviesIds              map[int]string
-	Ratings                map[int]float64
-	RatingsCount           map[int]int
 	ratingsJoiner          *RatingsJoiner
 	FinishedFetchingMovies bool
 }
@@ -128,14 +126,10 @@ func NewRatingsJoinerClient(ratingsJoiner *RatingsJoiner, clientId string) (*Rat
 	stateFile, fileErr := os.Open("data/ratings_joiner_state_" + clientId + ".gob")
 	var state RatingsJoinerClientState
 	var moviesIds map[int]string
-	var ratings map[int]float64
-	var ratingsCount map[int]int
 
 	if os.IsNotExist(fileErr) {
 		log.Printf("State file of ratings joiner for client %s does not exist, starting from scratch", clientId)
 		moviesIds = make(map[int]string)
-		ratings = make(map[int]float64)
-		ratingsCount = make(map[int]int)
 	} else if fileErr != nil {
 		log.Printf("Failed to open state file of ratings joiner for client %s: %v", clientId, fileErr)
 		if moviesConsumer != nil {
@@ -159,8 +153,6 @@ func NewRatingsJoinerClient(ratingsJoiner *RatingsJoiner, clientId string) (*Rat
 		sinkProducer.RestoreState(state.SinkProducer)
 		ratingsConsumer.RestoreState(state.RatingsConsumer)
 		moviesIds = state.MoviesIds
-		ratings = state.Ratings
-		ratingsCount = state.RatingsCount
 		finishedFetchingMovies = state.FinishedFetchingMovies
 		moviesConsumer.RestoreState(state.MoviesConsumer)
 
@@ -179,8 +171,6 @@ func NewRatingsJoinerClient(ratingsJoiner *RatingsJoiner, clientId string) (*Rat
 		RatingsConsumer:        ratingsConsumer,
 		SinkProducer:           sinkProducer,
 		MoviesIds:              moviesIds,
-		Ratings:                ratings,
-		RatingsCount:           ratingsCount,
 		FinishedFetchingMovies: finishedFetchingMovies,
 	}, nil
 }
@@ -277,13 +267,6 @@ func (r *RatingsJoinerClient) fetchRatings() {
 				continue
 			}
 
-			for movieId, rating := range r.Ratings {
-				count := r.RatingsCount[movieId]
-				res := fmt.Sprintf("%d,%s,%f", movieId, r.MoviesIds[movieId], rating/float64(count))
-				log.Printf("Res: %s", res)
-				r.SinkProducer.Publish([]byte(res), r.ClientId, "")
-			}
-
 			r.ratingsJoiner.removeClient(r.ClientId)
 			r.SinkProducer.PublishFinished(r.ClientId)
 
@@ -318,22 +301,10 @@ func (r *RatingsJoinerClient) fetchRatings() {
 			continue
 		}
 
-		if _, ok := r.MoviesIds[rating.MovieID]; !ok {
-			err = stateSaver.SaveStateAck(&msg, r)
-			if err != nil {
-				log.Printf("Failed to save ratings joiner state: %v", err)
-			}
-			continue
-		}
-
-		currentRatings, ok := r.Ratings[rating.MovieID]
-
-		if !ok {
-			r.Ratings[rating.MovieID] = rating.Rating
-			r.RatingsCount[rating.MovieID] = 1
-		} else {
-			r.Ratings[rating.MovieID] = currentRatings + rating.Rating
-			r.RatingsCount[rating.MovieID]++
+		if movieTitle, ok := r.MoviesIds[rating.MovieID]; ok {
+			res := fmt.Sprintf("%d,%s,%f", rating.MovieID, movieTitle, rating.Rating)
+			log.Printf("Publishing rating: %s", res)
+			r.SinkProducer.Publish([]byte(res), r.ClientId, "")
 		}
 
 		err = stateSaver.SaveStateAck(&msg, r)

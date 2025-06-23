@@ -13,8 +13,6 @@ type RatingsJoinerClientState struct {
 	RatingsConsumer        utils.ConsumerQueueState
 	SinkProducer           utils.ProducerQueueState
 	MoviesIds              map[int]string
-	Ratings                map[int]float64
-	RatingsCount           map[int]int
 	ClientId               string
 	FinishedFetchingMovies bool
 }
@@ -31,8 +29,6 @@ func SaveRatingsJoinerPerClientState(
 		RatingsConsumer:        c.RatingsConsumer.GetState(),
 		SinkProducer:           c.SinkProducer.GetState(),
 		MoviesIds:              c.MoviesIds,
-		Ratings:                c.Ratings,
-		RatingsCount:           c.RatingsCount,
 		ClientId:               c.ClientId,
 		FinishedFetchingMovies: c.FinishedFetchingMovies,
 	}
