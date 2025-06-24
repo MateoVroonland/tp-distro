@@ -326,3 +326,17 @@ services:
       replicas: 2
     volumes:
       - ./docs:/docs
+  chaosmonkey:
+    image: movies/chaosmonkey:latest
+    environment:
+      ID: 1
+      MIN_INTERVAL_SECONDS: 5
+      MAX_INTERVAL_SECONDS: 8
+      KILL_PROBABILITY: 0.4
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/app/docker-compose.yml
+    privileged: true
