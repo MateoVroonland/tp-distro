@@ -278,21 +278,26 @@ func (s *Server) handleResultRequest(conn net.Conn, clientId string) bool {
 		s.resultsChanLock.Unlock()
 	}
 
-	clientResults := <-channel
+	select {
+	case clientResults := <-channel:
+		if !clientResults.IsComplete() {
+			utils.SendMessage(conn, []byte("NO_RESULTS"))
+			return false
+		}
 
-	if !clientResults.IsComplete() {
-		utils.SendMessage(conn, []byte("NO_RESULTS"))
-		return false
-	}
+		resultsBytes, err := json.Marshal(clientResults)
+		if err != nil {
+			log.Printf("Error marshalling results: %v", err)
+			return true
+		}
 
-	resultsBytes, err := json.Marshal(clientResults)
-	if err != nil {
-		log.Printf("Error marshalling results: %v", err)
+		utils.SendMessage(conn, resultsBytes)
+		return true
+	case <-s.shutdownChannel:
+		log.Printf("Shutdown in progress, aborting result wait for client %s", clientId)
+		utils.SendMessage(conn, []byte("SERVER_SHUTDOWN"))
 		return true
 	}
-
-	utils.SendMessage(conn, resultsBytes)
-	return true
 }
 
 func (s *Server) listenForResults() {
