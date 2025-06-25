@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"log"
+	"os"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/sinks"
@@ -31,11 +34,27 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
+	var state sinks.CreditsSinkState
+	stateFile, err := os.ReadFile("data/credits_sink_state.gob")
 	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
 	sink := sinks.NewCreditsSink(sinkConsumer, resultsProducer)
 
-	sink.Sink()
+	if os.IsNotExist(err) {
+		log.Println("State file does not exist, creating new state")
+	} else if err != nil {
+		log.Fatalf("Failed to read state: %v", err)
+	} else {
+		err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Fatalf("Failed to decode state: %v", err)
+		}
+		sinkConsumer.RestoreState(state.SinkConsumer)
+		resultsProducer.RestoreState(state.ResultsProducer)
+		log.Printf("State restored up to sequence number: %v", state.SinkConsumer.SequenceNumbers)
+		sink.SetActors(state.Actors)
+	}
 
+	sink.Sink()
 }

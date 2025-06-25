@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
+	"fmt"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/receiver"
@@ -24,23 +25,41 @@ func main() {
 	}
 	defer conn.Close()
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM)
-
-	rawRatingsConsumer, err := utils.NewConsumerQueue(conn, "ratings", "ratings", 1)
+	ratingsConsumer, err := utils.NewConsumerQueue(conn, "ratings", "ratings", 1)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
-	go healthCheckServer.Start()
+	stateFile, readErr := os.ReadFile("data/ratings_receiver_state.gob")
+	joinerProducers := make(map[string]*utils.ProducerQueue)
+	if os.IsNotExist(readErr) {
+		log.Println("State file does not exist, creating new state")
+	} else if readErr != nil {
+		log.Fatalf("Failed to read state: %v", readErr)
+	} else {
+		var state receiver.RatingsReceiverState
+		err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Fatalf("Failed to decode state: %v", err)
+		}
+		healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
+		go healthCheckServer.Start()
 
+		ratingsConsumer.RestoreState(state.RatingsConsumer)
+		for clientId, producerState := range state.JoinerProducers {
+			producerName := fmt.Sprintf("ratings_joiner_client_%s", clientId)
+			producer, err := utils.NewProducerQueue(conn, producerName, env.AppEnv.RATINGS_JOINER_AMOUNT)
+			if err != nil {
+				log.Fatalf("Failed to create producer: %v", err)
+			}
+			producer.RestoreState(producerState)
+			joinerProducers[clientId] = producer
+		}
+		log.Println("State restored")
+		log.Printf("%+v", state)
+	}
 
-
-	receiver := receiver.NewRatingsReceiver(conn, rawRatingsConsumer)
+	receiver := receiver.NewRatingsReceiver(conn, ratingsConsumer)
+	receiver.JoinerProducers = joinerProducers
 	receiver.ReceiveRatings()
-
-	// log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-	// <-sigs
-	// log.Printf("Received SIGTERM signal, closing connection")
 }

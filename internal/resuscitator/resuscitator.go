@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/MateoVroonland/tp-distro/internal/env"
 )
 
 // Message types for bully algorithm
@@ -45,29 +47,46 @@ type Server struct {
 }
 
 func NewServer(nodeID int, totalNodes int) *Server {
-	services := []string{
-		"moviesreceiver_1",
-		"moviesreceiver_2",
-		"filter_q1_1",
-		"filter_q1_2",
-		"filter_q3_1",
-		"filter_q3_2",
-		"filter_q4_1",
-		"filter_q4_2",
-		"ratingsreceiver_1",
-		"ratingsreceiver_2",
-		"ratingsjoiner_1",
-		"ratingsjoiner_2",
-		"q1_sink_1",
-		"q3_sink_1",
-		"budget_reducer_1",
-		"budget_reducer_2",
-		"budget_sink_1",
-		"credits_joiner_1",
-		"credits_joiner_2",
-		"credits_receiver_1",
-		"credits_receiver_2",
-		"credits_sink_1",
+
+	var services []string
+	for i := 1; i <= env.AppEnv.MOVIES_RECEIVER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("moviesreceiver_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.RATINGS_RECEIVER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("ratingsreceiver_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.RATINGS_JOINER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("ratingsjoiner_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.CREDITS_JOINER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("creditsjoiner_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.CREDITS_RECEIVER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("creditsreceiver_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.BUDGET_REDUCER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("budget_reducer_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.BUDGET_SINK_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("budget_sink_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.CREDITS_SINK_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("credits_sink_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.Q1_SINK_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("q1_sink_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.Q3_SINK_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("q3_sink_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.Q1_FILTER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("filter_q1_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.Q3_FILTER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("filter_q3_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.Q4_FILTER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("filter_q4_%d", i))
 	}
 
 	return &Server{
@@ -631,7 +650,7 @@ func (s *Server) monitorAllServices(cancel <-chan struct{}) {
 func (s *Server) monitorService(serviceName string, cancel <-chan struct{}) {
 	log.Printf("Node %d: Starting monitoring for service: %s", s.nodeID, serviceName)
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -653,10 +672,17 @@ func (s *Server) monitorService(serviceName string, cancel <-chan struct{}) {
 				return
 			}
 
-			// Perform health check using UDP
-			if !s.performHealthCheck(serviceName) {
+			var attemptsLeft = 3
+			for attemptsLeft > 0 {
+				if s.performHealthCheck(serviceName) {
+					break
+				}
+				time.Sleep(500 * time.Millisecond)
+				attemptsLeft--
+			}
+
+			if attemptsLeft == 0 {
 				s.resurrectService(serviceName)
-				// Wait longer after resurrection attempt
 				time.Sleep(10 * time.Second)
 			}
 		}

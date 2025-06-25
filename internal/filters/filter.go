@@ -22,13 +22,23 @@ func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearPro
 func (f *Filter) FilterAndPublish() error {
 	log.Printf("Filtering and publishing")
 
-	// f.filteredByCountryConsumer.AddFinishSubscriber(f.filteredByYearProducer)
-
 	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
 
-		if msg.Body == "FINISHED" {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := SaveFilterState(f)
+				if err != nil {
+					log.Printf("Failed to save filter state: %v", err)
+				}
+				continue
+			}
+
 			log.Printf("Received finished message for client %s", msg.ClientId)
 			f.filteredByYearProducer.PublishFinished(msg.ClientId)
+			err := SaveFilterState(f)
+			if err != nil {
+				log.Printf("Failed to save filter state: %v", err)
+			}
 			msg.Ack()
 			continue
 		}
@@ -62,6 +72,12 @@ func (f *Filter) FilterAndPublish() error {
 				continue
 			}
 		}
+
+		err = SaveFilterState(f)
+		if err != nil {
+			log.Printf("Failed to save filter state: %v", err)
+		}
+
 		msg.Ack()
 	}
 	return nil

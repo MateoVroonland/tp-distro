@@ -24,6 +24,10 @@ func NewQ1Sink(filteredByYearConsumer *utils.ConsumerQueue, resultsProducer *uti
 	}
 }
 
+func (s *Q1Sink) SetClientResults(results map[string][]messages.Q1Row) {
+	s.clientResults = results
+}
+
 func (s *Q1Sink) SendClientIdResults(clientId string) {
 	log.Printf("Sending results for clientId: %s", clientId)
 	rows := s.clientResults[clientId]
@@ -56,10 +60,27 @@ func (s *Q1Sink) Reduce() {
 	// log.Printf("Q1 sink consuming messages")
 
 	for msg := range s.filteredByYearConsumer.ConsumeInfinite() {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := SaveQ1SinkState(s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
 
-		if msg.Body == "FINISHED" {
-			log.Printf("Received FINISHED message for client %s", msg.ClientId)
-			s.SendClientIdResults(msg.ClientId)
+			if _, ok := s.clientResults[msg.ClientId]; !ok {
+				log.Printf("No client results to send for client %s, skipping", msg.ClientId)
+			} else {
+				log.Printf("Received FINISHED message for client %s", msg.ClientId)
+				s.SendClientIdResults(msg.ClientId)
+				delete(s.clientResults, msg.ClientId)
+
+				err := SaveQ1SinkState(s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+			}
 			msg.Ack()
 			continue
 		}
@@ -85,6 +106,11 @@ func (s *Q1Sink) Reduce() {
 		}
 		row = append(row, *messages.NewQ1Row(movie.ID, movie.Title, movie.Genres))
 		s.clientResults[msg.ClientId] = row
+
+		err = SaveQ1SinkState(s)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
 
 		msg.Ack()
 	}

@@ -12,26 +12,50 @@ import (
 )
 
 type BudgetSink struct {
-	queue           *utils.ConsumerQueue
-	resultsProducer *utils.ProducerQueue
+	queue            *utils.ConsumerQueue
+	resultsProducer  *utils.ProducerQueue
+	BudgetPerCountry map[string]map[string]int // clientId -> country -> amount
 }
 
 func NewBudgetSink(queue *utils.ConsumerQueue, resultsProducer *utils.ProducerQueue) *BudgetSink {
 
-	return &BudgetSink{queue: queue, resultsProducer: resultsProducer}
+	return &BudgetSink{queue: queue, resultsProducer: resultsProducer, BudgetPerCountry: make(map[string]map[string]int)}
 }
 
 func (s *BudgetSink) Sink() {
-	budgetPerCountry := make(map[string]map[string]int)
-
+	stateSaver := NewBudgetSinkState()
 	for msg := range s.queue.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
-		if stringLine == "FINISHED" {
-			s.SendResults(budgetPerCountry[msg.ClientId], msg.ClientId)
-			delete(budgetPerCountry, msg.ClientId)
-			msg.Ack()
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := stateSaver.SaveStateAck(&msg, s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
+			if _, ok := s.BudgetPerCountry[msg.ClientId]; !ok {
+				log.Printf("No budget per country to send for client %s, skipping", msg.ClientId)
+			} else {
+				log.Printf("Received FINISHED message for client %s", msg.ClientId)
+				s.SendResults(s.BudgetPerCountry[msg.ClientId], msg.ClientId)
+				delete(s.BudgetPerCountry, msg.ClientId)
+
+				err := stateSaver.SaveStateAck(&msg, s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+
+				flushed, err := stateSaver.ForceFlush()
+				if err != nil {
+					log.Printf("Failed to flush state: %v", err)
+				} else if flushed {
+					log.Printf("Flushed final state for client %s", msg.ClientId)
+				}
+			}
+			// msg.Ack()
 			continue
 		}
 
@@ -39,7 +63,7 @@ func (s *BudgetSink) Sink() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
@@ -47,16 +71,22 @@ func (s *BudgetSink) Sink() {
 		err = movieBudget.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
-		if _, ok := budgetPerCountry[msg.ClientId]; !ok {
-			budgetPerCountry[msg.ClientId] = make(map[string]int)
+		if _, ok := s.BudgetPerCountry[msg.ClientId]; !ok {
+			s.BudgetPerCountry[msg.ClientId] = make(map[string]int)
 		}
 
-		budgetPerCountry[msg.ClientId][movieBudget.Country] += movieBudget.Amount
-		msg.Ack()
+		s.BudgetPerCountry[msg.ClientId][movieBudget.Country] += movieBudget.Amount
+
+		err = stateSaver.SaveStateAck(&msg, s)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
+
+		// msg.Ack()
 	}
 
 }

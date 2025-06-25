@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"log"
+	"os"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/reducers"
@@ -30,9 +33,29 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
+	reducer := reducers.NewBudgetReducer(q, publishQueue)
+
+	stateFile, readErr := os.ReadFile("data/budget_reducer_state.gob")
+	var state reducers.BudgetReducerState
+
+	if os.IsNotExist(readErr) {
+		log.Println("State file does not exist, creating new state")
+	} else if readErr != nil {
+		log.Fatalf("Failed to read state: %v", readErr)
+	} else {
+		err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Fatalf("Failed to decode state: %v", err)
+		}
+
+		q.RestoreState(state.Queue)
+		publishQueue.RestoreState(state.PublishQueue)
+		log.Printf("State restored up to sequence number: %v", state.Queue.SequenceNumbers)
+		reducer.BudgetPerCountry = state.BudgetPerCountry
+	}
 
 	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
-	reducers.NewBudgetReducer(q, publishQueue).Reduce()
+	reducer.Reduce()
 }

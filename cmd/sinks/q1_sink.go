@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/sinks"
@@ -24,9 +24,6 @@ func main() {
 	}
 	defer conn.Close()
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM)
-
 	filteredByYearConsumer, err := utils.NewConsumerQueue(conn, "movies_filtered_by_year_q1", "movies_filtered_by_year_q1", env.AppEnv.Q1_FILTER_AMOUNT)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
@@ -37,6 +34,8 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
+	var state sinks.Q1SinkState
+	stateFile, err := os.ReadFile("data/q1_sink_state.gob")
 	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
@@ -44,9 +43,22 @@ func main() {
 
 	sink := sinks.NewQ1Sink(filteredByYearConsumer, resultsProducer)
 
-	go sink.Reduce()
+	if os.IsNotExist(err) {
+		log.Println("State file does not exist, creating new state")
+	} else if err != nil {
+		log.Fatalf("Failed to read state: %v", err)
+	} else {
+		err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Fatalf("Failed to decode state: %v", err)
+		}
+		filteredByYearConsumer.RestoreState(state.FilteredByYearConsumer)
+		resultsProducer.RestoreState(state.ResultsProducer)
+		log.Printf("State restored up to sequence number: %v", state.FilteredByYearConsumer.SequenceNumbers)
+		sink.SetClientResults(state.ClientResults)
+	}
 
-	<-sigs
-	log.Printf("Received SIGTERM signal, closing connection")
-	conn.Close()
+	log.Printf("Q1 sink initialized")
+
+	sink.Reduce()
 }

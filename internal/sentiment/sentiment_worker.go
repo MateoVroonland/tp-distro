@@ -47,9 +47,21 @@ func (w *SentimentWorker) analyzeSentiment(text string) string {
 }
 
 func (w *SentimentWorker) handleMessage(msg *utils.Message) {
-	if msg.Body == "FINISHED" {
+	if msg.IsFinished {
+		if !msg.IsLastFinished {
+			err := SaveSentimentWorkerState(w)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
+			return
+		}
+
 		log.Printf("Received FINISHED message for client %s", msg.ClientId)
 		w.publishQueue.PublishFinished(msg.ClientId)
+		err := SaveSentimentWorkerState(w)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
 		msg.Ack()
 		return
 	}
@@ -82,6 +94,12 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message) {
 	}
 
 	w.publishQueue.Publish(serialized, msg.ClientId, movieMetadata.ID)
+
+	err = SaveSentimentWorkerState(w)
+	if err != nil {
+		log.Printf("Failed to save state: %v", err)
+	}
+
 	msg.Ack()
 }
 

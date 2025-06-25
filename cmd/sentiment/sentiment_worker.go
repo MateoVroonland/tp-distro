@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"log"
+	"os"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/sentiment"
@@ -33,9 +36,27 @@ func main() {
 		log.Fatalf("Failed to declare output queue: %v", err)
 	}
 
+	var state sentiment.SentimentWorkerState
+	stateFile, err := os.ReadFile("data/sentiment_worker_state.gob")
+
+	worker := sentiment.NewSentimentWorker(inputQueue, outputQueue)
+
+	if os.IsNotExist(err) {
+		log.Println("State file does not exist, creating new state")
+	} else if err != nil {
+		log.Fatalf("Failed to read state: %v", err)
+	} else {
+		err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Fatalf("Failed to decode state: %v", err)
+		}
+		inputQueue.RestoreState(state.InputQueue)
+		outputQueue.RestoreState(state.PublishQueue)
+		log.Printf("State restored up to sequence number: %v", state.InputQueue.SequenceNumbers)
+	}
+
 	log.Printf("Sentiment worker initialized - consuming from %d receivers, producing to %d reducers",
 		previousReplicas, nextReplicas)
 
-	worker := sentiment.NewSentimentWorker(inputQueue, outputQueue)
 	worker.Start()
 }

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"log"
+	"os"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/reducers"
@@ -40,5 +43,22 @@ func main() {
 		previousReplicas, nextReplicas)
 
 	reducer := reducers.NewSentimentReducer(inputQueue, outputQueue)
+
+	var state reducers.SentimentReducerState
+	stateFile, err := os.ReadFile("data/sentiment_reducer_state.gob")
+	if err != nil {
+		log.Printf("Failed to read state: %v", err)
+	} else {
+		err = gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Printf("Failed to decode state: %v", err)
+		}
+
+		inputQueue.RestoreState(state.Queue)
+		outputQueue.RestoreState(state.PublishQueue)
+		reducer.ClientStats = state.ClientStats
+		log.Printf("State restored up to sequence number: %v", state.Queue.SequenceNumbers)
+	}
+
 	reducer.Reduce()
 }

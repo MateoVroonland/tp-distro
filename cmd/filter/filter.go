@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"log"
 	"os"
@@ -47,9 +49,8 @@ func main() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	
 	log.Printf("Filter 2000s initialized")
-	
+
 	var outputMessage protocol.MovieToFilter
 	switch query {
 	case "1":
@@ -59,13 +60,32 @@ func main() {
 	case "4":
 		outputMessage = &messages.Q4Movie{}
 	}
-	
+
 	if query == "1" {
 		filteredByYearProducer, err := utils.NewProducerQueue(conn, publishQueueName, env.AppEnv.Q1_SINK_AMOUNT)
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}
+
+		var state filters.FilterState
+		stateFile, err := os.ReadFile("data/filter_state.gob")
+
 		filter := filters.NewFilter(filteredByCountryConsumer, filteredByYearProducer, outputMessage)
+
+		if os.IsNotExist(err) {
+			log.Println("State file does not exist, creating new state")
+		} else if err != nil {
+			log.Fatalf("Failed to read state: %v", err)
+		} else {
+			err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+			if err != nil {
+				log.Fatalf("Failed to decode state: %v", err)
+			}
+			filteredByCountryConsumer.RestoreState(state.FilteredByCountryConsumer)
+			filteredByYearProducer.RestoreState(state.FilteredByYearProducer)
+			log.Printf("State restored up to sequence number: %v", state.FilteredByCountryConsumer.SequenceNumbers)
+		}
+
 		go filter.FilterAndPublish()
 	} else {
 		producerName := fmt.Sprintf("new_client_fanout_q%s", query)
@@ -73,7 +93,30 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to declare a queue: %v", err)
 		}
+
+		var state filters.FilterJoinerState
+		stateFile, err := os.ReadFile("data/filter_joiner_state.gob")
+
 		filter := filters.NewFilterJoiner(filteredByCountryConsumer, outputMessage, newClientFanout, query, conn)
+
+		if os.IsNotExist(err) {
+			log.Println("State file does not exist, creating new state")
+		} else if err != nil {
+			log.Fatalf("Failed to read state: %v", err)
+		} else {
+			err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+			if err != nil {
+				log.Fatalf("Failed to decode state: %v", err)
+			}
+			filteredByCountryConsumer.RestoreState(state.FilteredByCountryConsumer)
+			log.Printf("State restored up to sequence number: %v", state.FilteredByCountryConsumer.SequenceNumbers)
+
+			err = filter.RestoreClientProducers(state.ClientsProducers)
+			if err != nil {
+				log.Fatalf("Failed to restore client producers: %v", err)
+			}
+		}
+
 		go filter.FilterAndPublish()
 	}
 

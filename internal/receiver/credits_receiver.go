@@ -17,37 +17,59 @@ import (
 type CreditsReceiver struct {
 	conn            *amqp.Connection
 	creditsConsumer *utils.ConsumerQueue
-	clientProducers map[string]*utils.ProducerQueue
+	ClientProducers map[string]*utils.ProducerQueue
 }
 
 func NewCreditsReceiver(conn *amqp.Connection, creditsConsumer *utils.ConsumerQueue) *CreditsReceiver {
-	return &CreditsReceiver{conn: conn, creditsConsumer: creditsConsumer, clientProducers: make(map[string]*utils.ProducerQueue)}
+	return &CreditsReceiver{conn: conn, creditsConsumer: creditsConsumer, ClientProducers: make(map[string]*utils.ProducerQueue)}
 }
 
 func (r *CreditsReceiver) ReceiveCredits() {
 
+	stateSaver := NewCreditsReceiverState()
 	i := 0
 
 	for msg := range r.creditsConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
-		if msg.Body == "FINISHED" {
-			queue := r.clientProducers[msg.ClientId]
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := stateSaver.SaveStateAck(&msg, r)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
+
+			queue := r.ClientProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
-			msg.Ack()
+
+			err := stateSaver.SaveStateAck(&msg, r)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
+
+			flushed, err := stateSaver.ForceFlush()
+			if err != nil {
+				log.Printf("Failed to flush state: %v", err)
+			} else if flushed {
+				log.Printf("Flushed final state for client %s", msg.ClientId)
+			}
+
+			// msg.Ack()
 			continue
 		}
 
-		if _, ok := r.clientProducers[msg.ClientId]; !ok {
+		if _, ok := r.ClientProducers[msg.ClientId]; !ok {
 			producerName := fmt.Sprintf("credits_joiner_client_%s", msg.ClientId)
 			producer, err := utils.NewProducerQueue(r.conn, producerName, env.AppEnv.CREDITS_JOINER_AMOUNT)
 			if err != nil {
 				log.Printf("Failed to create producer for client %s: %v", msg.ClientId, err)
-				msg.Nack(false)
+				stateSaver.SaveStateNack(&msg, r, false)
 				continue
 			}
-			r.clientProducers[msg.ClientId] = producer
+			r.ClientProducers[msg.ClientId] = producer
 			log.Printf("Created producer for client %s: %s", msg.ClientId, producerName)
 		}
 
@@ -58,29 +80,37 @@ func (r *CreditsReceiver) ReceiveCredits() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Error reading record: %s", err)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
 		credits := &messages.RawCredits{}
 		if err := credits.Deserialize(record); err != nil {
 			log.Printf("Error deserializing credits: %s", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 		serializedCredits, err := protocol.Serialize(credits)
 		if err != nil {
 			log.Printf("Error serializing credits: %s", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
-		clientProducer := r.clientProducers[msg.ClientId]
+		clientProducer := r.ClientProducers[msg.ClientId]
 		err = clientProducer.Publish(serializedCredits, msg.ClientId, strconv.Itoa(credits.MovieID))
 		if err != nil {
 			log.Printf("Error publishing credits: %s", err)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
-		msg.Ack()
+
+		err = stateSaver.SaveStateAck(&msg, r)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
+
+		// msg.Ack()
 	}
 
 	log.Printf("Received %d credits", i)

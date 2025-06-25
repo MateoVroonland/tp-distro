@@ -45,6 +45,10 @@ func NewSentimentSink(queue *utils.ConsumerQueue, resultsProducer *utils.Produce
 	}
 }
 
+func (s *SentimentSink) SetClientResults(results map[string]SentimentSinkResults) {
+	s.clientResults = results
+}
+
 func (s *SentimentSink) SendClientResults(clientId string) {
 	log.Printf("Sending sentiment results for client: %s", clientId)
 	results := s.clientResults[clientId]
@@ -87,9 +91,27 @@ func (s *SentimentSink) Sink() {
 	for msg := range s.sinkConsumer.ConsumeInfinite() {
 		clientId := msg.ClientId
 
-		if msg.Body == "FINISHED" {
-			log.Printf("Received FINISHED message for client %s", clientId)
-			s.SendClientResults(clientId)
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := SaveSentimentSinkState(s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+				continue
+			}
+
+			if _, ok := s.clientResults[clientId]; !ok {
+				log.Printf("No client results to send for client %s, skipping", clientId)
+			} else {
+				log.Printf("Received FINISHED message for client %s", clientId)
+				s.SendClientResults(clientId)
+				delete(s.clientResults, clientId)
+
+				err := SaveSentimentSinkState(s)
+				if err != nil {
+					log.Printf("Failed to save state: %v", err)
+				}
+			}
 			msg.Ack()
 			continue
 		}
@@ -134,6 +156,12 @@ func (s *SentimentSink) Sink() {
 		}
 
 		s.clientResults[clientId] = clientResults
+
+		err = SaveSentimentSinkState(s)
+		if err != nil {
+			log.Printf("Failed to save state: %v", err)
+		}
+
 		msg.Ack()
 	}
 }

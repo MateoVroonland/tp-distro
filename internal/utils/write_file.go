@@ -3,7 +3,7 @@ package utils
 import "os"
 
 func AtomicallyWriteFile(path string, data []byte) error {
-	tmpFile, err := os.CreateTemp("", "tmp_file")
+	tmpFile, err := os.CreateTemp("/data", "tmp_file_*")
 	if err != nil {
 		return err
 	}

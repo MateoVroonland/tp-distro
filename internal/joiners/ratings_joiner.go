@@ -2,8 +2,10 @@ package joiners
 
 import (
 	"encoding/csv"
+	"encoding/gob"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 
@@ -14,50 +16,72 @@ import (
 )
 
 type RatingsJoiner struct {
-	conn             *amqp.Connection
-	newClientQueue   *utils.ConsumerQueue
-	waitGroup        *sync.WaitGroup
-	clientsLock      *sync.Mutex
-	moviesConsumers  map[string]*utils.ConsumerQueue
-	ratingsConsumers map[string]*utils.ConsumerQueue
+	conn           *amqp.Connection
+	newClientQueue *utils.ConsumerFanout
+	waitGroup      *sync.WaitGroup
+	clientsLock    *sync.RWMutex
+	ClientsJoiners map[string]bool
 }
 
-func NewRatingsJoiner(conn *amqp.Connection, newClientQueue *utils.ConsumerQueue) *RatingsJoiner {
-	return &RatingsJoiner{conn: conn, newClientQueue: newClientQueue, waitGroup: &sync.WaitGroup{}, clientsLock: &sync.Mutex{}, moviesConsumers: make(map[string]*utils.ConsumerQueue), ratingsConsumers: make(map[string]*utils.ConsumerQueue)}
+func NewRatingsJoiner(conn *amqp.Connection, newClientQueue *utils.ConsumerFanout) *RatingsJoiner {
+	return &RatingsJoiner{
+		conn:           conn,
+		newClientQueue: newClientQueue,
+		waitGroup:      &sync.WaitGroup{},
+		clientsLock:    &sync.RWMutex{},
+		ClientsJoiners: make(map[string]bool),
+	}
+}
+
+func (r *RatingsJoiner) removeClient(clientId string) {
+	r.clientsLock.Lock()
+	defer r.clientsLock.Unlock()
+
+	delete(r.ClientsJoiners, clientId)
 }
 
 func (r *RatingsJoiner) JoinRatings(routingKey string) error {
 
-	defer r.newClientQueue.CloseChannel()
+	defer r.newClientQueue.Close()
 
-	for msg := range r.newClientQueue.ConsumeInfinite() {
+	for clientId := range r.ClientsJoiners {
+		clientRatingsJoiner, err := NewRatingsJoinerClient(r, clientId)
+		if err != nil {
+			log.Printf("Failed to create ratings joiner client for client %s: %v", clientId, err)
+			continue
+		}
+		r.waitGroup.Add(1)
+		log.Printf("Restored joiner for client %s", clientId)
+		go clientRatingsJoiner.JoinRatingsForClient()
+	}
+
+	for msg := range r.newClientQueue.Consume() {
 
 		log.Printf("Received new client %s", msg.ClientId)
 
 		r.clientsLock.Lock()
-		if _, ok := r.moviesConsumers[msg.ClientId]; !ok {
-			moviesConsumer, err := utils.NewConsumerQueue(r.conn, "filter_q3_client_"+msg.ClientId, "filter_q3_client_"+msg.ClientId, env.AppEnv.MOVIES_RECEIVER_AMOUNT)
+		if _, ok := r.ClientsJoiners[msg.ClientId]; !ok {
+			log.Printf("Creating ratings joiner client for client %s", msg.ClientId)
+			clientRatingsJoiner, err := NewRatingsJoinerClient(r, msg.ClientId)
 			if err != nil {
-				log.Printf("Failed to create movies consumer for client %s: %v", msg.ClientId, err)
+				log.Printf("Failed to create ratings joiner client for client %s: %v", msg.ClientId, err)
 				msg.Nack(false)
 				r.clientsLock.Unlock()
 				continue
 			}
-			r.moviesConsumers[msg.ClientId] = moviesConsumer
-		}
 
-		if _, ok := r.ratingsConsumers[msg.ClientId]; !ok {
-			ratingsConsumer, err := utils.NewConsumerQueue(r.conn, "ratings_joiner_client_"+msg.ClientId, "ratings_joiner_client_"+msg.ClientId, env.AppEnv.RATINGS_RECEIVER_AMOUNT)
-			if err != nil {
-				log.Printf("Failed to create ratings consumer for client %s: %v", msg.ClientId, err)
-				msg.Nack(false)
-				r.clientsLock.Unlock()
-				delete(r.moviesConsumers, msg.ClientId)
-				continue
-			}
-			r.ratingsConsumers[msg.ClientId] = ratingsConsumer
+			r.ClientsJoiners[msg.ClientId] = true
+
 			r.waitGroup.Add(1)
-			go r.JoinRatingsForClient(msg.ClientId)
+			go clientRatingsJoiner.JoinRatingsForClient()
+
+			err = SaveRatingsJoinerState(r)
+			if err != nil {
+				log.Printf("Failed to save ratings joiner state: %v", err)
+			} else {
+				log.Printf("Saved ratings joiner state for client %s", msg.ClientId)
+			}
+
 		}
 
 		r.clientsLock.Unlock()
@@ -70,39 +94,137 @@ func (r *RatingsJoiner) JoinRatings(routingKey string) error {
 	return nil
 }
 
-func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
-	log.Printf("Joining ratings for client %s", clientId)
+type RatingsJoinerClient struct {
+	ClientId               string
+	MoviesConsumer         *utils.ConsumerQueue
+	RatingsConsumer        *utils.ConsumerQueue
+	SinkProducer           *utils.ProducerQueue
+	MoviesIds              map[int]string
+	ratingsJoiner          *RatingsJoiner
+	FinishedFetchingMovies bool
+}
 
-	sinkProducer, err := utils.NewProducerQueue(r.conn, "q3_sink", 1)
+func NewRatingsJoinerClient(ratingsJoiner *RatingsJoiner, clientId string) (*RatingsJoinerClient, error) {
+	finishedFetchingMovies := false
+	moviesConsumer, err := utils.NewConsumerQueue(ratingsJoiner.conn, "filter_q3_client_"+clientId, "filter_q3_client_"+clientId, env.AppEnv.MOVIES_RECEIVER_AMOUNT)
+	if err != nil {
+		log.Printf("Failed to create movies consumer for client %s: %v", clientId, err)
+		return nil, err
+	}
+
+	ratingsConsumer, err := utils.NewConsumerQueue(ratingsJoiner.conn, "ratings_joiner_client_"+clientId, "ratings_joiner_client_"+clientId, env.AppEnv.RATINGS_RECEIVER_AMOUNT)
+	if err != nil {
+		log.Printf("Failed to create ratings consumer for client %s: %v", clientId, err)
+		return nil, err
+	}
+
+	sinkProducer, err := utils.NewProducerQueue(ratingsJoiner.conn, "q3_sink", 1)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	defer sinkProducer.CloseChannel()
-	defer r.waitGroup.Done()
+	stateFile, fileErr := os.Open("data/ratings_joiner_state_" + clientId + ".gob")
+	var state RatingsJoinerClientState
+	var moviesIds map[int]string
 
-	moviesConsumer := r.moviesConsumers[clientId]
-	ratingsConsumer := r.ratingsConsumers[clientId]
+	if os.IsNotExist(fileErr) {
+		log.Printf("State file of ratings joiner for client %s does not exist, starting from scratch", clientId)
+		moviesIds = make(map[int]string)
+	} else if fileErr != nil {
+		log.Printf("Failed to open state file of ratings joiner for client %s: %v", clientId, fileErr)
+		if moviesConsumer != nil {
+			moviesConsumer.CloseChannel()
+		}
+		return nil, fileErr
+	} else {
+		defer stateFile.Close()
+		dec := gob.NewDecoder(stateFile)
+		err := dec.Decode(&state)
+		if err != nil {
+			log.Printf("Failed to decode state file of ratings joiner for client %s: %v", clientId, err)
+			if moviesConsumer != nil {
+				moviesConsumer.CloseChannel()
+			}
+			return nil, err
+		}
 
-	defer moviesConsumer.CloseChannel()
-	defer ratingsConsumer.CloseChannel()
+		defer stateFile.Close()
 
-	moviesIds := make(map[int]string)
+		sinkProducer.RestoreState(state.SinkProducer)
+		ratingsConsumer.RestoreState(state.RatingsConsumer)
+		moviesIds = state.MoviesIds
+		finishedFetchingMovies = state.FinishedFetchingMovies
+		moviesConsumer.RestoreState(state.MoviesConsumer)
 
-	i := 0
-	for msg := range moviesConsumer.Consume() {
+		if finishedFetchingMovies {
+			log.Printf("Finished fetching movies for client %s upon restart", clientId)
+			moviesConsumer.CloseChannel()
+			moviesConsumer.DeleteQueue()
+
+		}
+	}
+
+	return &RatingsJoinerClient{
+		ratingsJoiner:          ratingsJoiner,
+		ClientId:               clientId,
+		MoviesConsumer:         moviesConsumer,
+		RatingsConsumer:        ratingsConsumer,
+		SinkProducer:           sinkProducer,
+		MoviesIds:              moviesIds,
+		FinishedFetchingMovies: finishedFetchingMovies,
+	}, nil
+}
+
+func (r *RatingsJoinerClient) JoinRatingsForClient() error {
+	log.Printf("Joining ratings for client %s", r.ClientId)
+
+	defer r.SinkProducer.CloseChannel()
+	defer r.ratingsJoiner.waitGroup.Done()
+
+	defer r.RatingsConsumer.CloseChannel()
+
+	if !r.FinishedFetchingMovies {
+		r.fetchMovies()
+	}
+
+	log.Printf("Received %d movies for client %s", len(r.MoviesIds), r.ClientId)
+
+	r.fetchRatings()
+
+	return nil
+}
+
+func (r *RatingsJoinerClient) fetchMovies() {
+	stateSaver := NewRatingsJoinerPerClientState()
+
+	for msg := range r.MoviesConsumer.ConsumeInfinite() {
+		if msg.IsFinished {
+			if !msg.IsLastFinished {
+				err := stateSaver.SaveStateAck(&msg, r)
+				if err != nil {
+					log.Printf("Failed to save ratings joiner state: %v", err)
+				}
+				continue
+			}
+
+			r.FinishedFetchingMovies = true
+			err := stateSaver.SaveStateAck(&msg, r)
+			if err != nil {
+				log.Printf("Failed to save ratings joiner state: %v", err)
+			}
+			stateSaver.ForceFlush()
+			r.MoviesConsumer.DeleteQueue()
+			break
+		}
 
 		stringLine := string(msg.Body)
-
-		i++
-
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 2
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Movie: %s", stringLine)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
@@ -110,23 +232,56 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 		err = movie.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
-		moviesIds[movie.ID] = movie.Title
-		msg.Ack()
+		r.MoviesIds[movie.ID] = movie.Title
 
+		err = SaveRatingsJoinerPerClientState(r)
+		if err != nil {
+			log.Printf("Failed to save ratings joiner state: %v", err)
+			stateSaver.SaveStateNack(&msg, r, false)
+			continue
+		}
+
+		err = stateSaver.SaveStateAck(&msg, r)
+		if err != nil {
+			log.Printf("Failed to save ratings joiner state: %v", err)
+		}
 	}
+}
 
-	moviesConsumer.DeleteQueue()
+func (r *RatingsJoinerClient) fetchRatings() {
+	stateSaver := NewRatingsJoinerPerClientState()
 
-	ratings := make(map[int]float64)
-	ratingsCount := make(map[int]int)
-	j := 0
-	for msg := range ratingsConsumer.Consume() {
+	for msg := range r.RatingsConsumer.ConsumeInfinite() {
+
+		if msg.IsFinished {
+
+			if !msg.IsLastFinished {
+				err := stateSaver.SaveStateAck(&msg, r)
+				if err != nil {
+					log.Printf("Failed to save ratings joiner state: %v", err)
+				}
+				continue
+			}
+
+			r.ratingsJoiner.removeClient(r.ClientId)
+			r.SinkProducer.PublishFinished(r.ClientId)
+
+			err := stateSaver.SaveStateAck(&msg, r)
+			if err != nil {
+				log.Printf("Failed to save ratings joiner state: %v", err)
+			}
+			stateSaver.ForceFlush()
+			r.RatingsConsumer.DeleteQueue()
+
+			break
+
+		}
+
 		stringLine := string(msg.Body)
-		j++
 
 		reader := csv.NewReader(strings.NewReader(stringLine))
 		reader.FieldsPerRecord = 2
@@ -134,7 +289,7 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			log.Printf("Rating: %s", stringLine)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
@@ -142,48 +297,20 @@ func (r *RatingsJoiner) JoinRatingsForClient(clientId string) error {
 		err = rating.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize ratings: %v", err)
-			msg.Nack(false)
+			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
-		if _, ok := moviesIds[rating.MovieID]; !ok {
-			msg.Ack()
-			continue
+		if movieTitle, ok := r.MoviesIds[rating.MovieID]; ok {
+			res := fmt.Sprintf("%d,%s,%f", rating.MovieID, movieTitle, rating.Rating)
+			r.SinkProducer.Publish([]byte(res), r.ClientId, "")
 		}
 
-		currentRatings, ok := ratings[rating.MovieID]
-
-		if !ok {
-			ratings[rating.MovieID] = rating.Rating
-			ratingsCount[rating.MovieID] = 1
-		} else {
-			ratings[rating.MovieID] = currentRatings + rating.Rating
-			ratingsCount[rating.MovieID]++
+		err = stateSaver.SaveStateAck(&msg, r)
+		if err != nil {
+			log.Printf("Failed to save ratings joiner state: %v", err)
 		}
-
-		msg.Ack()
 	}
 
-	ratingsConsumer.DeleteQueue()
-
-	log.Printf("Ratings: %v", ratings)
-	log.Printf("RatingsCount: %v", ratingsCount)
-	log.Printf("MoviesIds: %v", moviesIds)
-
-	for movieId, rating := range ratings {
-		count := ratingsCount[movieId]
-		res := fmt.Sprintf("%d,%s,%f", movieId, moviesIds[movieId], rating/float64(count))
-		log.Printf("Res: %s", res)
-		sinkProducer.Publish([]byte(res), clientId, "")
-	}
-
-	log.Printf("Finished joining ratings for client %s", clientId)
-	sinkProducer.PublishFinished(clientId)
-
-	r.clientsLock.Lock()
-	delete(r.moviesConsumers, clientId)
-	delete(r.ratingsConsumers, clientId)
-	r.clientsLock.Unlock()
-
-	return nil
+	log.Printf("Finished joining ratings for client %s", r.ClientId)
 }

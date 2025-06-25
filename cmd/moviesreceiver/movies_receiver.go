@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"log"
+	"os"
 
 	"github.com/MateoVroonland/tp-distro/internal/env"
 	"github.com/MateoVroonland/tp-distro/internal/receiver"
@@ -56,10 +59,36 @@ func main() {
 	}
 	defer q5.CloseChannel()
 
+	stateFile, readErr := os.ReadFile("data/movies_receiver_state.gob")
+
+	if os.IsNotExist(readErr) {
+		log.Println("State file does not exist, creating new state")
+	} else if readErr != nil {
+		log.Fatalf("Failed to read state: %v", readErr)
+	} else {
+		var state receiver.MoviesReceiverState
+		err := gob.NewDecoder(bytes.NewReader(stateFile)).Decode(&state)
+		if err != nil {
+			log.Fatalf("Failed to decode state: %v", err)
+		}
+
+		q.RestoreState(state.MoviesConsumer)
+		q1.RestoreState(state.Q1Producer)
+		q2.RestoreState(state.Q2Producer)
+		q3.RestoreState(state.Q3Producer)
+		q4.RestoreState(state.Q4Producer)
+		q5.RestoreState(state.Q5Producer)
+		log.Println("State restored")
+		log.Printf("%+v", state)
+	}
 	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
 	receiver := receiver.NewMoviesReceiver(conn, q, q1, q2, q3, q4, q5)
-	receiver.ReceiveMovies()
 
+	if err != nil {
+		log.Fatalf("Failed to create receiver: %v", err)
+	}
+
+	receiver.ReceiveMovies()
 }
