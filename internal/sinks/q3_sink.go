@@ -76,7 +76,6 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 
 		err = movie.Deserialize(record)
 		if err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
 			msg.Nack(false)
 			err := SaveQ3SinkState(s, s.clientsResults)
 			if err != nil {

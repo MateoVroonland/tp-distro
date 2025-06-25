@@ -3,16 +3,16 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     ports:
-      - 5672:5672
-      - 15672:15672
+    - 5672:5672
+    - 15672:15672
     volumes:
-      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
-      - ./definitions.json:/etc/rabbitmq/definitions.json:ro
+    - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    - ./definitions.json:/etc/rabbitmq/definitions.json:ro
     healthcheck:
       test:
-        - CMD
-        - rabbitmqctl
-        - status
+      - CMD
+      - rabbitmqctl
+      - status
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,9 +25,23 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ./docs:/docs
-      - requesthandler_volume:/data
+    - ./docs:/docs
+    - requesthandler_volume:/data
     command: /requesthandler/request_handler.go
+  chaosmonkey:
+    image: movies/chaosmonkey:latest
+    environment:
+      ID: 1
+      MIN_INTERVAL_SECONDS: 5
+      MAX_INTERVAL_SECONDS: 8
+      KILL_PROBABILITY: 0.4
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./docker-compose.yml:/app/docker-compose.yml
+    privileged: true
   moviesreceiver_1:
     container_name: moviesreceiver_1
     image: movies/moviesreceiver:latest
@@ -38,7 +52,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - moviesreceiver_1_volume:/data
+    - moviesreceiver_1_volume:/data
   moviesreceiver_2:
     container_name: moviesreceiver_2
     image: movies/moviesreceiver:latest
@@ -49,7 +63,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - moviesreceiver_2_volume:/data
+    - moviesreceiver_2_volume:/data
   filter_q1_1:
     container_name: filter_q1_1
     image: movies/filter:latest
@@ -61,7 +75,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - filter_q1_1_volume:/data
+    - filter_q1_1_volume:/data
     command: /filter/filter.go
   filter_q1_2:
     container_name: filter_q1_2
@@ -74,7 +88,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - filter_q1_2_volume:/data
+    - filter_q1_2_volume:/data
     command: /filter/filter.go
   filter_q3_1:
     container_name: filter_q3_1
@@ -87,7 +101,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - filter_q3_1_volume:/data
+    - filter_q3_1_volume:/data
     command: /filter/filter.go
   filter_q3_2:
     container_name: filter_q3_2
@@ -100,7 +114,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - filter_q3_2_volume:/data
+    - filter_q3_2_volume:/data
     command: /filter/filter.go
   filter_q4_1:
     container_name: filter_q4_1
@@ -113,7 +127,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - filter_q4_1_volume:/data
+    - filter_q4_1_volume:/data
     command: /filter/filter.go
   filter_q4_2:
     container_name: filter_q4_2
@@ -126,7 +140,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - filter_q4_2_volume:/data
+    - filter_q4_2_volume:/data
     command: /filter/filter.go
   ratingsreceiver_1:
     container_name: ratingsreceiver_1
@@ -138,7 +152,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ratingsreceiver_1_volume:/data
+    - ratingsreceiver_1_volume:/data
   ratingsreceiver_2:
     container_name: ratingsreceiver_2
     image: movies/ratingsreceiver:latest
@@ -149,7 +163,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ratingsreceiver_2_volume:/data
+    - ratingsreceiver_2_volume:/data
   ratingsjoiner_1:
     container_name: ratingsjoiner_1
     image: movies/ratingsjoiner:latest
@@ -160,7 +174,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ratingsjoiner_1_volume:/data
+    - ratingsjoiner_1_volume:/data
   ratingsjoiner_2:
     container_name: ratingsjoiner_2
     image: movies/ratingsjoiner:latest
@@ -171,7 +185,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ratingsjoiner_2_volume:/data
+    - ratingsjoiner_2_volume:/data
   q1_sink_1:
     container_name: q1_sink_1
     image: movies/sink:latest
@@ -182,7 +196,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - q1_sink_1_volume:/data
+    - q1_sink_1_volume:/data
     command: /q1_sink/q1_sink.go
   q3_sink_1:
     container_name: q3_sink_1
@@ -194,7 +208,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - q3_sink_1_volume:/data
+    - q3_sink_1_volume:/data
   budget_reducer_1:
     container_name: budget_reducer_1
     image: movies/reducer:latest
@@ -205,7 +219,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - budget_reducer_1_volume:/data
+    - budget_reducer_1_volume:/data
     command: /budget_reducer.go
   budget_reducer_2:
     container_name: budget_reducer_2
@@ -217,7 +231,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - budget_reducer_2_volume:/data
+    - budget_reducer_2_volume:/data
     command: /budget_reducer.go
   budget_sink_1:
     container_name: budget_sink_1
@@ -229,19 +243,19 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - budget_sink_1_volume:/data
+    - budget_sink_1_volume:/data
     command: /budget_sink/budget_sink.go
   sentiment_worker_1:
     container_name: sentiment_worker_1
     image: movies/sentiment:latest
     environment:
       ID: 1
-      REPLICAS: 2 
+      REPLICAS: 2
     depends_on:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - sentiment_worker_1_volume:/data
+    - sentiment_worker_1_volume:/data
     command: /sentiment/sentiment_worker.go
   sentiment_worker_2:
     container_name: sentiment_worker_2
@@ -253,7 +267,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - sentiment_worker_2_volume:/data
+    - sentiment_worker_2_volume:/data
     command: /sentiment/sentiment_worker.go
   sentiment_reducer_1:
     container_name: sentiment_reducer_1
@@ -265,7 +279,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - sentiment_reducer_1_volume:/data
+    - sentiment_reducer_1_volume:/data
     command: /sentiment_reducer/sentiment_reducer.go
   sentiment_sink_1:
     container_name: sentiment_sink_1
@@ -277,7 +291,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - sentiment_sink_1_volume:/data
+    - sentiment_sink_1_volume:/data
     command: /sentiment_sink/sentiment_sink.go
   credits_joiner_1:
     container_name: credits_joiner_1
@@ -289,7 +303,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - credits_joiner_1_volume:/data
+    - credits_joiner_1_volume:/data
   credits_joiner_2:
     container_name: credits_joiner_2
     image: movies/credits_joiner:latest
@@ -300,7 +314,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - credits_joiner_2_volume:/data
+    - credits_joiner_2_volume:/data
   credits_receiver_1:
     container_name: credits_receiver_1
     image: movies/credits_receiver:latest
@@ -311,7 +325,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - credits_receiver_1_volume:/data
+    - credits_receiver_1_volume:/data
     command: /credits_receiver/credits_receiver.go
   credits_receiver_2:
     container_name: credits_receiver_2
@@ -323,7 +337,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - credits_receiver_2_volume:/data
+    - credits_receiver_2_volume:/data
     command: /credits_receiver/credits_receiver.go
   credits_sink_1:
     container_name: credits_sink_1
@@ -335,7 +349,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - credits_sink_1_volume:/data
+    - credits_sink_1_volume:/data
     command: /credits_sink/credits_sink.go
   resuscitator_1:
     container_name: resuscitator_1
@@ -347,8 +361,8 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.yml:/app/docker-compose.yml
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./docker-compose.yml:/app/docker-compose.yml
   resuscitator_2:
     container_name: resuscitator_2
     image: movies/resuscitator:latest
@@ -359,8 +373,8 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.yml:/app/docker-compose.yml
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./docker-compose.yml:/app/docker-compose.yml
   resuscitator_3:
     container_name: resuscitator_3
     image: movies/resuscitator:latest
@@ -371,30 +385,16 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.yml:/app/docker-compose.yml
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./docker-compose.yml:/app/docker-compose.yml
   client:
     image: movies/client:latest
     depends_on:
-      - requesthandler
+    - requesthandler
     deploy:
       replicas: 2
     volumes:
-      - ./docs:/docs
-  chaosmonkey:
-    image: movies/chaosmonkey:latest
-    environment:
-      ID: 1
-      MIN_INTERVAL_SECONDS: 5
-      MAX_INTERVAL_SECONDS: 8
-      KILL_PROBABILITY: 0.4
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.yml:/app/docker-compose.yml
-    privileged: true
+    - ./docs:/docs
 volumes:
   rabbitmq_volume: {}
   requesthandler_volume: {}

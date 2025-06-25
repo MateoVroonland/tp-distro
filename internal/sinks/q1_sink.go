@@ -99,7 +99,6 @@ func (s *Q1Sink) Reduce() {
 		var movie messages.Q1SinkMovie
 		err = movie.Deserialize(record)
 		if err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
 			msg.Nack(false)
 			err := SaveQ1SinkState(s)
 			if err != nil {

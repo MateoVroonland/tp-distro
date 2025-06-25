@@ -201,12 +201,16 @@ func MessageFromDelivery(delivery amqp.Delivery) (*Message, error) {
 func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
 	return func(yield func(Message) bool) {
 
+		i := 0
+
 		for {
 			select {
 			case <-q.signalChan:
 				log.Printf("Received SIGTERM signal, closing connection")
 				return
 			case delivery := <-q.deliveryChannel:
+				i++
+
 				message, err := MessageFromDelivery(delivery)
 				if err != nil {
 					log.Printf("Failed to parse message in delivery channel: %v", err)
@@ -240,6 +244,14 @@ func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
 				}
 
 				q.sequenceNumbers[message.ClientId][message.ProducerId]++
+
+				if i%100000 == 0 {
+					j := 0
+					for producerId := range q.sequenceNumbers[message.ClientId] {
+						j += q.sequenceNumbers[message.ClientId][producerId]
+					}
+					log.Printf("Received %d messages for client %s", j, message.ClientId)
+				}
 
 				if _, ok := q.finishedReceived[message.ClientId]; !ok {
 					q.finishedReceived[message.ClientId] = make(map[string]bool)

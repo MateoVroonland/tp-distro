@@ -81,7 +81,6 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message) {
 	var movieMetadata messages.MovieSentiment
 	err = movieMetadata.Deserialize(record)
 	if err != nil {
-		log.Printf("Failed to deserialize movie: %v", err)
 		msg.Nack(false)
 		err := SaveSentimentWorkerState(w)
 		if err != nil {

@@ -79,7 +79,6 @@ func (r *MoviesReceiver) ReceiveMovies() {
 
 		movie := &messages.Movie{}
 		if err := movie.Deserialize(record); err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
 			stateSaver.SaveStateNack(&d, r, false)
 
 			continue

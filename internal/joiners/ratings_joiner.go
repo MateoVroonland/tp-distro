@@ -231,7 +231,6 @@ func (r *RatingsJoinerClient) fetchMovies() {
 		var movie messages.RatingsJoinMovies
 		err = movie.Deserialize(record)
 		if err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
 			stateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}

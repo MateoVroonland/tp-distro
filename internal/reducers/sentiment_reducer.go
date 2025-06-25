@@ -103,7 +103,6 @@ func (r *SentimentReducer) Reduce() {
 		err = movieSentiment.Deserialize(record)
 
 		if err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
 			msg.Nack(false)
 			err := SaveSentimentReducerState(r)
 			if err != nil {

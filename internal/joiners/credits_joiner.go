@@ -144,6 +144,8 @@ func NewCreditsJoinerClient(creditsJoiner *CreditsJoiner, clientId string) (*Cre
 
 		defer stateFile.Close()
 
+		log.Printf("Restored state: %v", state)
+
 		sinkProducer.RestoreState(state.SinkProducer)
 		creditsConsumer.RestoreState(state.CreditsConsumer)
 		moviesIds = state.MoviesIds
@@ -225,7 +227,6 @@ func (c *CreditsJoinerClient) fetchMovies() {
 		var movie messages.CreditsJoinMovies
 		err = movie.Deserialize(record)
 		if err != nil {
-			log.Printf("Failed to deserialize movie: %v", err)
 			stateSaver.SaveStateNack(&msg, c, false)
 			continue
 		}

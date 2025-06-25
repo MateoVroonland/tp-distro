@@ -55,8 +55,7 @@ func (f *Filter) FilterAndPublish() error {
 			continue
 		}
 		if err := f.outputMessage.Deserialize(record); err != nil {
-			log.Printf("Failed to deserialize movie: %s", string(msg.Body))
-			log.Printf("Error deserializing movie: %s", err)
+
 			msg.Nack(false)
 			err := SaveFilterState(f)
 			if err != nil {
