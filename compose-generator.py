@@ -128,7 +128,6 @@ def generate_compose():
 #     environment:
 #       ID: 1
 #       REPLICAS: 3
-#       SERVICE_TYPE: resuscitator_1
 #     depends_on:
 #       rabbitmq:
 #         condition: service_healthy

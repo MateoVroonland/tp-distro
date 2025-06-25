@@ -20,7 +20,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
-      SERVICE_TYPE: requesthandler
     image: movies/requesthandler:latest
     depends_on:
       rabbitmq:
@@ -35,7 +34,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
-      SERVICE_TYPE: moviesreceiver
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -47,7 +45,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: moviesreceiver
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -59,7 +56,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
-      SERVICE_TYPE: filter_q1
       QUERY: 1
     depends_on:
       rabbitmq:
@@ -73,7 +69,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: filter_q1
       QUERY: 1
     depends_on:
       rabbitmq:
@@ -87,7 +82,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
-      SERVICE_TYPE: filter_q3
       QUERY: 3
     depends_on:
       rabbitmq:
@@ -101,7 +95,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: filter_q3
       QUERY: 3
     depends_on:
       rabbitmq:
@@ -115,7 +108,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
-      SERVICE_TYPE: filter_q4
       QUERY: 4
     depends_on:
       rabbitmq:
@@ -129,7 +121,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: filter_q4
       QUERY: 4
     depends_on:
       rabbitmq:
@@ -143,7 +134,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
-      SERVICE_TYPE: ratingsreceiver
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -155,7 +145,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: ratingsreceiver
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -167,7 +156,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
-      SERVICE_TYPE: ratingsjoiner
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -179,7 +167,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: ratingsjoiner
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -191,7 +178,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
-      SERVICE_TYPE: q1_sink
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -204,7 +190,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
-      SERVICE_TYPE: q3_sink
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -216,7 +201,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
-      SERVICE_TYPE: budget_reducer
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -229,7 +213,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: budget_reducer
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -242,7 +225,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
-      SERVICE_TYPE: budget_sink
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -254,8 +236,7 @@ services:
     image: movies/sentiment:latest
     environment:
       ID: 1
-      REPLICAS: 2
-      SERVICE_TYPE: sentiment_worker
+      REPLICAS: 2 
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -268,7 +249,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: sentiment_worker
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -281,7 +261,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
-      SERVICE_TYPE: sentiment_reducer
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -294,7 +273,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
-      SERVICE_TYPE: sentiment_sink
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -307,7 +285,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
-      SERVICE_TYPE: credits_joiner
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -319,7 +296,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: credits_joiner
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -331,7 +307,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 2
-      SERVICE_TYPE: credits_receiver
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -344,7 +319,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 2
-      SERVICE_TYPE: credits_receiver
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -357,7 +331,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 1
-      SERVICE_TYPE: credits_sink
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -370,7 +343,6 @@ services:
     environment:
       ID: 1
       REPLICAS: 3
-      SERVICE_TYPE: resuscitator
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -383,7 +355,6 @@ services:
     environment:
       ID: 2
       REPLICAS: 3
-      SERVICE_TYPE: resuscitator
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -396,7 +367,6 @@ services:
     environment:
       ID: 3
       REPLICAS: 3
-      SERVICE_TYPE: resuscitator
     depends_on:
       rabbitmq:
         condition: service_healthy
