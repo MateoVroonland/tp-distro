@@ -56,7 +56,6 @@ def generate_compose():
                 "environment": {
                     "ID": 1,
                     "REPLICAS": 1,
-                    "SERVICE_TYPE": "requesthandler"
                 },
                 "image": "movies/requesthandler:latest",
                 "depends_on": {
@@ -69,6 +68,25 @@ def generate_compose():
                     "requesthandler_volume:/data"
                 ],
                 "command": "/requesthandler/request_handler.go"
+            },
+            "chaosmonkey": {
+                "image": "movies/chaosmonkey:latest",
+                "environment": {
+                    "ID": 1,
+                    "MIN_INTERVAL_SECONDS": 5,
+                    "MAX_INTERVAL_SECONDS": 8,
+                    "KILL_PROBABILITY": 0.4
+                },
+                "depends_on": {
+                    "rabbitmq": {
+                        "condition": "service_healthy"
+                    }
+                },
+                "volumes": [
+                    "/var/run/docker.sock:/var/run/docker.sock",
+                    "./docker-compose.yml:/app/docker-compose.yml"
+                ],
+                "privileged": True
             }
         },
         "volumes": {
@@ -79,7 +97,7 @@ def generate_compose():
 
     def add_services(prefix, amount, image, extra_env=None, command=None):
         for i in range(1, amount + 1):
-            env = {"ID": i, "REPLICAS": amount, "SERVICE_TYPE": prefix}
+            env = {"ID": i, "REPLICAS": amount}
             if extra_env:
                 env.update(extra_env)
             service_name = f"{prefix}_{i}"
@@ -119,7 +137,7 @@ def generate_compose():
 #       - ./docker-compose.yml:/app/docker-compose.yml
     def add_resuscitators(amount):
         for i in range(1, amount + 1):
-            env = {"ID": i, "REPLICAS": amount, "SERVICE_TYPE": "resuscitator"}
+            env = {"ID": i, "REPLICAS": amount}
             service_name = f"resuscitator_{i}"
             compose["services"][service_name] = {
                 "container_name": service_name,

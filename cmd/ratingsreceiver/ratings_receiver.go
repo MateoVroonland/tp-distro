@@ -42,7 +42,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to decode state: %v", err)
 		}
-		healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+		healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 		go healthCheckServer.Start()
 
 		ratingsConsumer.RestoreState(state.RatingsConsumer)

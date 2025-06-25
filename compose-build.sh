@@ -20,6 +20,7 @@ docker build -t movies/credits_receiver:latest -f cmd/credits_receiver/Dockerfil
 docker build -t movies/sink_q4:latest -f cmd/sinks_q4/Dockerfile . &
 docker build -t movies/sink_q5:latest -f cmd/sinks_q5/Dockerfile . &
 docker build -t movies/resuscitator:latest -f cmd/resuscitator/Dockerfile . &
+docker build -t movies/chaosmonkey:latest -f cmd/chaosmonkey/Dockerfile . &
 wait
 
 echo 'All images built successfully.'

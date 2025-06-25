@@ -59,7 +59,7 @@ func main() {
 		log.Printf("%+v", state)
 	}
 
-	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
 	receiver := receiver.NewCreditsReceiver(conn, rawCredtisConsumer)

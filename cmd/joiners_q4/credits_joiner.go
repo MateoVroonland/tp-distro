@@ -30,7 +30,7 @@ func main() {
 	}
 
 	stateFile, err := os.ReadFile("data/credits_joiner_state.gob")
-	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
 	creditsJoiner := joiners.NewCreditsJoiner(conn, newClientQueue)

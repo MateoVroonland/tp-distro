@@ -36,7 +36,8 @@ func main() {
 
 	var state sinks.Q3SinkState
 	stateFile, err := os.ReadFile("data/q3_sink_state.gob")
-	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID, env.AppEnv.SERVICE_TYPE)
+
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
 	go healthCheckServer.Start()
 
 	q3Sink := sinks.NewQ3Sink(sinkConsumer, sinkProducer)
