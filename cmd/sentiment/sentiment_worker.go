@@ -58,5 +58,9 @@ func main() {
 	log.Printf("Sentiment worker initialized - consuming from %d receivers, producing to %d reducers",
 		previousReplicas, nextReplicas)
 
+	// Start health check server
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
+	go healthCheckServer.Start()
+
 	worker.Start()
 }

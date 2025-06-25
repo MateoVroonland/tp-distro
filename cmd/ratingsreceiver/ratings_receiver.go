@@ -42,9 +42,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to decode state: %v", err)
 		}
-		healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
-		go healthCheckServer.Start()
-
 		ratingsConsumer.RestoreState(state.RatingsConsumer)
 		for clientId, producerState := range state.JoinerProducers {
 			producerName := fmt.Sprintf("ratings_joiner_client_%s", clientId)
@@ -58,6 +55,9 @@ func main() {
 		log.Println("State restored")
 		log.Printf("%+v", state)
 	}
+
+	healthCheckServer := utils.NewHealthCheckServer(env.AppEnv.ID)
+	go healthCheckServer.Start()
 
 	receiver := receiver.NewRatingsReceiver(conn, ratingsConsumer)
 	receiver.JoinerProducers = joinerProducers

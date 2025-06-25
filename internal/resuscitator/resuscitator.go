@@ -685,6 +685,7 @@ func (s *Server) monitorService(serviceName string, cancel <-chan struct{}) {
 				if s.performHealthCheck(serviceName) {
 					break
 				}
+				log.Printf("Node %d: Service %s health check failed, %d attempts left", s.nodeID, serviceName, attemptsLeft)
 				time.Sleep(500 * time.Millisecond)
 				attemptsLeft--
 			}
