@@ -59,10 +59,10 @@ func NewServer(nodeID int, totalNodes int) *Server {
 		services = append(services, fmt.Sprintf("ratingsjoiner_%d", i))
 	}
 	for i := 1; i <= env.AppEnv.CREDITS_JOINER_AMOUNT; i++ {
-		services = append(services, fmt.Sprintf("creditsjoiner_%d", i))
+		services = append(services, fmt.Sprintf("credits_joiner_%d", i))
 	}
 	for i := 1; i <= env.AppEnv.CREDITS_RECEIVER_AMOUNT; i++ {
-		services = append(services, fmt.Sprintf("creditsreceiver_%d", i))
+		services = append(services, fmt.Sprintf("credits_receiver_%d", i))
 	}
 	for i := 1; i <= env.AppEnv.BUDGET_REDUCER_AMOUNT; i++ {
 		services = append(services, fmt.Sprintf("budget_reducer_%d", i))
@@ -88,7 +88,15 @@ func NewServer(nodeID int, totalNodes int) *Server {
 	for i := 1; i <= env.AppEnv.Q4_FILTER_AMOUNT; i++ {
 		services = append(services, fmt.Sprintf("filter_q4_%d", i))
 	}
-
+	for i := 1; i <= env.AppEnv.SENTIMENT_WORKER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("sentiment_worker_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.SENTIMENT_REDUCER_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("sentiment_reducer_%d", i))
+	}
+	for i := 1; i <= env.AppEnv.SENTIMENT_SINK_AMOUNT; i++ {
+		services = append(services, fmt.Sprintf("sentiment_sink_%d", i))
+	}
 	return &Server{
 		services:             services,
 		nodeID:               nodeID,
