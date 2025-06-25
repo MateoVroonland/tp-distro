@@ -48,12 +48,20 @@ func (f *Filter) FilterAndPublish() error {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			msg.Nack(false)
+			err := SaveFilterState(f)
+			if err != nil {
+				log.Printf("Failed to save filter state: %v", err)
+			}
 			continue
 		}
 		if err := f.outputMessage.Deserialize(record); err != nil {
 			log.Printf("Failed to deserialize movie: %s", string(msg.Body))
 			log.Printf("Error deserializing movie: %s", err)
 			msg.Nack(false)
+			err := SaveFilterState(f)
+			if err != nil {
+				log.Printf("Failed to save filter state: %v", err)
+			}
 			continue
 		}
 		if f.outputMessage.PassesFilter() {
@@ -61,6 +69,10 @@ func (f *Filter) FilterAndPublish() error {
 			if err != nil {
 				log.Printf("Error serializing movie: %s", err)
 				msg.Nack(false)
+				err := SaveFilterState(f)
+				if err != nil {
+					log.Printf("Failed to save filter state: %v", err)
+				}
 				continue
 			}
 
@@ -69,6 +81,10 @@ func (f *Filter) FilterAndPublish() error {
 			if err != nil {
 				log.Printf("Error publishing movie: %s", err)
 				msg.Nack(false)
+				err := SaveFilterState(f)
+				if err != nil {
+					log.Printf("Failed to save filter state: %v", err)
+				}
 				continue
 			}
 		}

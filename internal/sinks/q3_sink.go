@@ -67,6 +67,10 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			msg.Nack(false)
+			err := SaveQ3SinkState(s, s.clientsResults)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
 			continue
 		}
 
@@ -74,6 +78,10 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
 			msg.Nack(false)
+			err := SaveQ3SinkState(s, s.clientsResults)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
 			continue
 		}
 

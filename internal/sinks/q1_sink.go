@@ -90,6 +90,10 @@ func (s *Q1Sink) Reduce() {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			msg.Nack(false)
+			err := SaveQ1SinkState(s)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
 			continue
 		}
 		var movie messages.Q1SinkMovie
@@ -97,6 +101,10 @@ func (s *Q1Sink) Reduce() {
 		if err != nil {
 			log.Printf("Failed to deserialize movie: %v", err)
 			msg.Nack(false)
+			err := SaveQ1SinkState(s)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
 			continue
 		}
 
