@@ -125,25 +125,39 @@ func (s *SentimentSink) Sink() {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			msg.Nack(false)
+			err := SaveSentimentSinkState(s)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
 			continue
 		}
 
 		var sentimentResult messages.SentimentResult
 		err = sentimentResult.Deserialize(record)
+		if err != nil {
+			log.Printf("Failed to deserialize sentiment result: %v", err)
+			msg.Nack(false)
+			err := SaveSentimentSinkState(s)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
+			continue
+		}
 
 		clientResults := s.clientResults[clientId]
 
-		if sentimentResult.Sentiment == "POSITIVE" {
+		switch sentimentResult.Sentiment {
+		case "POSITIVE":
 			clientResults.PositiveTotalRatio += sentimentResult.AverageRatio * float64(sentimentResult.TotalMovies)
 			clientResults.PositiveMovies += sentimentResult.TotalMovies
 			log.Printf("Client %s: Received positive sentiment stats: ratio=%.6f, movies=%d",
 				clientId, sentimentResult.AverageRatio, sentimentResult.TotalMovies)
-		} else if sentimentResult.Sentiment == "NEGATIVE" {
+		case "NEGATIVE":
 			clientResults.NegativeTotalRatio += sentimentResult.AverageRatio * float64(sentimentResult.TotalMovies)
 			clientResults.NegativeMovies += sentimentResult.TotalMovies
 			log.Printf("Client %s: Received negative sentiment stats: ratio=%.6f, movies=%d",
 				clientId, sentimentResult.AverageRatio, sentimentResult.TotalMovies)
-		} else {
+		default:
 			log.Printf("Client %s: Unknown sentiment: %s", clientId, sentimentResult.Sentiment)
 		}
 

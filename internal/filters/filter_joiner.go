@@ -94,6 +94,10 @@ func (f *FilterJoiner) FilterAndPublish() error {
 			if err != nil {
 				log.Printf("Failed to create producer for client %s: %v", msg.ClientId, err)
 				msg.Nack(false)
+				err := SaveFilterJoinerState(f)
+				if err != nil {
+					log.Printf("Failed to save filter joiner state: %v", err)
+				}
 				continue
 			}
 			f.clientsProducers[msg.ClientId] = producer
@@ -102,6 +106,10 @@ func (f *FilterJoiner) FilterAndPublish() error {
 			if err != nil {
 				log.Printf("FAILED TO PUBLISH NEW CLIENT: %v", err)
 				msg.Nack(false)
+				err := SaveFilterJoinerState(f)
+				if err != nil {
+					log.Printf("Failed to save filter joiner state: %v", err)
+				}
 				continue
 			}
 		}
@@ -113,12 +121,20 @@ func (f *FilterJoiner) FilterAndPublish() error {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			msg.Nack(false)
+			err := SaveFilterJoinerState(f)
+			if err != nil {
+				log.Printf("Failed to save filter joiner state: %v", err)
+			}
 			continue
 		}
 		if err := f.outputMessage.Deserialize(record); err != nil {
 			log.Printf("Failed to deserialize movie: %s", string(msg.Body))
 			log.Printf("Error deserializing movie: %s", err)
 			msg.Nack(false)
+			err := SaveFilterJoinerState(f)
+			if err != nil {
+				log.Printf("Failed to save filter joiner state: %v", err)
+			}
 			continue
 		}
 		if f.outputMessage.PassesFilter() {
@@ -126,6 +142,10 @@ func (f *FilterJoiner) FilterAndPublish() error {
 			if err != nil {
 				log.Printf("Error serializing movie: %s", err)
 				msg.Nack(false)
+				err := SaveFilterJoinerState(f)
+				if err != nil {
+					log.Printf("Failed to save filter joiner state: %v", err)
+				}
 				continue
 			}
 
@@ -139,6 +159,10 @@ func (f *FilterJoiner) FilterAndPublish() error {
 			if err != nil {
 				log.Printf("Error publishing movie: %s", err)
 				msg.Nack(false)
+				err := SaveFilterJoinerState(f)
+				if err != nil {
+					log.Printf("Failed to save filter joiner state: %v", err)
+				}
 				continue
 			}
 		}

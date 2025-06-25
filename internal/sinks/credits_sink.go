@@ -68,6 +68,10 @@ func (s *CreditsSink) Sink() {
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
 			msg.Nack(false)
+			err := SaveCreditsSinkState(s, s.actors)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
 			continue
 		}
 
@@ -76,6 +80,10 @@ func (s *CreditsSink) Sink() {
 		if err != nil {
 			log.Printf("Failed to unmarshal credits: %v", err)
 			msg.Nack(false)
+			err := SaveCreditsSinkState(s, s.actors)
+			if err != nil {
+				log.Printf("Failed to save state: %v", err)
+			}
 			continue
 		}
 
