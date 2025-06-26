@@ -47,7 +47,7 @@ func (w *SentimentWorker) analyzeSentiment(text string) string {
 	}
 }
 
-func (w *SentimentWorker) handleMessage(msg *utils.Message, stateSaver *state_saver.StateSaver[*SentimentWorker]) bool {
+func (w *SentimentWorker) handleMessage(msg *utils.Message, stateSaver *state_saver.StateSaver[*SentimentWorker]) {
 
 	if msg.IsFinished {
 		if !msg.IsLastFinished {
@@ -55,7 +55,7 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message, stateSaver *state_sa
 			if err != nil {
 				log.Printf("Failed to save state: %v", err)
 			}
-			return false
+			return
 		}
 
 		log.Printf("Received FINISHED message for client %s", msg.ClientId)
@@ -65,7 +65,7 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message, stateSaver *state_sa
 			log.Printf("Failed to save state: %v", err)
 		}
 		stateSaver.ForceFlush()
-		return true
+		return
 	}
 
 	reader := csv.NewReader(strings.NewReader(msg.Body))
@@ -73,14 +73,14 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message, stateSaver *state_sa
 	if err != nil {
 		log.Printf("Failed to read record: %v", err)
 		stateSaver.SaveStateNack(msg, w, false)
-		return false
+		return
 	}
 
 	var movieMetadata messages.MovieSentiment
 	err = movieMetadata.Deserialize(record)
 	if err != nil {
 		stateSaver.SaveStateNack(msg, w, false)
-		return false
+		return
 	}
 
 	sentiment := w.analyzeSentiment(movieMetadata.Overview)
@@ -91,7 +91,7 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message, stateSaver *state_sa
 	if err != nil {
 		log.Printf("Failed to serialize sentiment analysis: %v", err)
 		stateSaver.SaveStateNack(msg, w, false)
-		return false
+		return
 	}
 
 	w.publishQueue.Publish(serialized, msg.ClientId, movieMetadata.ID)
@@ -100,7 +100,6 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message, stateSaver *state_sa
 	if err != nil {
 		log.Printf("Failed to save state: %v", err)
 	}
-	return false
 }
 
 func (w *SentimentWorker) Start() {
@@ -111,8 +110,6 @@ func (w *SentimentWorker) Start() {
 
 	log.Printf("Starting sentiment worker...")
 	for msg := range w.queue.ConsumeInfinite() {
-		if w.handleMessage(&msg, stateSaver) {
-			break
-		}
+		w.handleMessage(&msg, stateSaver)
 	}
 }
