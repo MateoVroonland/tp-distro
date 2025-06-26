@@ -60,7 +60,6 @@ func (r *BudgetReducer) Reduce() {
 				}
 			}
 
-			// msg.Ack()
 			continue
 		}
 
@@ -90,7 +89,6 @@ func (r *BudgetReducer) Reduce() {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		// msg.Ack()
 	}
 
 	log.Printf("Total movies processed: %d", i)

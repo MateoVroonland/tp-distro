@@ -32,13 +32,15 @@ func NewQ3Sink(sinkConsumer *utils.ConsumerQueue, resultsProducer *utils.Produce
 }
 
 func (s *Q3Sink) GetMaxAndMinMovies() {
+	q3SinkStateSaver := NewQ3SinkStateSaver()
+
 	for msg := range s.SinkConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
 		if msg.IsFinished {
 			if !msg.IsLastFinished {
-				err := SaveQ3SinkState(s, s.clientsResults)
+				err := q3SinkStateSaver.SaveStateAck(&msg, s)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
@@ -52,12 +54,11 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 				s.SendClientIdResults(msg.ClientId, s.clientsResults[msg.ClientId])
 				delete(s.clientsResults, msg.ClientId)
 
-				err := SaveQ3SinkState(s, s.clientsResults)
+				err := q3SinkStateSaver.SaveStateAck(&msg, s)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
 			}
-			msg.Ack()
 			continue
 		}
 
@@ -66,21 +67,13 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false)
-			err := SaveQ3SinkState(s, s.clientsResults)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
-			}
+			q3SinkStateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
 		err = movie.Deserialize(record)
 		if err != nil {
-			msg.Nack(false)
-			err := SaveQ3SinkState(s, s.clientsResults)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
-			}
+			q3SinkStateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
@@ -102,12 +95,10 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 			s.clientsResults[msg.ClientId][movie.MovieID] = current
 		}
 
-		err = SaveQ3SinkState(s, s.clientsResults)
+		err = q3SinkStateSaver.SaveStateAck(&msg, s)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
-
-		msg.Ack()
 	}
 }
 

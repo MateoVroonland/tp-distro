@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -12,6 +13,10 @@ type Q1SinkState struct {
 	ClientResults          map[string][]messages.Q1Row
 	FilteredByYearConsumer utils.ConsumerQueueState
 	ResultsProducer        utils.ProducerQueueState
+}
+
+func NewQ1SinkStateSaver() *state_saver.StateSaver[*Q1Sink] {
+	return state_saver.NewStateSaver(SaveQ1SinkState)
 }
 
 func SaveQ1SinkState(s *Q1Sink) error {

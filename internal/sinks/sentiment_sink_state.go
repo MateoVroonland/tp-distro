@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -11,6 +12,10 @@ type SentimentSinkState struct {
 	ClientResults   map[string]SentimentSinkResults
 	Queue           utils.ConsumerQueueState
 	ResultsProducer utils.ProducerQueueState
+}
+
+func NewSentimentSinkStateSaver() *state_saver.StateSaver[*SentimentSink] {
+	return state_saver.NewStateSaver(SaveSentimentSinkState)
 }
 
 func SaveSentimentSinkState(s *SentimentSink) error {

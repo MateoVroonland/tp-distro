@@ -41,6 +41,7 @@ func NewSentimentReducer(queue *utils.ConsumerQueue, publishQueue *utils.Produce
 
 func (r *SentimentReducer) Reduce() {
 	processedCount := make(map[string]int)
+	sentimentReducerStateSaver := NewSentimentReducerStateSaver()
 
 	defer r.queue.CloseChannel()
 	defer r.publishQueue.CloseChannel()
@@ -52,10 +53,7 @@ func (r *SentimentReducer) Reduce() {
 
 		if msg.IsFinished {
 			if !msg.IsLastFinished {
-				err := SaveSentimentReducerState(r)
-				if err != nil {
-					log.Printf("Failed to save state: %v", err)
-				}
+				sentimentReducerStateSaver.SaveStateAck(&msg, r)
 				continue
 			}
 
@@ -67,13 +65,9 @@ func (r *SentimentReducer) Reduce() {
 				r.SendResults(clientId)
 				delete(r.ClientStats, clientId)
 
-				err := SaveSentimentReducerState(r)
-				if err != nil {
-					log.Printf("Failed to save state: %v", err)
-				}
 			}
+			sentimentReducerStateSaver.SaveStateAck(&msg, r)
 
-			msg.Ack()
 			continue
 		}
 
@@ -91,11 +85,7 @@ func (r *SentimentReducer) Reduce() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false)
-			err := SaveSentimentReducerState(r)
-			if err != nil {
-				log.Printf("Failed to save sentiment reducer state: %v", err)
-			}
+			sentimentReducerStateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
@@ -103,11 +93,7 @@ func (r *SentimentReducer) Reduce() {
 		err = movieSentiment.Deserialize(record)
 
 		if err != nil {
-			msg.Nack(false)
-			err := SaveSentimentReducerState(r)
-			if err != nil {
-				log.Printf("Failed to save sentiment reducer state: %v", err)
-			}
+			sentimentReducerStateSaver.SaveStateNack(&msg, r, false)
 			continue
 		}
 
@@ -127,11 +113,7 @@ func (r *SentimentReducer) Reduce() {
 		}
 
 		r.ClientStats[clientId] = clientStats
-		err = SaveSentimentReducerState(r)
-		if err != nil {
-			log.Printf("Failed to save state: %v", err)
-		}
-		msg.Ack()
+		sentimentReducerStateSaver.SaveStateAck(&msg, r)
 	}
 }
 

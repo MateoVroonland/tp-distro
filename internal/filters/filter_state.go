@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -12,6 +13,10 @@ type FilterState struct {
 	FilteredByCountryConsumer utils.ConsumerQueueState
 	FilteredByYearProducer    utils.ProducerQueueState
 	outputMessage             protocol.MovieToFilter
+}
+
+func NewFilterStateSaver() *state_saver.StateSaver[*Filter] {
+	return state_saver.NewStateSaver(SaveFilterState)
 }
 
 func SaveFilterState(filter *Filter) error {

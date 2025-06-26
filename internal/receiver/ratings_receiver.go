@@ -55,7 +55,6 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			} else if flushed {
 				log.Printf("Flushed final state for client %s", msg.ClientId)
 			}
-			// msg.Ack()
 			continue
 		}
 		clientId := msg.ClientId
@@ -106,7 +105,6 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		// msg.Ack()
 	}
 	log.Printf("Ratings consumed: %d", ratingsConsumed)
 }

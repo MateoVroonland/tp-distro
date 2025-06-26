@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -13,9 +14,13 @@ type CreditsSinkState struct {
 	ResultsProducer utils.ProducerQueueState
 }
 
-func SaveCreditsSinkState(s *CreditsSink, actors map[string]map[string]int) error {
+func NewCreditsSinkStateSaver() *state_saver.StateSaver[*CreditsSink] {
+	return state_saver.NewStateSaver(SaveCreditsSinkState)
+}
+
+func SaveCreditsSinkState(s *CreditsSink) error {
 	state := CreditsSinkState{
-		Actors:          actors,
+		Actors:          s.actors,
 		SinkConsumer:    s.sinkConsumer.GetState(),
 		ResultsProducer: s.resultsProducer.GetState(),
 	}

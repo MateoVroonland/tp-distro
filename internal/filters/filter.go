@@ -22,11 +22,13 @@ func NewFilter(filteredByCountryConsumer *utils.ConsumerQueue, filteredByYearPro
 func (f *Filter) FilterAndPublish() error {
 	log.Printf("Filtering and publishing")
 
+	filterStateSaver := NewFilterStateSaver()
+
 	for msg := range f.filteredByCountryConsumer.ConsumeInfinite() {
 
 		if msg.IsFinished {
 			if !msg.IsLastFinished {
-				err := SaveFilterState(f)
+				err := filterStateSaver.SaveStateAck(&msg, f)
 				if err != nil {
 					log.Printf("Failed to save filter state: %v", err)
 				}
@@ -35,11 +37,10 @@ func (f *Filter) FilterAndPublish() error {
 
 			log.Printf("Received finished message for client %s", msg.ClientId)
 			f.filteredByYearProducer.PublishFinished(msg.ClientId)
-			err := SaveFilterState(f)
+			err := filterStateSaver.SaveStateAck(&msg, f)
 			if err != nil {
 				log.Printf("Failed to save filter state: %v", err)
 			}
-			msg.Ack()
 			continue
 		}
 
@@ -47,31 +48,19 @@ func (f *Filter) FilterAndPublish() error {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false)
-			err := SaveFilterState(f)
-			if err != nil {
-				log.Printf("Failed to save filter state: %v", err)
-			}
+			filterStateSaver.SaveStateNack(&msg, f, false)
 			continue
 		}
 		if err := f.outputMessage.Deserialize(record); err != nil {
 
-			msg.Nack(false)
-			err := SaveFilterState(f)
-			if err != nil {
-				log.Printf("Failed to save filter state: %v", err)
-			}
+			filterStateSaver.SaveStateNack(&msg, f, false)
 			continue
 		}
 		if f.outputMessage.PassesFilter() {
 			serializedMovie, err := protocol.Serialize(f.outputMessage)
 			if err != nil {
 				log.Printf("Error serializing movie: %s", err)
-				msg.Nack(false)
-				err := SaveFilterState(f)
-				if err != nil {
-					log.Printf("Failed to save filter state: %v", err)
-				}
+				filterStateSaver.SaveStateNack(&msg, f, false)
 				continue
 			}
 
@@ -79,21 +68,15 @@ func (f *Filter) FilterAndPublish() error {
 
 			if err != nil {
 				log.Printf("Error publishing movie: %s", err)
-				msg.Nack(false)
-				err := SaveFilterState(f)
-				if err != nil {
-					log.Printf("Failed to save filter state: %v", err)
-				}
+				filterStateSaver.SaveStateNack(&msg, f, false)
 				continue
 			}
 		}
 
-		err = SaveFilterState(f)
+		err = filterStateSaver.SaveStateAck(&msg, f)
 		if err != nil {
 			log.Printf("Failed to save filter state: %v", err)
 		}
-
-		msg.Ack()
 	}
 	return nil
 }

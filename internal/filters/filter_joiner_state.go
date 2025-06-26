@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 )
 
@@ -11,6 +12,10 @@ type FilterJoinerState struct {
 	FilteredByCountryConsumer utils.ConsumerQueueState
 	ClientsProducers          map[string]utils.ProducerQueueState
 	Query                     string
+}
+
+func NewFilterJoinerStateSaver() *state_saver.StateSaver[*FilterJoiner] {
+	return state_saver.NewStateSaver(SaveFilterJoinerState)
 }
 
 func SaveFilterJoinerState(f *FilterJoiner) error {

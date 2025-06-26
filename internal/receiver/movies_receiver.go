@@ -64,7 +64,6 @@ func (r *MoviesReceiver) ReceiveMovies() {
 				log.Printf("Flushed final state for client %s", d.ClientId)
 			}
 
-			// d.Ack()
 			continue
 		}
 
@@ -129,6 +128,5 @@ func (r *MoviesReceiver) ReceiveMovies() {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		// d.Ack()
 	}
 }

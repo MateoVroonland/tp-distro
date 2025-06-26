@@ -57,12 +57,13 @@ func (s *Q1Sink) SendClientIdResults(clientId string) {
 }
 
 func (s *Q1Sink) Reduce() {
-	// log.Printf("Q1 sink consuming messages")
+	q1SinkStateSaver := NewQ1SinkStateSaver()
+	log.Printf("Q1 sink consuming messages")
 
 	for msg := range s.filteredByYearConsumer.ConsumeInfinite() {
 		if msg.IsFinished {
 			if !msg.IsLastFinished {
-				err := SaveQ1SinkState(s)
+				err := q1SinkStateSaver.SaveStateAck(&msg, s)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
@@ -76,12 +77,11 @@ func (s *Q1Sink) Reduce() {
 				s.SendClientIdResults(msg.ClientId)
 				delete(s.clientResults, msg.ClientId)
 
-				err := SaveQ1SinkState(s)
+				err := q1SinkStateSaver.SaveStateAck(&msg, s)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
 			}
-			msg.Ack()
 			continue
 		}
 
@@ -89,21 +89,13 @@ func (s *Q1Sink) Reduce() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false)
-			err := SaveQ1SinkState(s)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
-			}
+			q1SinkStateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 		var movie messages.Q1SinkMovie
 		err = movie.Deserialize(record)
 		if err != nil {
-			msg.Nack(false)
-			err := SaveQ1SinkState(s)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
-			}
+			q1SinkStateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
@@ -114,11 +106,9 @@ func (s *Q1Sink) Reduce() {
 		row = append(row, *messages.NewQ1Row(movie.ID, movie.Title, movie.Genres))
 		s.clientResults[msg.ClientId] = row
 
-		err = SaveQ1SinkState(s)
+		err = q1SinkStateSaver.SaveStateAck(&msg, s)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
-
-		msg.Ack()
 	}
 }

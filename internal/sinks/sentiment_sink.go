@@ -86,6 +86,7 @@ func (s *SentimentSink) SendClientResults(clientId string) {
 }
 
 func (s *SentimentSink) Sink() {
+	sentimentSinkStateSaver := NewSentimentSinkStateSaver()
 	log.Printf("Sentiment sink started, consuming messages...")
 
 	for msg := range s.sinkConsumer.ConsumeInfinite() {
@@ -93,7 +94,7 @@ func (s *SentimentSink) Sink() {
 
 		if msg.IsFinished {
 			if !msg.IsLastFinished {
-				err := SaveSentimentSinkState(s)
+				err := sentimentSinkStateSaver.SaveStateAck(&msg, s)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
@@ -107,12 +108,11 @@ func (s *SentimentSink) Sink() {
 				s.SendClientResults(clientId)
 				delete(s.clientResults, clientId)
 
-				err := SaveSentimentSinkState(s)
+				err := sentimentSinkStateSaver.SaveStateAck(&msg, s)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
 			}
-			msg.Ack()
 			continue
 		}
 
@@ -124,11 +124,7 @@ func (s *SentimentSink) Sink() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false)
-			err := SaveSentimentSinkState(s)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
-			}
+			sentimentSinkStateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
@@ -136,11 +132,7 @@ func (s *SentimentSink) Sink() {
 		err = sentimentResult.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to deserialize sentiment result: %v", err)
-			msg.Nack(false)
-			err := SaveSentimentSinkState(s)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
-			}
+			sentimentSinkStateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
@@ -171,11 +163,9 @@ func (s *SentimentSink) Sink() {
 
 		s.clientResults[clientId] = clientResults
 
-		err = SaveSentimentSinkState(s)
+		err = sentimentSinkStateSaver.SaveStateAck(&msg, s)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
-
-		msg.Ack()
 	}
 }

@@ -55,7 +55,6 @@ func (s *BudgetSink) Sink() {
 					log.Printf("Flushed final state for client %s", msg.ClientId)
 				}
 			}
-			// msg.Ack()
 			continue
 		}
 
@@ -85,7 +84,6 @@ func (s *BudgetSink) Sink() {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		// msg.Ack()
 	}
 
 }

@@ -34,13 +34,14 @@ type NameAmountTuple struct {
 
 func (s *CreditsSink) Sink() {
 	i := 0
+	creditsSinkStateSaver := NewCreditsSinkStateSaver()
 	for msg := range s.sinkConsumer.ConsumeInfinite() {
 
 		stringLine := string(msg.Body)
 
 		if msg.IsFinished {
 			if !msg.IsLastFinished {
-				err := SaveCreditsSinkState(s, s.actors)
+				err := creditsSinkStateSaver.SaveStateAck(&msg, s)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
@@ -53,12 +54,11 @@ func (s *CreditsSink) Sink() {
 				s.SendClientIdResults(msg.ClientId, s.actors[msg.ClientId])
 				delete(s.actors, msg.ClientId)
 
-				err := SaveCreditsSinkState(s, s.actors)
+				err := creditsSinkStateSaver.SaveStateAck(&msg, s)
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
 			}
-			msg.Ack()
 			continue
 		}
 
@@ -67,11 +67,7 @@ func (s *CreditsSink) Sink() {
 		record, err := reader.Read()
 		if err != nil {
 			log.Printf("Failed to read record: %v", err)
-			msg.Nack(false)
-			err := SaveCreditsSinkState(s, s.actors)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
-			}
+			creditsSinkStateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
@@ -79,11 +75,7 @@ func (s *CreditsSink) Sink() {
 		err = credits.Deserialize(record)
 		if err != nil {
 			log.Printf("Failed to unmarshal credits: %v", err)
-			msg.Nack(false)
-			err := SaveCreditsSinkState(s, s.actors)
-			if err != nil {
-				log.Printf("Failed to save state: %v", err)
-			}
+			creditsSinkStateSaver.SaveStateNack(&msg, s, false)
 			continue
 		}
 
@@ -96,12 +88,10 @@ func (s *CreditsSink) Sink() {
 			s.actors[msg.ClientId][actor]++
 		}
 
-		err = SaveCreditsSinkState(s, s.actors)
+		err = creditsSinkStateSaver.SaveStateAck(&msg, s)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
-
-		msg.Ack()
 	}
 
 	log.Printf("Processed credits: %d", i)

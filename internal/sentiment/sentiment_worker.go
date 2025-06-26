@@ -47,9 +47,11 @@ func (w *SentimentWorker) analyzeSentiment(text string) string {
 }
 
 func (w *SentimentWorker) handleMessage(msg *utils.Message) {
+	sentimentWorkerStateSaver := NewSentimentWorkerStateSaver()
+
 	if msg.IsFinished {
 		if !msg.IsLastFinished {
-			err := SaveSentimentWorkerState(w)
+			err := sentimentWorkerStateSaver.SaveStateAck(msg, w)
 			if err != nil {
 				log.Printf("Failed to save state: %v", err)
 			}
@@ -58,11 +60,10 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message) {
 
 		log.Printf("Received FINISHED message for client %s", msg.ClientId)
 		w.publishQueue.PublishFinished(msg.ClientId)
-		err := SaveSentimentWorkerState(w)
+		err := sentimentWorkerStateSaver.SaveStateAck(msg, w)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
-		msg.Ack()
 		return
 	}
 
@@ -70,22 +71,14 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message) {
 	record, err := reader.Read()
 	if err != nil {
 		log.Printf("Failed to read record: %v", err)
-		msg.Nack(false)
-		err := SaveSentimentWorkerState(w)
-		if err != nil {
-			log.Printf("Failed to save state: %v", err)
-		}
+		sentimentWorkerStateSaver.SaveStateNack(msg, w, false)
 		return
 	}
 
 	var movieMetadata messages.MovieSentiment
 	err = movieMetadata.Deserialize(record)
 	if err != nil {
-		msg.Nack(false)
-		err := SaveSentimentWorkerState(w)
-		if err != nil {
-			log.Printf("Failed to save state: %v", err)
-		}
+		sentimentWorkerStateSaver.SaveStateNack(msg, w, false)
 		return
 	}
 
@@ -96,22 +89,17 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message) {
 	serialized, err := protocol.Serialize(&movieMetadata)
 	if err != nil {
 		log.Printf("Failed to serialize sentiment analysis: %v", err)
-		msg.Nack(false)
-		err := SaveSentimentWorkerState(w)
-		if err != nil {
-			log.Printf("Failed to save state: %v", err)
-		}
+		sentimentWorkerStateSaver.SaveStateNack(msg, w, false)
 		return
 	}
 
 	w.publishQueue.Publish(serialized, msg.ClientId, movieMetadata.ID)
 
-	err = SaveSentimentWorkerState(w)
+	err = sentimentWorkerStateSaver.SaveStateAck(msg, w)
 	if err != nil {
 		log.Printf("Failed to save state: %v", err)
 	}
 
-	msg.Ack()
 }
 
 func (w *SentimentWorker) Start() {
