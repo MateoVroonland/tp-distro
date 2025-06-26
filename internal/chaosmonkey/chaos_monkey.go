@@ -77,8 +77,6 @@ func (cm *ChaosMonkey) Start() {
 	log.Printf("Chaos Monkey %d: Starting chaos monkey with kill probability %.2f", cm.nodeID, cm.killProbability)
 	log.Printf("Chaos Monkey %d: Interval range: %v to %v", cm.nodeID, cm.minInterval, cm.maxInterval)
 
-	log.Printf("Chaos Monkey %d: Waiting 8 seconds for services to stabilize...", cm.nodeID)
-	time.Sleep(8 * time.Second)
 
 	cm.mutex.Lock()
 	cm.isActive = true
