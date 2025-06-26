@@ -49,6 +49,10 @@ func NewChaosMonkey(nodeID int, minIntervalSeconds int, maxIntervalSeconds int, 
 		"resuscitator_1",
 		"resuscitator_2",
 		"resuscitator_3",
+		"sentiment_worker_1",
+		"sentiment_worker_2",
+		"sentiment_sink_1",
+		"sentiment_reducer_1",
 	}
 
 	// Validate probability
@@ -93,7 +97,7 @@ func (cm *ChaosMonkey) Start() {
 
 	log.Printf("Chaos Monkey %d: Chaos monkey started and active", cm.nodeID)
 
-		<-cm.shutdownChan
+	<-cm.shutdownChan
 	log.Printf("Chaos Monkey %d: Chaos monkey shutting down...", cm.nodeID)
 }
 
