@@ -2,6 +2,7 @@ package state_saver
 
 import (
 	"log"
+	"sync"
 	"time"
 
 	"github.com/MateoVroonland/tp-distro/internal/utils"
@@ -13,12 +14,30 @@ type StateSaver[T any] struct {
 	seqNumToAck            map[string]map[string]int // producerId -> clientId -> sequence number
 	messagesSinceLastFlush int
 	lastFlushedTime        time.Time
+	flushMutex             sync.Mutex
 	flushFunc              func(T) error
 	currentState           T
 }
 
+func (s *StateSaver[T]) flushInterval() {
+	for {
+
+		if !s.lastFlushedTime.Before(time.Now().Add(-1 * time.Minute)) {
+			time.Sleep(1 * time.Minute)
+		}
+
+		s.flushMutex.Lock()
+		err := s.flush()
+		if err != nil {
+			log.Printf("Failed to flush state: %v", err)
+		}
+		s.flushMutex.Unlock()
+	}
+
+}
+
 func NewStateSaver[T any](flushFunc func(T) error) *StateSaver[T] {
-	return &StateSaver[T]{
+	stateSaver := &StateSaver[T]{
 		pendingAcks:            make([]func(), 0),
 		pendingNacks:           make([]func(), 0),
 		seqNumToAck:            make(map[string]map[string]int),
@@ -26,6 +45,8 @@ func NewStateSaver[T any](flushFunc func(T) error) *StateSaver[T] {
 		lastFlushedTime:        time.Now(),
 		flushFunc:              flushFunc,
 	}
+	go stateSaver.flushInterval()
+	return stateSaver
 }
 
 func (s *StateSaver[T]) SaveStateAck(msg *utils.Message, currentState T) error {
@@ -44,11 +65,13 @@ func (s *StateSaver[T]) SaveStateAck(msg *utils.Message, currentState T) error {
 	s.seqNumToAck[msg.ProducerId][msg.ClientId] = msg.SequenceNumber
 	s.pendingAcks = append(s.pendingAcks, msg.Ack)
 
-	if s.lastFlushedTime.Before(time.Now().Add(-2*time.Second)) || s.messagesSinceLastFlush > 4700 {
+	if s.messagesSinceLastFlush > 4700 {
+		s.flushMutex.Lock()
 		err := s.flush()
 		if err != nil {
 			return err
 		}
+		s.flushMutex.Unlock()
 	}
 
 	s.messagesSinceLastFlush++
@@ -71,11 +94,13 @@ func (s *StateSaver[T]) SaveStateNack(msg *utils.Message, currentState T, requeu
 	s.pendingNacks = append(s.pendingNacks, func() { msg.Nack(requeue) })
 
 	if s.lastFlushedTime.Before(time.Now().Add(-2*time.Second)) || s.messagesSinceLastFlush > 4700 {
+		s.flushMutex.Lock()
 		err := s.flush()
 		if err != nil {
 			log.Printf("Failed to flush state: %v", err)
 			return
 		}
+		s.flushMutex.Unlock()
 	}
 
 	s.messagesSinceLastFlush++
@@ -83,7 +108,13 @@ func (s *StateSaver[T]) SaveStateNack(msg *utils.Message, currentState T, requeu
 
 func (s *StateSaver[T]) ForceFlush() (bool, error) {
 	if s.messagesSinceLastFlush > 0 {
-		return true, s.flush()
+		s.flushMutex.Lock()
+		err := s.flush()
+		s.flushMutex.Unlock()
+		if err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 
 	return false, nil
