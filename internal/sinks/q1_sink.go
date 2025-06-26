@@ -81,6 +81,7 @@ func (s *Q1Sink) Reduce() {
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
+				q1SinkStateSaver.ForceFlush()
 			}
 			continue
 		}

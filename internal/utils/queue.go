@@ -23,20 +23,17 @@ type ConsumerQueue struct {
 	previousReplicas int
 	finishedReceived map[string]map[string]bool
 	sequenceNumbers  map[string]map[string]int // clientId -> producerId -> sequenceNumber
-	finishedClients  map[string]bool
 }
 
 type ConsumerQueueState struct {
 	FinishedReceived map[string]map[string]bool
 	SequenceNumbers  map[string]map[string]int // clientId -> producerId -> sequenceNumber
-	FinishedClients  map[string]bool
 }
 
 func (q *ConsumerQueue) GetState() ConsumerQueueState {
 	return ConsumerQueueState{
 		FinishedReceived: q.finishedReceived,
 		SequenceNumbers:  q.sequenceNumbers,
-		FinishedClients:  q.finishedClients,
 	}
 }
 
@@ -50,7 +47,6 @@ func NewConsumerQueue(conn *amqp.Connection, queueName string, exchangeName stri
 func (q *ConsumerQueue) RestoreState(state ConsumerQueueState) {
 	q.finishedReceived = state.FinishedReceived
 	q.sequenceNumbers = state.SequenceNumbers
-	q.finishedClients = state.FinishedClients
 }
 
 // func NewConsumerQueueFromState(conn *amqp.Connection, queueName string, exchangeName string, previousReplicas int, state ConsumerQueueState) (*ConsumerQueue, error) {
@@ -128,7 +124,6 @@ func newConsumerQueueWithRoutingKey(conn *amqp.Connection, queueName string, exc
 		finishedReceived: make(map[string]map[string]bool),
 		previousReplicas: previousReplicas,
 		sequenceNumbers:  make(map[string]map[string]int),
-		finishedClients:  make(map[string]bool),
 	}, nil
 }
 
@@ -219,13 +214,18 @@ func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
 					continue
 				}
 
-				if q.finishedClients[message.ClientId] {
-					log.Printf("Finished client %s, ignoring message", message.ClientId)
-					message.Ack()
-					continue
-				}
-
 				if _, ok := q.sequenceNumbers[message.ClientId]; !ok {
+					if message.SequenceNumber != 1 {
+						if !message.Redelivered {
+							log.Printf("First message for client %s on queue %s, sequence number %d, producer %s, requeuing...", message.ClientId, q.queueName, message.SequenceNumber, message.ProducerId)
+							message.Nack(true)
+						} else {
+							log.Printf("Redelivered message for client %s on queue %s, sequence number %d, producer %s, ignoring...", message.ClientId, q.queueName, message.SequenceNumber, message.ProducerId)
+							message.Ack()
+						}
+						continue
+					}
+
 					q.sequenceNumbers[message.ClientId] = make(map[string]int)
 				}
 
@@ -261,8 +261,7 @@ func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
 					if len(q.finishedReceived[message.ClientId]) == q.previousReplicas {
 						log.Printf("Received all messages for client %s", message.ClientId)
 						delete(q.finishedReceived, message.ClientId)
-						delete(q.sequenceNumbers, message.ClientId) // TODO: check if no data will be lost, maybe do later or garbage collect?
-						q.finishedClients[message.ClientId] = true
+						delete(q.sequenceNumbers, message.ClientId)
 						finishedMessage := message
 						finishedMessage.Body = "FINISHED"
 						message.IsLastFinished = true
@@ -276,6 +275,10 @@ func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
 			}
 		}
 	}
+}
+
+func (q *ConsumerQueue) HasFinishedConsuming() bool {
+	return len(q.finishedReceived) == q.previousReplicas
 }
 
 func (q *ConsumerQueue) CloseChannel() error {

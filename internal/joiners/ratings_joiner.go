@@ -38,6 +38,10 @@ func (r *RatingsJoiner) removeClient(clientId string) {
 	defer r.clientsLock.Unlock()
 
 	delete(r.ClientsJoiners, clientId)
+	err := SaveRatingsJoinerState(r)
+	if err != nil {
+		log.Printf("Failed to save ratings joiner state: %v", err)
+	}
 }
 
 func (r *RatingsJoiner) JoinRatings(routingKey string) error {
@@ -158,9 +162,7 @@ func NewRatingsJoinerClient(ratingsJoiner *RatingsJoiner, clientId string) (*Rat
 
 		if finishedFetchingMovies {
 			log.Printf("Finished fetching movies for client %s upon restart", clientId)
-			moviesConsumer.CloseChannel()
 			moviesConsumer.DeleteQueue()
-
 		}
 	}
 

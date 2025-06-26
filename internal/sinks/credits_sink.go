@@ -58,6 +58,7 @@ func (s *CreditsSink) Sink() {
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
+				creditsSinkStateSaver.ForceFlush()
 			}
 			continue
 		}

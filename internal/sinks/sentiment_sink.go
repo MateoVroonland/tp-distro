@@ -112,6 +112,7 @@ func (s *SentimentSink) Sink() {
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
+				sentimentSinkStateSaver.ForceFlush()
 			}
 			continue
 		}

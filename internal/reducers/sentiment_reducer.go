@@ -53,7 +53,10 @@ func (r *SentimentReducer) Reduce() {
 
 		if msg.IsFinished {
 			if !msg.IsLastFinished {
-				sentimentReducerStateSaver.SaveStateAck(&msg, r)
+				err := sentimentReducerStateSaver.SaveStateAck(&msg, r)
+				if err != nil {
+					log.Printf("Failed to save sentiment reducer state: %v", err)
+				}
 				continue
 			}
 
@@ -66,7 +69,11 @@ func (r *SentimentReducer) Reduce() {
 				delete(r.ClientStats, clientId)
 
 			}
-			sentimentReducerStateSaver.SaveStateAck(&msg, r)
+			err := sentimentReducerStateSaver.SaveStateAck(&msg, r)
+			if err != nil {
+				log.Printf("Failed to save sentiment reducer state: %v", err)
+			}
+			sentimentReducerStateSaver.ForceFlush()
 
 			continue
 		}

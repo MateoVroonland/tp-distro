@@ -43,7 +43,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			queue := r.JoinerProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
 
-			// Save state when receiving FINISHED message
+			delete(r.JoinerProducers, msg.ClientId)
 			err := stateSaver.SaveStateAck(&msg, r)
 			if err != nil {
 				log.Printf("Failed to save state: %v", err)
@@ -55,6 +55,7 @@ func (r *RatingsReceiver) ReceiveRatings() {
 			} else if flushed {
 				log.Printf("Flushed final state for client %s", msg.ClientId)
 			}
+
 			continue
 		}
 		clientId := msg.ClientId

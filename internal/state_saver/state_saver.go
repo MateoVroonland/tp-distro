@@ -36,6 +36,7 @@ func (s *StateSaver[T]) SaveStateAck(msg *utils.Message, currentState T) error {
 
 	if msg.SequenceNumber <= s.seqNumToAck[msg.ProducerId][msg.ClientId] {
 		log.Printf("Sequence number %d for client %s already acknowledged, current seqNumToAck: %+v", msg.SequenceNumber, msg.ClientId, s.seqNumToAck)
+		msg.Ack()
 		return nil
 	}
 

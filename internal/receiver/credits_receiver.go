@@ -45,6 +45,7 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			queue := r.ClientProducers[msg.ClientId]
 			queue.PublishFinished(msg.ClientId)
 
+			delete(r.ClientProducers, msg.ClientId)
 			err := stateSaver.SaveStateAck(&msg, r)
 			if err != nil {
 				log.Printf("Failed to save state: %v", err)
@@ -57,7 +58,6 @@ func (r *CreditsReceiver) ReceiveCredits() {
 				log.Printf("Flushed final state for client %s", msg.ClientId)
 			}
 
-			// msg.Ack()
 			continue
 		}
 
@@ -110,7 +110,6 @@ func (r *CreditsReceiver) ReceiveCredits() {
 			log.Printf("Failed to save state: %v", err)
 		}
 
-		// msg.Ack()
 	}
 
 	log.Printf("Received %d credits", i)

@@ -41,6 +41,7 @@ func (f *Filter) FilterAndPublish() error {
 			if err != nil {
 				log.Printf("Failed to save filter state: %v", err)
 			}
+			filterStateSaver.ForceFlush()
 			continue
 		}
 

@@ -80,14 +80,18 @@ func (f *FilterJoiner) FilterAndPublish() error {
 				if err != nil {
 					log.Printf("Failed to save filter joiner state: %v", err)
 				}
+				filterJoinerStateSaver.ForceFlush()
 				continue
 			}
 			queue.PublishFinished(msg.ClientId)
 
+			delete(f.clientsProducers, msg.ClientId)
 			err := filterJoinerStateSaver.SaveStateAck(&msg, f)
 			if err != nil {
 				log.Printf("Failed to save filter joiner state: %v", err)
 			}
+
+			filterJoinerStateSaver.ForceFlush()
 
 			continue
 		}

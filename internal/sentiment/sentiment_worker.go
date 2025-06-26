@@ -64,6 +64,7 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message) {
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
+		sentimentWorkerStateSaver.ForceFlush()
 		return
 	}
 

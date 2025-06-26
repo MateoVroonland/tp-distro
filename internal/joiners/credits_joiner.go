@@ -32,6 +32,10 @@ func (c *CreditsJoiner) removeClient(clientId string) {
 	defer c.clientsLock.Unlock()
 
 	delete(c.ClientsJoiners, clientId)
+	err := SaveCreditsJoinerState(c)
+	if err != nil {
+		log.Printf("Failed to save credits joiner state: %v", err)
+	}
 }
 
 func (c *CreditsJoiner) JoinCredits(routingKey int) error {
@@ -126,9 +130,6 @@ func NewCreditsJoinerClient(creditsJoiner *CreditsJoiner, clientId string) (*Cre
 		moviesIds = make(map[int]bool)
 	} else if fileErr != nil {
 		log.Printf("Failed to open state file of credits joiner for client %s: %v", clientId, fileErr)
-		if moviesConsumer != nil {
-			moviesConsumer.CloseChannel()
-		}
 		return nil, fileErr
 	} else {
 		defer stateFile.Close()
@@ -136,9 +137,6 @@ func NewCreditsJoinerClient(creditsJoiner *CreditsJoiner, clientId string) (*Cre
 		err := dec.Decode(&state)
 		if err != nil {
 			log.Printf("Failed to decode state file of credits joiner for client %s: %v", clientId, err)
-			if moviesConsumer != nil {
-				moviesConsumer.CloseChannel()
-			}
 			return nil, err
 		}
 
@@ -154,9 +152,7 @@ func NewCreditsJoinerClient(creditsJoiner *CreditsJoiner, clientId string) (*Cre
 
 		if finishedFetchingMovies {
 			log.Printf("Finished fetching movies for client %s upon restart", clientId)
-			moviesConsumer.CloseChannel()
 			moviesConsumer.DeleteQueue()
-
 		}
 	}
 
@@ -210,7 +206,8 @@ func (c *CreditsJoinerClient) fetchMovies() {
 				log.Printf("Failed to save credits joiner state: %v", err)
 			}
 			stateSaver.ForceFlush()
-			c.MoviesConsumer.DeleteQueue() // TODO: implement garbage collection
+
+			c.MoviesConsumer.DeleteQueue()
 			break
 		}
 
@@ -259,8 +256,8 @@ func (c *CreditsJoinerClient) fetchCredits() {
 				continue
 			}
 
-			c.creditsJoiner.removeClient(c.ClientId)
 			c.SinkProducer.PublishFinished(c.ClientId)
+			c.creditsJoiner.removeClient(c.ClientId)
 
 			err := stateSaver.SaveStateAck(&msg, c)
 			if err != nil {

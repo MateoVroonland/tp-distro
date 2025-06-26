@@ -58,6 +58,7 @@ func (s *Q3Sink) GetMaxAndMinMovies() {
 				if err != nil {
 					log.Printf("Failed to save state: %v", err)
 				}
+				q3SinkStateSaver.ForceFlush()
 			}
 			continue
 		}
