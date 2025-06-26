@@ -7,6 +7,7 @@ import (
 
 	"github.com/MateoVroonland/tp-distro/internal/protocol"
 	"github.com/MateoVroonland/tp-distro/internal/protocol/messages"
+	"github.com/MateoVroonland/tp-distro/internal/state_saver"
 	"github.com/MateoVroonland/tp-distro/internal/utils"
 	"github.com/cdipaolo/sentiment"
 )
@@ -46,41 +47,40 @@ func (w *SentimentWorker) analyzeSentiment(text string) string {
 	}
 }
 
-func (w *SentimentWorker) handleMessage(msg *utils.Message) {
-	sentimentWorkerStateSaver := NewSentimentWorkerStateSaver()
+func (w *SentimentWorker) handleMessage(msg *utils.Message, stateSaver *state_saver.StateSaver[*SentimentWorker]) bool {
 
 	if msg.IsFinished {
 		if !msg.IsLastFinished {
-			err := sentimentWorkerStateSaver.SaveStateAck(msg, w)
+			err := stateSaver.SaveStateAck(msg, w)
 			if err != nil {
 				log.Printf("Failed to save state: %v", err)
 			}
-			return
+			return false
 		}
 
 		log.Printf("Received FINISHED message for client %s", msg.ClientId)
 		w.publishQueue.PublishFinished(msg.ClientId)
-		err := sentimentWorkerStateSaver.SaveStateAck(msg, w)
+		err := stateSaver.SaveStateAck(msg, w)
 		if err != nil {
 			log.Printf("Failed to save state: %v", err)
 		}
-		sentimentWorkerStateSaver.ForceFlush()
-		return
+		stateSaver.ForceFlush()
+		return true
 	}
 
 	reader := csv.NewReader(strings.NewReader(msg.Body))
 	record, err := reader.Read()
 	if err != nil {
 		log.Printf("Failed to read record: %v", err)
-		sentimentWorkerStateSaver.SaveStateNack(msg, w, false)
-		return
+		stateSaver.SaveStateNack(msg, w, false)
+		return false
 	}
 
 	var movieMetadata messages.MovieSentiment
 	err = movieMetadata.Deserialize(record)
 	if err != nil {
-		sentimentWorkerStateSaver.SaveStateNack(msg, w, false)
-		return
+		stateSaver.SaveStateNack(msg, w, false)
+		return false
 	}
 
 	sentiment := w.analyzeSentiment(movieMetadata.Overview)
@@ -90,25 +90,29 @@ func (w *SentimentWorker) handleMessage(msg *utils.Message) {
 	serialized, err := protocol.Serialize(&movieMetadata)
 	if err != nil {
 		log.Printf("Failed to serialize sentiment analysis: %v", err)
-		sentimentWorkerStateSaver.SaveStateNack(msg, w, false)
-		return
+		stateSaver.SaveStateNack(msg, w, false)
+		return false
 	}
 
 	w.publishQueue.Publish(serialized, msg.ClientId, movieMetadata.ID)
 
-	err = sentimentWorkerStateSaver.SaveStateAck(msg, w)
+	err = stateSaver.SaveStateAck(msg, w)
 	if err != nil {
 		log.Printf("Failed to save state: %v", err)
 	}
-
+	return false
 }
 
 func (w *SentimentWorker) Start() {
 	defer w.queue.CloseChannel()
 	defer w.publishQueue.CloseChannel()
 
+	stateSaver := NewSentimentWorkerStateSaver()
+
 	log.Printf("Starting sentiment worker...")
 	for msg := range w.queue.ConsumeInfinite() {
-		w.handleMessage(&msg)
+		if w.handleMessage(&msg, stateSaver) {
+			break
+		}
 	}
 }
