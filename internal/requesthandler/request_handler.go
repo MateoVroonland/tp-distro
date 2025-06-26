@@ -157,7 +157,15 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 		switch {
 		case msgContent == "CLIENT_ID_REQUEST":
+			s.clientsLock.Lock()
+			if len(s.clients) >= env.AppEnv.MAX_CLIENTS_AMOUNT {
+				log.Printf("Max clients reached, rejecting connection")
+				utils.SendMessage(conn, []byte("MAX_CLIENTS_REACHED"))
+				s.clientsLock.Unlock()
+				return
+			}
 			clientId = s.handleClientIDRequest(conn)
+			s.clientsLock.Unlock()
 			log.Printf("New client connected: %s", clientId)
 		case strings.Contains(msgContent, "WAITING_FOR_RESULTS:"):
 			clientId = strings.Split(msgContent, ":")[1]
@@ -174,9 +182,7 @@ func (s *Server) handleClientConnection(conn net.Conn) {
 
 func (s *Server) handleClientIDRequest(conn net.Conn) string {
 	clientID := utils.GenerateRandomID()
-	s.clientsLock.Lock()
 	s.clients[clientID] = true
-	s.clientsLock.Unlock()
 	utils.SendMessage(conn, []byte(clientID))
 	return clientID
 }
@@ -292,6 +298,14 @@ func (s *Server) handleResultRequest(conn net.Conn, clientId string) bool {
 		}
 
 		utils.SendMessage(conn, resultsBytes)
+		s.clientsLock.Lock()
+		delete(s.clients, clientId)
+		s.clientsLock.Unlock()
+
+		s.resultsChanLock.Lock()
+		delete(s.clientsResultsChan, clientId)
+		s.resultsChanLock.Unlock()
+
 		return true
 	case <-s.shutdownChannel:
 		log.Printf("Shutdown in progress, aborting result wait for client %s", clientId)
@@ -310,6 +324,15 @@ func (s *Server) listenForResults() {
 
 	for d := range resultsConsumer.ConsumeInfinite() {
 		log.Println("Received results from client:", d.ClientId)
+
+		s.clientsLock.Lock()
+		_, exists := s.clients[d.ClientId]
+		s.clientsLock.Unlock()
+		if !exists {
+			log.Printf("Client %s not found, skipping results", d.ClientId)
+			d.Ack()
+			continue
+		}
 
 		s.partialResultsLock.RLock()
 		clientResults := s.partialResults[d.ClientId]

@@ -12,8 +12,8 @@ import (
 // Config holds the application's configuration values.
 type Env struct {
 	// NODE INFO
-	ID           int
-	REPLICAS     int
+	ID       int
+	REPLICAS int
 
 	// RECEIVERS
 	MOVIES_RECEIVER_AMOUNT  int
@@ -40,8 +40,11 @@ type Env struct {
 	SENTIMENT_SINK_AMOUNT int
 	Q3_SINK_AMOUNT        int
 
-	// PYTHON WORKERS
+	// SENTIMENT WORKERS
 	SENTIMENT_WORKER_AMOUNT int
+
+	// CLIENTS
+	MAX_CLIENTS_AMOUNT int
 
 	// RESUSCITATORS
 	// RESUSCITATOR_AMOUNT int

@@ -184,10 +184,14 @@ class Client:
         
         self.current_connection.send_all("CLIENT_ID_REQUEST")
         logger.info("Waiting for client ID")
-        self.client_id = self.current_connection.recv_all().decode('utf-8')
-        if not self.client_id:
-            logger.error("Failed to receive client ID, aborting")
+        response = self.current_connection.recv_all().decode('utf-8')
+        if not response:
+            logger.error("Failed to receive response, aborting")
             return
+        if response == "MAX_CLIENTS_REACHED":
+            logger.error("Max clients reached, try again later please")
+            return
+        self.client_id = response
         logger.info(f"Client ID: {self.client_id}")
             
         try:
