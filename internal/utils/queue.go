@@ -245,7 +245,7 @@ func (q *ConsumerQueue) ConsumeInfinite() iter.Seq[Message] {
 
 				q.sequenceNumbers[message.ClientId][message.ProducerId]++
 
-				if i%100000 == 0 {
+				if i%500_000 == 0 {
 					j := 0
 					for producerId := range q.sequenceNumbers[message.ClientId] {
 						j += q.sequenceNumbers[message.ClientId][producerId]
